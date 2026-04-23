@@ -236,6 +236,15 @@ function formatCompactPrice(value?: number) {
   return `${value.toLocaleString("fr-FR")} €`;
 }
 
+function isVirtualNoSlotWeek(week?: Semaine | null) {
+  return Boolean(
+    week &&
+      week.statut === "ferme" &&
+      !week.note &&
+      (week.destination === "Aucun créneau" || week.destination === "Hors produit")
+  );
+}
+
 function getOfferTypeLabel(semaine?: Semaine | null) {
   if (!semaine) return "Aucune offre";
   const hasPriva = typeof semaine.tarifJourPriva === "number" || typeof semaine.tarif === "number";
@@ -391,6 +400,9 @@ export default function CalendrierDisponibilites() {
   }
 
   const getCalendarColor = (week: Semaine | null | undefined, fallback: Statut) => {
+    if (isVirtualNoSlotWeek(week)) {
+      return "bg-slate-300 text-slate-700 border-slate-400";
+    }
     const rem = remainingPlaces(week);
     if (fallback === "reserve" || fallback === "ferme") return "bg-red-500/90 text-white border-red-600";
     if (typeof rem === "number") {
