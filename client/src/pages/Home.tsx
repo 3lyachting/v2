@@ -170,16 +170,19 @@ function WaveDivider({ fill = "#fff", flip = false }: { fill?: string; flip?: bo
 
 // ── Hero ──────────────────────────────────────────────────────────────────────
 function Hero() {
+  const heroVideoUrl =
+    "https://www.youtube-nocookie.com/embed/8SaiovLCOHQ?autoplay=1&mute=1&controls=0&loop=1&playlist=8SaiovLCOHQ&modestbranding=1&rel=0&playsinline=1&iv_load_policy=3";
+
   return (
     <section className="relative min-h-screen flex items-center overflow-hidden">
-      {/* Hero photo */}
+      {/* Hero video */}
       <div className="absolute inset-0 w-full h-full overflow-hidden">
-        <img
-          src="/photos/IMG_4507.jpeg"
-          alt="Sabine Sailing en navigation"
-          className="w-full h-full object-cover"
-          fetchPriority="high"
-          decoding="async"
+        <iframe
+          src={heroVideoUrl}
+          title="Sabine Sailing video background"
+          className="absolute top-1/2 left-1/2 h-[56.25vw] min-h-full w-[177.78vh] min-w-full -translate-x-1/2 -translate-y-1/2 pointer-events-none"
+          allow="autoplay; encrypted-media; picture-in-picture"
+          referrerPolicy="strict-origin-when-cross-origin"
         />
       </div>
       {/* Overlay gradient */}
