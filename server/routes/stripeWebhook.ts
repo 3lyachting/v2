@@ -7,14 +7,25 @@ import { notifyOwner } from "../_core/notification";
 
 const router = Router();
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || "", {
-  apiVersion: "2024-11-20.acacia" as any,
-});
+function getStripe() {
+  const apiKey = process.env.STRIPE_SECRET_KEY;
+  if (!apiKey) {
+    return null;
+  }
+  return new Stripe(apiKey, {
+    apiVersion: "2024-11-20.acacia" as any,
+  });
+}
 
 const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET || "";
 
 // Cette route DOIT utiliser express.raw (configuré dans _core/index.ts)
 router.post("/", async (req: Request, res: Response) => {
+  const stripe = getStripe();
+  if (!stripe) {
+    return res.status(503).json({ error: "Stripe non configuré (STRIPE_SECRET_KEY manquante)" });
+  }
+
   const signature = req.headers["stripe-signature"] as string;
 
   let event: Stripe.Event;

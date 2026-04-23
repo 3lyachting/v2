@@ -6,13 +6,24 @@ import { eq } from "drizzle-orm";
 
 const router = Router();
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || "", {
-  apiVersion: "2024-11-20.acacia" as any,
-});
+function getStripe() {
+  const apiKey = process.env.STRIPE_SECRET_KEY;
+  if (!apiKey) {
+    return null;
+  }
+  return new Stripe(apiKey, {
+    apiVersion: "2024-11-20.acacia" as any,
+  });
+}
 
 // Créer une session de paiement Stripe Checkout
 router.post("/create-checkout-session", async (req, res) => {
   try {
+    const stripe = getStripe();
+    if (!stripe) {
+      return res.status(503).json({ error: "Stripe non configuré (STRIPE_SECRET_KEY manquante)" });
+    }
+
     const {
       nomClient,
       emailClient,
@@ -145,6 +156,11 @@ router.post("/create-checkout-session", async (req, res) => {
 // Récupérer les détails d'une session après paiement réussi
 router.get("/session/:sessionId", async (req, res) => {
   try {
+    const stripe = getStripe();
+    if (!stripe) {
+      return res.status(503).json({ error: "Stripe non configuré (STRIPE_SECRET_KEY manquante)" });
+    }
+
     const { sessionId } = req.params;
     const session = await stripe.checkout.sessions.retrieve(sessionId);
     res.json({
