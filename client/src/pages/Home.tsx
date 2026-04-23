@@ -45,7 +45,7 @@ function Navbar() {
     <nav
       className={`fixed top-0 left-0 right-0 z-50 transition-all duration-500 ${
         scrolled
-          ? "bg-[oklch(0.98_0.01_90)]/95 backdrop-blur-md shadow-[0_8px_30px_rgba(10,25,45,0.08)] border-b border-[oklch(0.88_0.02_220)]"
+          ? "bg-black/90 backdrop-blur-md shadow-[0_8px_30px_rgba(0,0,0,0.35)] border-b border-white/10"
           : "bg-transparent"
       }`}
     >
@@ -71,20 +71,20 @@ function Navbar() {
               <button
                 key={l.href}
                 onClick={() => scrollTo(l.href)}
-                className={`${scrolled ? "text-[oklch(0.35_0.04_240)] hover:text-[oklch(0.2_0.06_240)]" : "text-white/80 hover:text-white"} text-sm font-medium transition-colors`}
+                className={`${scrolled ? "text-white/90 hover:text-white" : "text-white/80 hover:text-white"} text-sm font-medium transition-colors`}
               >
                 {l.label}
               </button>
             ))}
             <button
               onClick={() => scrollTo("#calendrier")}
-              className={`${scrolled ? "bg-[oklch(0.2_0.06_240)] text-white hover:bg-[oklch(0.16_0.05_240)]" : "bg-white text-[oklch(0.2_0.06_240)] hover:bg-[oklch(0.96_0.01_90)]"} ml-2 px-5 py-2 rounded-full text-sm font-bold transition-all hover:scale-105`}
+              className={`${scrolled ? "bg-white text-black hover:bg-white/90" : "bg-white text-[oklch(0.2_0.06_240)] hover:bg-[oklch(0.96_0.01_90)]"} ml-2 px-5 py-2 rounded-full text-sm font-bold transition-all hover:scale-105`}
             >
               Réserver
             </button>
             <a
               href={withBasePath("/espace-client")}
-              className={`${scrolled ? "border border-[oklch(0.2_0.06_240)] text-[oklch(0.2_0.06_240)] hover:bg-[oklch(0.2_0.06_240)] hover:text-white" : "border border-white/70 text-white hover:bg-white hover:text-[oklch(0.2_0.06_240)]"} px-5 py-2 rounded-full text-sm font-bold transition-all`}
+              className={`${scrolled ? "border border-white/70 text-white hover:bg-white hover:text-black" : "border border-white/70 text-white hover:bg-white hover:text-[oklch(0.2_0.06_240)]"} px-5 py-2 rounded-full text-sm font-bold transition-all`}
             >
               Espace client
             </a>
@@ -92,7 +92,7 @@ function Navbar() {
 
           {/* Mobile burger */}
           <button
-            className={`lg:hidden p-2 transition-colors ${scrolled ? "text-[oklch(0.25_0.04_240)]" : "text-white"}`}
+            className={`lg:hidden p-2 transition-colors ${scrolled ? "text-white" : "text-white"}`}
             onClick={() => setOpen(!open)}
           >
             {open ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
@@ -723,7 +723,7 @@ function SectionEquipage() {
               nom: "Victor",
               age: "34 ans",
               titre: "Capitaine 500 · Skipper hauturier",
-              desc: "Victor est le capitaine de Sabine. Titulaire du brevet capitaine 500, il a navigué sur tous les océans et traversé l'Atlantique plusieurs fois. Passionné de météo et de navigation hauturière, il assure la sécurité et le confort de tous à bord avec calme et professionnalisme.",
+              desc: "Victor est le capitaine de Sabine. Titulaire du brevet capitaine 500, il a navigué en Méditerranée et traversé l'Atlantique plusieurs fois. Passionné de météo et de navigation hauturière, il assure la sécurité et le confort de tous à bord avec calme et professionnalisme.",
               color: "oklch(0.72_0.11_85)",
               img: "/photos/IMG_4385.jpeg",
             },

@@ -444,9 +444,6 @@ export default function CalendrierDisponibilites() {
           <span className="inline-flex items-center gap-1 rounded-full border border-red-600 bg-red-500 px-3 py-1 font-semibold text-white shadow-sm">
             Réservé / fermé
           </span>
-          <span className="inline-flex items-center gap-1 rounded-full border border-orange-500 bg-orange-400 px-3 py-1 font-semibold text-white shadow-sm">
-            Samedi rotation 09/15
-          </span>
         </div>
       </div>
 
@@ -456,42 +453,42 @@ export default function CalendrierDisponibilites() {
           <p className="text-[oklch(0.45_0.04_220)] mt-4">Chargement du calendrier...</p>
         </div>
       ) : (
-        <div className="grid lg:grid-cols-3 gap-10 lg:gap-12">
+        <div className="grid lg:grid-cols-3 gap-6 lg:gap-12">
             {/* Calendrier */}
-            <div className="lg:col-span-2 rounded-2xl border border-[oklch(0.9_0.02_220)] bg-white p-6 shadow-[0_18px_45px_-28px_rgba(15,23,42,0.45)] lg:p-8">
+            <div className="lg:col-span-2 rounded-2xl border border-[oklch(0.9_0.02_220)] bg-white p-3 sm:p-5 lg:p-8 shadow-[0_18px_45px_-28px_rgba(15,23,42,0.45)]">
               {/* Navigation mois */}
-              <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center justify-between mb-4 sm:mb-6">
                 <button
                   onClick={handlePrevMonth}
-                  className="p-2.5 hover:bg-slate-100 rounded-xl transition-colors"
+                  className="p-2 sm:p-2.5 hover:bg-slate-100 rounded-xl transition-colors"
                 >
                   <ChevronLeft className="w-5 h-5 text-[oklch(0.2_0.06_240)]" />
                 </button>
-                <h3 className="text-2xl font-bold tracking-[-0.01em] text-[oklch(0.15_0.05_220)]" style={{ fontFamily: "Syne, sans-serif" }}>
+                <h3 className="text-base sm:text-xl lg:text-2xl font-bold tracking-[-0.01em] text-[oklch(0.15_0.05_220)] text-center px-2" style={{ fontFamily: "Syne, sans-serif" }}>
                   {MOIS_COMPLETS[moisAffiche.getUTCMonth()]} {moisAffiche.getUTCFullYear()}
                 </h3>
                 <button
                   onClick={handleNextMonth}
-                  className="p-2.5 hover:bg-slate-100 rounded-xl transition-colors"
+                  className="p-2 sm:p-2.5 hover:bg-slate-100 rounded-xl transition-colors"
                 >
                   <ChevronRight className="w-5 h-5 text-[oklch(0.2_0.06_240)]" />
                 </button>
               </div>
 
               {/* Jours de la semaine */}
-              <div className="grid grid-cols-7 gap-3 mb-5 rounded-xl bg-[oklch(0.985_0.008_240)] px-3 py-2.5">
+              <div className="grid grid-cols-7 gap-1.5 sm:gap-3 mb-3 sm:mb-5 rounded-xl bg-[oklch(0.985_0.008_240)] px-2 sm:px-3 py-2">
                 {["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"].map(day => (
-                  <div key={day} className="text-center text-sm font-semibold text-[oklch(0.45_0.04_220)]">
+                  <div key={day} className="text-center text-[11px] sm:text-sm font-semibold text-[oklch(0.45_0.04_220)]">
                     {day}
                   </div>
                 ))}
               </div>
 
               {/* Jours du mois */}
-              <div className="grid grid-cols-7 gap-3">
+              <div className="grid grid-cols-7 gap-1.5 sm:gap-3">
                 {days.map((day, i) => {
                   if (!day) {
-                    return <div key={`empty-${i}`} className="aspect-square min-h-[86px]" />;
+                    return <div key={`empty-${i}`} className="aspect-square min-h-[46px] sm:min-h-[86px]" />;
                   }
 
                   const iso = day.toISOString().split("T")[0];
@@ -528,7 +525,7 @@ export default function CalendrierDisponibilites() {
                       key={day.toISOString()}
                       onClick={() => handleDateClick(day)}
                       disabled={!visibleInFilter}
-                      className={`aspect-square min-h-[86px] rounded-xl text-sm font-semibold transition-all duration-200 flex flex-col items-center justify-center leading-tight relative overflow-hidden ${
+                      className={`aspect-square min-h-[46px] sm:min-h-[86px] rounded-lg sm:rounded-xl text-[11px] sm:text-sm font-semibold transition-all duration-200 flex flex-col items-center justify-center leading-tight relative overflow-hidden ${
                         `${turnoverSaturday ? "bg-transparent text-white" : getCalendarColor(semaine, displayStatut)} ${
                           visibleInFilter ? "cursor-pointer hover:scale-[1.02] hover:shadow-lg" : "opacity-25 cursor-not-allowed"
                         } border ${
@@ -543,11 +540,11 @@ export default function CalendrierDisponibilites() {
                           <span className="absolute inset-y-0 left-1/2 w-px bg-white/70" />
                         </>
                       )}
-                      <span className="font-bold">{day.getUTCDate()}</span>
-                      {turnoverSaturday && <span className="text-[9px] opacity-80">09/15</span>}
-                      {priceLabel && <span className="text-[10px] opacity-90">{`${priceLabel}${priceSuffix}`}</span>}
+                      <span className="font-bold text-xs sm:text-sm">{day.getUTCDate()}</span>
+                      {turnoverSaturday && <span className="hidden sm:inline text-[9px] opacity-80">09/15</span>}
+                      {priceLabel && <span className="hidden sm:inline text-[10px] opacity-90">{`${priceLabel}${priceSuffix}`}</span>}
                       {typeof placesLeft === "number" && (
-                        <span className="text-[10px] opacity-80">{placesLeft} pl.</span>
+                        <span className="hidden sm:inline text-[10px] opacity-80">{placesLeft} pl.</span>
                       )}
                     </button>
                   );
