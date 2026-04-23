@@ -610,7 +610,7 @@ export default function Admin() {
                   credentials: "include",
                 });
               } finally {
-                window.location.href = "/home/admin/login";
+                window.location.href = "/admin/login";
               }
             }}
             className="flex items-center gap-2 px-4 py-2 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors"
