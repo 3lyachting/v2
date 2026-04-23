@@ -2,7 +2,7 @@ import { Router } from "express";
 import { and, eq, inArray } from "drizzle-orm";
 import { SignJWT } from "jose";
 import { getDb } from "../db";
-import { cabinesReservees, customers, disponibilites, reservations } from "../../drizzle/schema";
+import { customers, disponibilites, reservations } from "../../drizzle/schema";
 import { notifyOwner } from "../_core/notification";
 import { requireAdmin } from "../_core/authz";
 import { generateCustomerPassword, hashCustomerPassword, sendCustomerPasswordEmail } from "../_core/customerPassword";
@@ -76,6 +76,39 @@ async function refreshDisponibiliteBookingState(db: any, disponibiliteId: number
       updatedAt: new Date(),
     })
     .where(eq(disponibilites.id, disponibiliteId));
+}
+
+async function getConfirmedBookingUsage(db: any, disponibiliteId: number): Promise<{
+  totalCabines: number;
+  reservedUnits: number;
+  hasPrivate: boolean;
+}> {
+  const dispoRows = await db
+    .select()
+    .from(disponibilites)
+    .where(eq(disponibilites.id, disponibiliteId))
+    .limit(1);
+  const dispo = dispoRows[0];
+  const totalCabines = dispo?.capaciteTotale || 4;
+  if (!dispo) {
+    return { totalCabines, reservedUnits: 0, hasPrivate: false };
+  }
+  const confirmedReservations = await db
+    .select()
+    .from(reservations)
+    .where(
+      and(
+        eq(reservations.disponibiliteId, disponibiliteId),
+        inArray(reservations.workflowStatut, ["contrat_signe", "acompte_confirme", "solde_confirme"])
+      )
+    );
+  const hasPrivate = confirmedReservations.some((r: any) => r.typeReservation === "bateau_entier");
+  const reservedUnits = hasPrivate
+    ? totalCabines
+    : confirmedReservations
+        .filter((r: any) => r.typeReservation === "cabine" || r.typeReservation === "place")
+        .reduce((sum: number, r: any) => sum + Math.max(1, r.nbCabines || 1), 0);
+  return { totalCabines, reservedUnits: Math.max(0, reservedUnits), hasPrivate };
 }
 
 async function signCustomerSession(email: string) {
@@ -175,19 +208,17 @@ router.post("/request", async (req, res) => {
       dateFin,
     });
 
-    if (normalizedTypeReservation === "cabine" && parsedDisponibiliteId) {
-      const existingCab = await db
-        .select()
-        .from(cabinesReservees)
-        .where(eq(cabinesReservees.disponibiliteId, parsedDisponibiliteId))
-        .limit(1);
-
-      if (existingCab.length > 0) {
-        const nextReserved = (existingCab[0].nbReservees || 0) + computedNbCabines;
-        const totalCab = existingCab[0].nbTotal || 4;
-        if (nextReserved > totalCab) {
-          return res.status(400).json({ error: `Il ne reste pas assez de cabines disponibles (${totalCab - (existingCab[0].nbReservees || 0)} restantes).` });
-        }
+    if ((normalizedTypeReservation === "cabine" || normalizedTypeReservation === "place") && parsedDisponibiliteId) {
+      const { totalCabines, reservedUnits, hasPrivate } = await getConfirmedBookingUsage(db, parsedDisponibiliteId);
+      if (hasPrivate) {
+        return res.status(400).json({ error: "Ce créneau est déjà privatisé." });
+      }
+      const nextReserved = reservedUnits + computedNbCabines;
+      if (nextReserved > totalCabines) {
+        const remaining = Math.max(0, totalCabines - reservedUnits);
+        return res
+          .status(400)
+          .json({ error: `Il ne reste pas assez de cabines disponibles (${remaining} restante(s)).` });
       }
     }
 
@@ -214,35 +245,8 @@ router.post("/request", async (req, res) => {
 
     const reservationId = inserted[0]?.id;
 
-    if (normalizedTypeReservation === "cabine" && parsedDisponibiliteId) {
-      const existingCab = await db
-        .select()
-        .from(cabinesReservees)
-        .where(eq(cabinesReservees.disponibiliteId, parsedDisponibiliteId))
-        .limit(1);
-
-      if (existingCab.length > 0) {
-        await db
-          .update(cabinesReservees)
-          .set({
-            nbReservees: (existingCab[0].nbReservees || 0) + computedNbCabines,
-            updatedAt: new Date(),
-          })
-          .where(eq(cabinesReservees.disponibiliteId, parsedDisponibiliteId));
-      } else {
-        const dispo = await db
-          .select()
-          .from(disponibilites)
-          .where(eq(disponibilites.id, parsedDisponibiliteId))
-          .limit(1);
-        await db.insert(cabinesReservees).values({
-          disponibiliteId: parsedDisponibiliteId,
-          nbReservees: computedNbCabines,
-          nbTotal: dispo[0]?.capaciteTotale || 4,
-          notes: null,
-        });
-      }
-    }
+    // Ne pas incrémenter cabinesReservees ici:
+    // une "demande" ne doit pas bloquer le planning tant qu'elle n'est pas confirmée.
 
     // Notifier le propriétaire
     const typeResLabels: Record<string, string> = {
