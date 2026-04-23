@@ -602,8 +602,11 @@ export default function Admin() {
     const libres = disponibilites.filter((d) => d.statut === "disponible").length;
     const partiels = disponibilites.filter((d) => d.statut === "option").length;
     const bloques = disponibilites.filter((d) => d.statut === "reserve" || d.statut === "ferme").length;
-    return { total, libres, partiels, bloques };
-  }, [disponibilites]);
+    const totalReserveCents = reservations
+      .filter((r) => (r.requestStatus || "nouvelle") !== "refusee" && (r.requestStatus || "nouvelle") !== "archivee")
+      .reduce((sum, r) => sum + Math.max(0, r.montantTotal || 0), 0);
+    return { total, libres, partiels, bloques, totalReserveCents };
+  }, [disponibilites, reservations]);
 
   const toDayStart = (value: string | Date) => {
     const d = new Date(value);
@@ -1109,7 +1112,7 @@ export default function Admin() {
           </motion.button>
         </div>
 
-        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
+        <div className="grid sm:grid-cols-2 lg:grid-cols-5 gap-3 mb-6">
           <div className="bg-white rounded-lg border border-slate-200 p-4">
             <p className="text-xs uppercase text-slate-500">Total créneaux</p>
             <p className="text-2xl font-bold text-slate-900">{dispoStats.total}</p>
@@ -1125,6 +1128,12 @@ export default function Admin() {
           <div className="bg-white rounded-lg border border-red-200 p-4">
             <p className="text-xs uppercase text-red-700">Bloqués / complets</p>
             <p className="text-2xl font-bold text-red-800">{dispoStats.bloques}</p>
+          </div>
+          <div className="bg-white rounded-lg border border-emerald-200 p-4">
+            <p className="text-xs uppercase text-emerald-700">Total réservé (€)</p>
+            <p className="text-2xl font-bold text-emerald-800">
+              {(dispoStats.totalReserveCents / 100).toLocaleString("fr-FR")}
+            </p>
           </div>
         </div>
 
