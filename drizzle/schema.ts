@@ -26,6 +26,13 @@ export const reservationWorkflowStatutEnum = pgEnum("reservation_workflow_statut
   "solde_attendu",
   "solde_confirme",
 ]);
+export const reservationRequestStatusEnum = pgEnum("reservation_request_status", [
+  "nouvelle",
+  "en_cours",
+  "validee",
+  "refusee",
+  "archivee",
+]);
 export const documentCategoryEnum = pgEnum("document_category", ["identity", "reservation", "boat"]);
 export const esignProviderEnum = pgEnum("esign_provider", ["yousign", "docusign", "other"]);
 
@@ -113,6 +120,7 @@ export const reservations = pgTable("reservations", {
   id: serial("id").primaryKey(),
   // Informations client
   nomClient: varchar("nomClient", { length: 255 }).notNull(),
+  prenomClient: varchar("prenomClient", { length: 120 }),
   emailClient: varchar("emailClient", { length: 320 }).notNull(),
   customerId: integer("customerId"),
   telClient: varchar("telClient", { length: 50 }),
@@ -133,6 +141,9 @@ export const reservations = pgTable("reservations", {
   stripePaymentIntentId: varchar("stripePaymentIntentId", { length: 255 }),
   statutPaiement: statutPaiementEnum("statutPaiement").default("en_attente").notNull(),
   workflowStatut: reservationWorkflowStatutEnum("workflowStatut").default("demande").notNull(),
+  requestStatus: reservationRequestStatusEnum("requestStatus").default("nouvelle").notNull(),
+  internalComment: text("internalComment"),
+  archivedAt: timestamp("archivedAt"),
   acomptePercent: integer("acomptePercent").default(20).notNull(),
   acompteMontant: integer("acompteMontant").default(0).notNull(),
   soldeMontant: integer("soldeMontant").default(0).notNull(),

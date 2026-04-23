@@ -14,6 +14,7 @@ import logoSabine from "/logo-sabine.png";
 interface Reservation {
   id: number;
   nomClient: string;
+  prenomClient?: string | null;
   emailClient: string;
   telClient: string | null;
   nbPersonnes: number;
@@ -41,6 +42,9 @@ interface Reservation {
     | "facture_emise"
     | "solde_attendu"
     | "solde_confirme";
+  requestStatus?: "nouvelle" | "en_cours" | "validee" | "refusee" | "archivee";
+  internalComment?: string | null;
+  archivedAt?: string | null;
   acompteMontant?: number;
   soldeMontant?: number;
   soldeEcheanceAt?: string | null;
@@ -108,6 +112,7 @@ export default function Admin() {
   const [cabinesFormData, setCabinesFormData] = useState({ nbReservees: 0, nbTotal: 4, notes: "" });
   const [reservationFormData, setReservationFormData] = useState<ReservationFormData>({
     nomClient: "",
+    prenomClient: "",
     emailClient: "",
     telClient: "",
     nbPersonnes: 1,
@@ -122,7 +127,61 @@ export default function Admin() {
     heureFin: "00:00",
     statutPaiement: "en_attente",
     workflowStatut: "demande",
+    requestStatus: "nouvelle",
+    internalComment: "",
   });
+  const getDefaultReservationFormData = (): ReservationFormData => ({
+    nomClient: "",
+    prenomClient: "",
+    emailClient: "",
+    telClient: "",
+    nbPersonnes: 1,
+    formule: "semaine",
+    destination: "La Ciotat",
+    dateDebut: "",
+    dateFin: "",
+    montantTotal: 0,
+    typeReservation: "bateau_entier",
+    nbCabines: 1,
+    heureDebut: "09:00",
+    heureFin: "17:00",
+    statutPaiement: "en_attente",
+    workflowStatut: "demande",
+    requestStatus: "nouvelle",
+    internalComment: "",
+  });
+
+  const getRequestStatusLabel = (status?: Reservation["requestStatus"]) => {
+    switch (status) {
+      case "en_cours":
+        return "En cours";
+      case "validee":
+        return "Validée";
+      case "refusee":
+        return "Refusée";
+      case "archivee":
+        return "Archivée";
+      case "nouvelle":
+      default:
+        return "Nouvelle";
+    }
+  };
+
+  const getRequestStatusColor = (status?: Reservation["requestStatus"]) => {
+    switch (status) {
+      case "en_cours":
+        return "bg-blue-100 text-blue-700";
+      case "validee":
+        return "bg-emerald-100 text-emerald-700";
+      case "refusee":
+        return "bg-rose-100 text-rose-700";
+      case "archivee":
+        return "bg-slate-200 text-slate-700";
+      case "nouvelle":
+      default:
+        return "bg-amber-100 text-amber-700";
+    }
+  };
   const toDatePart = (value?: string | Date | null) => {
     if (!value) return "";
     const d = new Date(value);
@@ -749,13 +808,25 @@ export default function Admin() {
         {tab === "reservations" && (
           <div>
             <div className="mb-6">
-              <div>
+              <div className="flex flex-wrap items-center justify-between gap-3">
                 <h2 className="text-3xl font-bold text-blue-900 flex items-center gap-2">
                   <CreditCard className="w-8 h-8" />
                   Demandes de Réservation
                 </h2>
-                <p className="text-slate-600 mt-1">Suivi des demandes de devis clients</p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEditingReservation(null);
+                    setReservationFormData(getDefaultReservationFormData());
+                    setShowReservationForm(true);
+                  }}
+                  className="inline-flex items-center gap-2 rounded-lg bg-blue-900 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-800"
+                >
+                  <Plus className="h-4 w-4" />
+                  Ajouter une résa
+                </button>
               </div>
+              <p className="text-slate-600 mt-1">Suivi des demandes de devis clients</p>
             </div>
             {reservationActionMessage && (
               <div className="mb-4 rounded-lg border border-emerald-300 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-900 shadow-sm">
@@ -779,6 +850,7 @@ export default function Admin() {
                       <th className="text-left px-4 py-3">Dates</th>
                       <th className="text-left px-4 py-3">Pers.</th>
                       <th className="text-right px-4 py-3">Montant</th>
+                      <th className="text-center px-4 py-3">Demande</th>
                       <th className="text-center px-4 py-3">Statut</th>
                       <th className="text-center px-4 py-3">Actions</th>
                     </tr>
@@ -787,7 +859,7 @@ export default function Admin() {
                     {reservations.slice().reverse().map(r => (
                       <tr key={r.id} className="hover:bg-slate-50">
                         <td className="px-4 py-3">
-                          <div className="font-medium text-slate-900">{r.nomClient}</div>
+                          <div className="font-medium text-slate-900">{[r.prenomClient, r.nomClient].filter(Boolean).join(" ") || r.nomClient}</div>
                           <div className="text-slate-500 text-xs">{r.emailClient}</div>
                           {r.telClient && <div className="text-slate-400 text-xs">{r.telClient}</div>}
                           {r.message && (
@@ -824,6 +896,11 @@ export default function Admin() {
                         <td className="px-4 py-3 text-right">
                           <div className="font-bold text-blue-900">{(r.montantTotal / 100).toLocaleString("fr-FR")} €</div>
                           <div className="text-slate-400 text-xs">Estimation</div>
+                        </td>
+                        <td className="px-4 py-3 text-center">
+                          <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ${getRequestStatusColor(r.requestStatus)}`}>
+                            {getRequestStatusLabel(r.requestStatus)}
+                          </span>
                         </td>
                         <td className="px-4 py-3 text-center">
                           {(() => {
@@ -867,6 +944,7 @@ export default function Admin() {
                                 if (reservationActionLoadingId !== null) return;
                                 setReservationFormData({
                                   nomClient: r.nomClient,
+                                  prenomClient: r.prenomClient || "",
                                   emailClient: r.emailClient,
                                   telClient: r.telClient || "",
                                   nbPersonnes: r.nbPersonnes,
@@ -881,6 +959,8 @@ export default function Admin() {
                                   nbCabines: r.nbCabines || 1,
                                   statutPaiement: r.statutPaiement,
                                   workflowStatut: r.workflowStatut || "demande",
+                                  requestStatus: r.requestStatus || "nouvelle",
+                                  internalComment: r.internalComment || "",
                                 });
                                 setEditingReservation(r);
                                 setShowReservationForm(true);
@@ -1721,6 +1801,15 @@ export default function Admin() {
                   />
                 </div>
                 <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Prénom client</label>
+                  <input
+                    type="text"
+                    value={reservationFormData.prenomClient || ""}
+                    onChange={(e) => setReservationFormData({ ...reservationFormData, prenomClient: e.target.value })}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-900"
+                  />
+                </div>
+                <div>
                   <label className="block text-sm font-medium text-slate-700 mb-1">Email</label>
                   <input
                     type="email"
@@ -1856,6 +1945,30 @@ export default function Admin() {
                     <option value="acompte_confirme">Validé (acompte reçu)</option>
                     <option value="solde_confirme">Solde versé</option>
                   </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Statut demande</label>
+                  <select
+                    value={reservationFormData.requestStatus || "nouvelle"}
+                    onChange={(e) => setReservationFormData({ ...reservationFormData, requestStatus: e.target.value as any })}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-900"
+                  >
+                    <option value="nouvelle">Nouvelle</option>
+                    <option value="en_cours">En cours</option>
+                    <option value="validee">Validée</option>
+                    <option value="refusee">Refusée</option>
+                    <option value="archivee">Archivée</option>
+                  </select>
+                </div>
+                <div className="col-span-2">
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Commentaire interne</label>
+                  <textarea
+                    value={reservationFormData.internalComment || ""}
+                    onChange={(e) => setReservationFormData({ ...reservationFormData, internalComment: e.target.value })}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-900 resize-none"
+                    rows={2}
+                    placeholder="Note interne (non visible client)"
+                  />
                 </div>
               </div>
               <div className="flex gap-3 pt-4">

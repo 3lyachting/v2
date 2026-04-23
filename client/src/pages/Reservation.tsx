@@ -96,6 +96,7 @@ export default function Reservation() {
 
   const [form, setForm] = useState({
     nomClient: "",
+    prenomClient: "",
     emailClient: "",
     telClient: "",
     nbPersonnes: 2,
@@ -300,6 +301,7 @@ export default function Reservation() {
   const canSubmit = Boolean(
     selectedStart &&
     form.nomClient.trim() &&
+    form.prenomClient.trim() &&
     form.emailClient.trim() &&
     form.nbPersonnes >= 1 &&
     form.nbPersonnes <= maxPersonnesSelectable &&
@@ -320,6 +322,7 @@ export default function Reservation() {
     try {
       const payload = {
         nomClient: form.nomClient,
+        prenomClient: form.prenomClient,
         emailClient: form.emailClient,
         telClient: form.telClient,
         nbPersonnes: form.nbPersonnes,
@@ -469,7 +472,8 @@ export default function Reservation() {
               <form onSubmit={handleSubmit} className="bg-white/5 border border-white/10 rounded-2xl p-6 space-y-5">
                 <h2 className="text-xl font-bold mb-1 flex items-center gap-2"><Users className="w-5 h-5" />Vos coordonnees</h2>
                 <div className="grid sm:grid-cols-2 gap-4">
-                  <input required value={form.nomClient} onChange={e => setForm(prev => ({ ...prev, nomClient: e.target.value }))} className="w-full bg-white/10 border border-white/20 rounded-xl px-4 py-2.5 text-sm" placeholder="Nom complet *" />
+                  <input required value={form.nomClient} onChange={e => setForm(prev => ({ ...prev, nomClient: e.target.value }))} className="w-full bg-white/10 border border-white/20 rounded-xl px-4 py-2.5 text-sm" placeholder="Nom *" />
+                  <input required value={form.prenomClient} onChange={e => setForm(prev => ({ ...prev, prenomClient: e.target.value }))} className="w-full bg-white/10 border border-white/20 rounded-xl px-4 py-2.5 text-sm" placeholder="Prénom *" />
                   <input value={form.telClient} onChange={e => setForm(prev => ({ ...prev, telClient: e.target.value }))} className="w-full bg-white/10 border border-white/20 rounded-xl px-4 py-2.5 text-sm" placeholder="Telephone" />
                   <input required type="email" value={form.emailClient} onChange={e => setForm(prev => ({ ...prev, emailClient: e.target.value }))} className="w-full bg-white/10 border border-white/20 rounded-xl px-4 py-2.5 text-sm" placeholder="Email (création du compte) *" />
                   <div className="w-full">
@@ -550,7 +554,11 @@ export default function Reservation() {
               <div><p className="text-white/50 text-xs uppercase">Produit</p><p className="font-bold">{formule.label}</p></div>
               <div><p className="text-white/50 text-xs uppercase">Type</p><p className="font-bold">{typeReservation === "bateau_entier" ? "Privatif" : "Par personne"}</p></div>
               <div><p className="text-white/50 text-xs uppercase">Periode</p><p className="font-bold">{selectedStart || "—"} {selectedEnd ? `-> ${selectedEnd}` : ""}</p></div>
+              <div><p className="text-white/50 text-xs uppercase">Disponibilité</p><p className="font-bold">{pricingDispo ? (disponibiliteFreeUnits > 0 || typeReservation === "bateau_entier" ? "Disponible" : "Complet") : "À confirmer"}</p></div>
               <div><p className="text-white/50 text-xs uppercase">Destination</p><p className="font-bold">{destination}</p></div>
+              {typeReservation !== "bateau_entier" && (
+                <div><p className="text-white/50 text-xs uppercase">Cabines restantes</p><p className="font-bold">{disponibiliteFreeUnits}</p></div>
+              )}
               {selectedRule && <div><p className="text-white/50 text-xs uppercase">Regle planning</p><p className="font-bold text-xs">{selectedRule.name}</p></div>}
               <div className="flex items-center gap-2"><Users className="w-4 h-4 text-white/50" /><span>{form.nbPersonnes} personne{form.nbPersonnes > 1 ? "s" : ""}</span></div>
             </div>

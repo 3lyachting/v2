@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { and, eq, inArray } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { SignJWT } from "jose";
 import { getDb } from "../db";
 import { customers, disponibilites, reservations } from "../../drizzle/schema";
@@ -8,108 +8,15 @@ import { requireAdmin } from "../_core/authz";
 import { generateCustomerPassword, hashCustomerPassword, sendCustomerPasswordEmail } from "../_core/customerPassword";
 import { ENV } from "../_core/env";
 import { getSessionCookieOptions } from "../_core/cookies";
+import {
+  getConfirmedBookingUsage,
+  refreshDisponibiliteBookingState,
+  resolveDisponibiliteIdForReservation,
+} from "../_core/bookingRules";
 
 const router = Router();
 const CUSTOMER_COOKIE = "customer_session_id";
 
-async function resolveDisponibiliteIdForReservation(db: any, r: any): Promise<number | null> {
-  if (r.disponibiliteId) return r.disponibiliteId;
-  const rows = await db.select().from(disponibilites);
-  const reservationStart = new Date(r.dateDebut).toISOString().slice(0, 10);
-  const reservationEnd = new Date(r.dateFin).toISOString().slice(0, 10);
-  let match = rows.find((d: any) => {
-    const dStart = new Date(d.debut).toISOString().slice(0, 10);
-    const dEnd = new Date(d.fin).toISOString().slice(0, 10);
-    return dStart === reservationStart && dEnd === reservationEnd;
-  });
-  if (!match) {
-    const rStartMs = new Date(r.dateDebut).getTime();
-    const rEndMs = new Date(r.dateFin).getTime();
-    match = rows.find((d: any) => {
-      const dStartMs = new Date(d.debut).getTime();
-      const dEndMs = new Date(d.fin).getTime();
-      return rStartMs < dEndMs && rEndMs > dStartMs;
-    });
-  }
-  return match?.id || null;
-}
-
-async function refreshDisponibiliteBookingState(db: any, disponibiliteId: number) {
-  const dispoRows = await db.select().from(disponibilites).where(eq(disponibilites.id, disponibiliteId)).limit(1);
-  const dispo = dispoRows[0];
-  if (!dispo) return;
-  if (dispo.planningType && dispo.planningType !== "charter") {
-    await db
-      .update(disponibilites)
-      .set({
-        statut: "ferme",
-        cabinesReservees: 0,
-        updatedAt: new Date(),
-      })
-      .where(eq(disponibilites.id, disponibiliteId));
-    return;
-  }
-  const bookedReservations = await db
-    .select()
-    .from(reservations)
-    .where(
-      and(
-        eq(reservations.disponibiliteId, disponibiliteId),
-        inArray(reservations.workflowStatut, ["contrat_signe", "acompte_confirme", "solde_confirme"])
-      )
-    );
-  const hasPrivate = bookedReservations.some((resv: any) => resv.typeReservation === "bateau_entier");
-  const reservedCabins = hasPrivate
-    ? dispo.capaciteTotale
-    : bookedReservations
-        .filter((resv: any) => resv.typeReservation === "cabine" || resv.typeReservation === "place")
-        .reduce((sum: number, resv: any) => sum + Math.max(1, resv.nbCabines || 1), 0);
-  const clampedReservedCabins = Math.max(0, Math.min(dispo.capaciteTotale || 4, reservedCabins));
-  let statut: "disponible" | "option" | "reserve" = "disponible";
-  if (hasPrivate || clampedReservedCabins >= (dispo.capaciteTotale || 4)) statut = "reserve";
-  else if (clampedReservedCabins > 0) statut = "option";
-  await db
-    .update(disponibilites)
-    .set({
-      statut,
-      cabinesReservees: clampedReservedCabins,
-      updatedAt: new Date(),
-    })
-    .where(eq(disponibilites.id, disponibiliteId));
-}
-
-async function getConfirmedBookingUsage(db: any, disponibiliteId: number): Promise<{
-  totalCabines: number;
-  reservedUnits: number;
-  hasPrivate: boolean;
-}> {
-  const dispoRows = await db
-    .select()
-    .from(disponibilites)
-    .where(eq(disponibilites.id, disponibiliteId))
-    .limit(1);
-  const dispo = dispoRows[0];
-  const totalCabines = dispo?.capaciteTotale || 4;
-  if (!dispo) {
-    return { totalCabines, reservedUnits: 0, hasPrivate: false };
-  }
-  const confirmedReservations = await db
-    .select()
-    .from(reservations)
-    .where(
-      and(
-        eq(reservations.disponibiliteId, disponibiliteId),
-        inArray(reservations.workflowStatut, ["contrat_signe", "acompte_confirme", "solde_confirme"])
-      )
-    );
-  const hasPrivate = confirmedReservations.some((r: any) => r.typeReservation === "bateau_entier");
-  const reservedUnits = hasPrivate
-    ? totalCabines
-    : confirmedReservations
-        .filter((r: any) => r.typeReservation === "cabine" || r.typeReservation === "place")
-        .reduce((sum: number, r: any) => sum + Math.max(1, r.nbCabines || 1), 0);
-  return { totalCabines, reservedUnits: Math.max(0, reservedUnits), hasPrivate };
-}
 
 async function signCustomerSession(email: string) {
   const secret = new TextEncoder().encode(ENV.cookieSecret || "dev-secret");
@@ -125,6 +32,7 @@ router.post("/request", async (req, res) => {
   try {
     const {
       nomClient,
+      prenomClient,
       emailClient,
       telClient,
       nbPersonnes,
@@ -209,13 +117,13 @@ router.post("/request", async (req, res) => {
     });
 
     if ((normalizedTypeReservation === "cabine" || normalizedTypeReservation === "place") && parsedDisponibiliteId) {
-      const { totalCabines, reservedUnits, hasPrivate } = await getConfirmedBookingUsage(db, parsedDisponibiliteId);
+      const { totalUnits, reservedUnits, hasPrivate } = await getConfirmedBookingUsage(db, parsedDisponibiliteId);
       if (hasPrivate) {
         return res.status(400).json({ error: "Ce créneau est déjà privatisé." });
       }
       const nextReserved = reservedUnits + computedNbCabines;
-      if (nextReserved > totalCabines) {
-        const remaining = Math.max(0, totalCabines - reservedUnits);
+      if (nextReserved > totalUnits) {
+        const remaining = Math.max(0, totalUnits - reservedUnits);
         return res
           .status(400)
           .json({ error: `Il ne reste pas assez de cabines disponibles (${remaining} restante(s)).` });
@@ -225,6 +133,7 @@ router.post("/request", async (req, res) => {
     // Créer la réservation en base (en attente de devis)
     const inserted = await db.insert(reservations).values({
       nomClient,
+      prenomClient: prenomClient || null,
       emailClient,
       customerId: customerId || null,
       telClient: telClient || null,
@@ -239,6 +148,7 @@ router.post("/request", async (req, res) => {
       typeReservation: normalizedTypeReservation,
       nbCabines: computedNbCabines,
       message: message || null,
+      requestStatus: "nouvelle",
       disponibiliteId: parsedDisponibiliteId || null,
       statutPaiement: "en_attente", // En attente de devis
     }).returning({ id: reservations.id });
@@ -344,6 +254,7 @@ router.put("/:id", requireAdmin, async (req, res) => {
     const { id } = req.params;
     const {
       nomClient,
+      prenomClient,
       emailClient,
       telClient,
       nbPersonnes,
@@ -358,6 +269,9 @@ router.put("/:id", requireAdmin, async (req, res) => {
       disponibiliteId,
       statutPaiement,
       workflowStatut,
+      requestStatus,
+      internalComment,
+      archivedAt,
     } = req.body;
 
     const db = await getDb();
@@ -392,6 +306,7 @@ router.put("/:id", requireAdmin, async (req, res) => {
 
     await db.update(reservations).set({
       nomClient: nomClient || existing[0].nomClient,
+      prenomClient: prenomClient !== undefined ? prenomClient : existing[0].prenomClient,
       emailClient: emailClient || existing[0].emailClient,
       telClient: telClient !== undefined ? telClient : existing[0].telClient,
       nbPersonnes: parsedNbPersonnes,
@@ -406,6 +321,16 @@ router.put("/:id", requireAdmin, async (req, res) => {
       disponibiliteId: resolvedDisponibiliteId,
       statutPaiement: statutPaiement || existing[0].statutPaiement,
       workflowStatut: workflowStatut || existing[0].workflowStatut,
+      requestStatus: requestStatus || existing[0].requestStatus,
+      internalComment: internalComment !== undefined ? internalComment : existing[0].internalComment,
+      archivedAt:
+        archivedAt !== undefined
+          ? archivedAt
+            ? new Date(archivedAt)
+            : null
+          : (requestStatus || existing[0].requestStatus) === "archivee"
+            ? existing[0].archivedAt || new Date()
+            : existing[0].archivedAt,
       updatedAt: new Date(),
     }).where(eq(reservations.id, parseInt(id)));
 

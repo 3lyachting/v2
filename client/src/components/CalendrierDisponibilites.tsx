@@ -236,6 +236,16 @@ function formatCompactPrice(value?: number) {
   return `${value.toLocaleString("fr-FR")} €`;
 }
 
+function getOfferTypeLabel(semaine?: Semaine | null) {
+  if (!semaine) return "Aucune offre";
+  const hasPriva = typeof semaine.tarifJourPriva === "number" || typeof semaine.tarif === "number";
+  const hasCabine = typeof semaine.tarifCabine === "number" || typeof semaine.tarifJourPersonne === "number";
+  if (hasPriva && hasCabine) return "Privatisation + cabine";
+  if (hasPriva) return "Privatisation";
+  if (hasCabine) return "Cabine";
+  return "À confirmer";
+}
+
 function isIsoInRange(iso: string, start: string, end: string) {
   return iso >= start && iso <= end;
 }
@@ -497,8 +507,9 @@ export default function CalendrierDisponibilites() {
                   const resolved = semaine || {
                     debut: iso,
                     fin: iso,
-                    statut: (inProductWindow ? "disponible" : "ferme") as Statut,
-                    destination: inProductWindow ? "Disponible" : "Hors produit",
+                    // Sans créneau réel en base/API, ne pas afficher "disponible" en vert.
+                    statut: "ferme" as Statut,
+                    destination: inProductWindow ? "Aucun créneau" : "Hors produit",
                   };
                   const visibleInFilter = Boolean(semaine) || inProductWindow;
                   const turnoverSaturday = isTurnoverSaturday(day, semainesFiltrees);
@@ -571,6 +582,13 @@ export default function CalendrierDisponibilites() {
                     <p className="text-xs text-[oklch(0.45_0.04_220)] uppercase font-semibold mb-1">Destination</p>
                     <p className="text-sm font-medium text-[oklch(0.15_0.05_220)]">
                       {semaineSelectionnee.destination}
+                    </p>
+                  </div>
+
+                  <div>
+                    <p className="text-xs text-[oklch(0.45_0.04_220)] uppercase font-semibold mb-1">Offre disponible</p>
+                    <p className="text-sm font-medium text-[oklch(0.15_0.05_220)]">
+                      {getOfferTypeLabel(semaineSelectionnee)}
                     </p>
                   </div>
 
