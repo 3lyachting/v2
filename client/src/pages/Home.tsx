@@ -11,7 +11,7 @@ import { withBasePath } from "@/lib/basePath";
 import {
   Anchor, Wind, Waves, Sun, MapPin, Users, Star,
   Phone, Mail, Instagram, Facebook, ChevronDown,
-  Ship, Compass, Fish, Sunset, ArrowRight, Menu, X
+  Ship, Compass, Fish, Sunset, ArrowRight, Menu, X, MessageCircle
 } from "lucide-react";
 const CalendrierDisponibilites = lazy(() => import("@/components/CalendrierDisponibilites"));
 const AvisGoogle = lazy(() => import("@/components/AvisGoogle"));
@@ -314,8 +314,8 @@ function SectionCatamaran() {
               Sabine
             </h2>
             <p className="mt-4 text-[oklch(0.45_0.04_220)] max-w-2xl mx-auto text-lg">
-              Un Lagoon 570 entièrement rénové en 2025, conçu et fabriqué en France par le Chantier Naval Bordelais. 
-              Confort, performance et respect de l'environnement.
+              Catamaran de 57 pieds entierement modernise en 2025, concu et fabrique en France par le Chantier Naval Bordelais.
+              Nous accueillons volontairement 8 passagers pour privilegier l'espace, le confort et la qualite d'accompagnement.
             </p>
           </div>
         </Reveal>
@@ -362,10 +362,10 @@ function SectionCatamaran() {
               icon: <Ship className="w-6 h-6" />,
               img: "/photos/IMG_4477.jpeg",
               items: [
-                "4 cabines doubles climatisées avec salle de bain privée",
-                "Salon panoramique avec Smart TV 43\" & HiFi",
-                "Cuisine équipée : expresso, dessalinisateur 160L/h, congélateur",
-                "WiFi Starlink, lave-linge, prises 220V & USB dans chaque cabine",
+                "4 cabines doubles climatisees, avec salle de bain et WC prives",
+                "Salon panoramique lumineux, Smart TV et systeme audio HiFi",
+                "Cuisine equipee: machine a glacons, dessalinisateur 160L/h, congelateur",
+                "Rangements, prises 220V/USB et nombreux hublots dans chaque cabine",
               ],
             },
             {
@@ -373,10 +373,10 @@ function SectionCatamaran() {
               icon: <Sun className="w-6 h-6" />,
               img: "/photos/IMG_4485.jpeg",
               items: [
-                "2 trampolines avant pour bronzer & observer les dauphins",
-                "Bain de soleil sur le bimini avec vue 360°",
-                "Cockpit arrière ombragé pour 10 personnes",
-                "Jupes arrières en teck avec douches & échelles de bain",
+                "2 trampolines avant pour bronzer et observer dauphins ou baleines",
+                "Grand bain de soleil sur le bimini avec vue degagee",
+                "Cockpit arriere ombrage confortable pour les repas a bord",
+                "Jupes arriere en teck, echelles de bain et douchettes de pont",
               ],
             },
             {
@@ -384,10 +384,10 @@ function SectionCatamaran() {
               icon: <Waves className="w-6 h-6" />,
               img: "/photos/IMG_4517.jpeg",
               items: [
-                "2 Stand Up Paddles 10,6 pieds",
-                "1 canoë-kayak rigide 2 places",
-                "Palmes, masques, tubas pour tous",
-                "Annexe semi-rigide 4,5m / 25cv",
+                "2 Stand Up Paddles (10,6 pieds)",
+                "1 canoe-kayak rigide 2 places",
+                "Palmes, masques et tubas",
+                "Annexe semi-rigide 4,5 m avec hors-bord 25 cv",
               ],
             },
           ].map((card, i) => (
@@ -437,7 +437,7 @@ function SectionDestinations() {
       img: "/photos/IMG_4414.jpeg",
       titre: "Corse & Sardaigne",
       depart: "La Ciotat / Ajaccio",
-      description: "Naviguez entre les calanques turquoise de Corse et les criques sauvages de Sardaigne. Des mouillages secrets, des villages perchés, une nature préservée et des eaux cristallines — la Méditerranée dans toute sa splendeur.",
+      description: "Naviguez entre Corse et Sardaigne depuis La Ciotat ou Ajaccio: calanques turquoise, mouillages sauvages et escales de caractere. Une Mediterranee authentique, elegante et accessible en toute serenite.",
       points: [
         "Calanques des Calanques de Piana (Corse)",
         "Bonifacio & ses falaises blanches",
@@ -456,7 +456,7 @@ function SectionDestinations() {
       img: "/photos/IMG_4255.jpeg",
       titre: "La Grande Traversée",
       depart: "La Ciotat → Fort-de-France",
-      description: "Une aventure unique : rejoindre les Antilles depuis la Méditerranée à la voile. Via le Cap Vert, vous vivrez 3 semaines d'océan, de navigation hauturière, de nuits étoilées et de rencontres inoubliables.",
+      description: "La grande traversee vers les Antilles: navigation hauturiere, quarts, meteo, vie de bord et nuits etoilees. Une experience rare, encadree par un equipage professionnel.",
       points: [
         "La Ciotat → Gibraltar → Cap Vert",
         "Cap Vert → Fort-de-France (traversée)",
@@ -475,7 +475,7 @@ function SectionDestinations() {
       img: "/photos/IMG_4449.jpeg",
       titre: "Martinique & Grenadines",
       depart: "Fort-de-France / Pointe-à-Pitre",
-      description: "Sous les alizés des Caraïbes, explorez les Grenadines depuis la Martinique. Des îles paradisiaques, des eaux turquoise, des récifs coralliens et une culture créole vibrante vous attendent pour une croisière inoubliable.",
+      description: "Depuis Fort-de-France ou Pointe-a-Pitre, cap sur les Grenadines et les mouillages iconiques des Caraibes. Eaux turquoise, ambiance creole et itineraires adaptes a votre rythme.",
       points: [
         "Les Saintes & Marie-Galante",
         "Tobago Cays (réserve marine)",
@@ -709,11 +709,11 @@ function SectionEquipage() {
         <Reveal>
           <div className="text-center mb-16">
             <span className="inline-block text-[oklch(0.75_0.1_220)] text-sm font-bold tracking-widest uppercase mb-3">L'Équipage</span>
-            <h2 className="text-4xl lg:text-5xl font-extrabold text-white" style={{ fontFamily: "Syne, sans-serif" }}>
-              Victor & l'équipage
+              <h2 className="text-4xl lg:text-5xl font-extrabold text-white" style={{ fontFamily: "Syne, sans-serif" }}>
+              Victor & Lea
             </h2>
             <p className="mt-4 text-white/60 max-w-xl mx-auto">
-              Deux passionnés de mer, forts de plus de 10 ans d'expérience en Méditerranée, Atlantique et Caraïbes.
+              Deux marins professionnels, brevets capitaine 500 UMS et capitaine 200 voile, avec plus de 10 ans d'experience en Mediterranee, Atlantique et Caraibes.
             </p>
           </div>
         </Reveal>
@@ -727,6 +727,14 @@ function SectionEquipage() {
               desc: "Victor est le capitaine de Sabine. Titulaire du brevet capitaine 500, il a navigué en Méditerranée et traversé l'Atlantique plusieurs fois. Passionné de météo et de navigation hauturière, il assure la sécurité et le confort de tous à bord avec calme et professionnalisme.",
               color: "oklch(0.72_0.11_85)",
               img: "/photos/IMG_4385.jpeg",
+            },
+            {
+              nom: "Lea",
+              age: "29 ans",
+              titre: "Capitaine 200 voile · Charpentiere marine",
+              desc: "Lea accompagne les manoeuvres, la vie de bord et les escales. Son approche allie exigence maritime, sens de l'accueil et attention aux details pour un voyage fluide et rassurant.",
+              color: "oklch(0.72_0.11_85)",
+              img: "/photos/IMG_4485.jpeg",
             },
           ].map((p, i) => (
             <Reveal key={p.nom} delay={i * 0.15}>
@@ -844,6 +852,73 @@ function SectionGalerie() {
   );
 }
 
+function SectionInstagramHighlights() {
+  const posts = [
+    "https://www.instagram.com/p/DXeMQkZAYrm/?img_index=1",
+    "https://www.instagram.com/p/DXWk0wFjHeM/",
+    "https://www.instagram.com/p/DXGsetYGgfw/",
+    "https://www.instagram.com/p/DW50d5rDUx2/",
+    "https://www.instagram.com/p/DWy2Z9Wl5C4/",
+    "https://www.instagram.com/p/DWqQ4lNjUKf/?img_index=1",
+    "https://www.instagram.com/p/DWow1veAG5v/",
+    "https://www.instagram.com/p/DWREpkNEWqG/",
+  ];
+
+  return (
+    <section className="py-20 lg:py-24 bg-[oklch(0.985_0.004_95)]">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <Reveal>
+          <div className="text-center mb-10">
+            <span className="inline-block text-[oklch(0.28_0.08_240)] text-sm font-bold tracking-widest uppercase mb-3">Instagram</span>
+            <h2 className="text-4xl lg:text-5xl font-extrabold text-[oklch(0.15_0.05_220)]" style={{ fontFamily: "Syne, sans-serif" }}>
+              Vu sur @sabinesailing
+            </h2>
+            <p className="mt-4 text-[oklch(0.45_0.04_220)] max-w-2xl mx-auto">
+              Extraits reels de vos sorties a bord: navigation, mouillages, ambiance et moments partages avec l'equipage.
+            </p>
+          </div>
+        </Reveal>
+
+        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {posts.map((url, i) => (
+            <Reveal key={url} delay={i * 0.05}>
+              <a
+                href={url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="group block rounded-2xl border border-[oklch(0.9_0.02_220)] bg-white p-5 hover:shadow-lg transition-all"
+              >
+                <div className="flex items-center justify-between">
+                  <div className="text-sm font-bold text-[oklch(0.2_0.06_240)]">Post Instagram #{i + 1}</div>
+                  <Instagram className="w-4 h-4 text-[oklch(0.45_0.03_240)] group-hover:text-[oklch(0.2_0.06_240)]" />
+                </div>
+                <div className="mt-3 text-xs text-[oklch(0.5_0.03_240)] break-all">
+                  {url.replace("https://www.instagram.com/", "instagram.com/")}
+                </div>
+                <div className="mt-4 text-sm font-semibold text-[oklch(0.28_0.08_240)] inline-flex items-center gap-2">
+                  Ouvrir le post <ArrowRight className="w-4 h-4" />
+                </div>
+              </a>
+            </Reveal>
+          ))}
+        </div>
+
+        <div className="mt-8 text-center">
+          <a
+            href="https://www.instagram.com/sabinesailing/"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-2 rounded-full border border-[oklch(0.2_0.06_240)] px-5 py-2.5 text-sm font-bold text-[oklch(0.2_0.06_240)] hover:bg-[oklch(0.2_0.06_240)] hover:text-white transition-all"
+          >
+            <Instagram className="w-4 h-4" />
+            Voir tout le compte Instagram
+          </a>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 // ── Section Contact ───────────────────────────────────────────────────────────
 function SectionContact() {
   const [form, setForm] = useState({ nom: "", email: "", tel: "", message: "", formule: "semaine" });
@@ -892,11 +967,19 @@ function SectionContact() {
               <div className="mb-6 rounded-xl border border-[oklch(0.88_0.02_220)] bg-white px-4 py-3 text-sm text-[oklch(0.35_0.03_240)]">
                 Pour toute demande, merci d'utiliser le formulaire ci-contre.
               </div>
+              <div className="mb-8">
+                <div className="mb-2 text-xs uppercase tracking-[0.08em] text-[oklch(0.48_0.03_240)]">Ports de depart</div>
+                <p className="text-sm text-[oklch(0.35_0.03_240)] leading-relaxed">
+                  La Ciotat, Figari, Olbia, Pointe-a-Pitre, Fort-de-France
+                  <span className="text-[oklch(0.5_0.03_240)]"> (autres departs possibles sur demande)</span>
+                </p>
+              </div>
 
               <div className="space-y-4 mb-10">
                 {[
                   { icon: <Phone className="w-5 h-5" />, label: "Téléphone", val: "+33 6 52 00 43 42" },
                   { icon: <Mail className="w-5 h-5" />, label: "Email", val: "contact@sabine-sailing.com" },
+                  { icon: <MessageCircle className="w-5 h-5" />, label: "WhatsApp", val: "+33 6 52 00 43 42" },
                   { icon: <MapPin className="w-5 h-5" />, label: "Base principale", val: "La Ciotat, Parc National des Calanques" },
                 ].map(c => (
                   <div key={c.label} className="flex items-center gap-4">
@@ -913,8 +996,9 @@ function SectionContact() {
 
               <div className="flex gap-3">
                 {[
-                  { icon: <Instagram className="w-5 h-5" />, href: "https://www.instagram.com/sabine.sailing/", label: "Instagram" },
+                  { icon: <Instagram className="w-5 h-5" />, href: "https://www.instagram.com/sabinesailing/", label: "Instagram" },
                   { icon: <Facebook className="w-5 h-5" />, href: "https://www.facebook.com/sabinesailing/", label: "Facebook" },
+                  { icon: <MessageCircle className="w-5 h-5" />, href: "https://wa.me/33652004342", label: "WhatsApp" },
                 ].map(s => (
                   <a
                     key={s.label}
@@ -1118,6 +1202,32 @@ function Footer() {
   );
 }
 
+function MobileStickyCTA() {
+  return (
+    <div className="fixed bottom-0 left-0 right-0 z-50 border-t border-black/10 bg-white/95 px-3 py-2 backdrop-blur md:hidden">
+      <div className="mx-auto flex max-w-7xl items-center gap-2">
+        <button
+          type="button"
+          onClick={() => document.querySelector("#calendrier")?.scrollIntoView({ behavior: "smooth" })}
+          className="flex-1 rounded-xl bg-[oklch(0.2_0.06_240)] px-4 py-3 text-sm font-bold text-white"
+        >
+          Voir les disponibilités
+        </button>
+        <a
+          href="https://wa.me/33652004342"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-2 rounded-xl border border-[oklch(0.2_0.06_240)] px-3 py-3 text-xs font-bold text-[oklch(0.2_0.06_240)]"
+          aria-label="Contacter Sabine Sailing sur WhatsApp"
+        >
+          <MessageCircle className="h-4 w-4" />
+          WhatsApp
+        </a>
+      </div>
+    </div>
+  );
+}
+
 // ── Page principale ───────────────────────────────────────────────────────────
 export default function Home() {
   useEffect(() => {
@@ -1149,7 +1259,7 @@ export default function Home() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-white pb-20 md:pb-0">
       <Navbar />
       <Hero />
       <SectionCatamaran />
@@ -1158,11 +1268,13 @@ export default function Home() {
       <SectionEquipage />
       <SectionCalendrier />
       <SectionGalerie />
+      <SectionInstagramHighlights />
       <Suspense fallback={<div className="py-10 text-center text-sm text-[oklch(0.45_0.04_220)]">Chargement des avis...</div>}>
         <AvisGoogle />
       </Suspense>
       <SectionContact />
       <Footer />
+      <MobileStickyCTA />
     </div>
   );
 }
