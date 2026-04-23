@@ -15,7 +15,12 @@ export default function AdminLogin() {
         const response = await fetch("/api/admin-auth/me", {
           credentials: "include",
         });
-        if (response.ok) {
+        const contentType = response.headers.get("content-type") || "";
+        if (!response.ok || !contentType.includes("application/json")) {
+          return;
+        }
+        const payload = await response.json().catch(() => null);
+        if (payload?.role === "admin") {
           setLocation("/admin");
         }
       } catch {

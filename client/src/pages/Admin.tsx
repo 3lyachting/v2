@@ -144,13 +144,19 @@ export default function Admin() {
         const response = await fetch("/api/admin-auth/me", {
           credentials: "include",
         });
-        if (!response.ok) {
-          window.location.href = "/home/admin/login";
+        const contentType = response.headers.get("content-type") || "";
+        if (!response.ok || !contentType.includes("application/json")) {
+          window.location.href = "/admin/login";
+          return;
+        }
+        const payload = await response.json().catch(() => null);
+        if (payload?.role !== "admin") {
+          window.location.href = "/admin/login";
           return;
         }
         setAuthOk(true);
       } catch {
-        window.location.href = "/home/admin/login";
+        window.location.href = "/admin/login";
       } finally {
         setAuthChecked(true);
       }
