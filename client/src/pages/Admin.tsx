@@ -75,6 +75,11 @@ interface CabinesReservees {
   updatedAt: string;
 }
 
+type ReservationFormData = Partial<Reservation> & {
+  heureDebut?: string;
+  heureFin?: string;
+};
+
 export default function Admin() {
   const [authChecked, setAuthChecked] = useState(false);
   const [authOk, setAuthOk] = useState(false);
@@ -101,7 +106,7 @@ export default function Admin() {
     Record<number, { quoteUrl: string | null; contractUrl: string | null }>
   >({});
   const [cabinesFormData, setCabinesFormData] = useState({ nbReservees: 0, nbTotal: 4, notes: "" });
-  const [reservationFormData, setReservationFormData] = useState<Partial<Reservation>>({
+  const [reservationFormData, setReservationFormData] = useState<ReservationFormData>({
     nomClient: "",
     emailClient: "",
     telClient: "",
@@ -113,9 +118,34 @@ export default function Admin() {
     montantTotal: 0,
     typeReservation: "cabine",
     nbCabines: 1,
+    heureDebut: "00:00",
+    heureFin: "00:00",
     statutPaiement: "en_attente",
     workflowStatut: "demande",
   });
+  const toDatePart = (value?: string | Date | null) => {
+    if (!value) return "";
+    const d = new Date(value);
+    if (Number.isNaN(d.getTime())) return "";
+    return d.toISOString().split("T")[0];
+  };
+
+  const toTimePart = (value?: string | Date | null) => {
+    if (!value) return "00:00";
+    const d = new Date(value);
+    if (Number.isNaN(d.getTime())) return "00:00";
+    const hh = String(d.getUTCHours()).padStart(2, "0");
+    const mm = String(d.getUTCMinutes()).padStart(2, "0");
+    return `${hh}:${mm}`;
+  };
+
+  const buildReservationIso = (dateValue: string | undefined, timeValue: string | undefined) => {
+    const safeDate = dateValue || new Date().toISOString().split("T")[0];
+    const safeTime = timeValue && /^\d{2}:\d{2}$/.test(timeValue) ? timeValue : "00:00";
+    const [y, m, d] = safeDate.split("-").map(Number);
+    const [hh, mm] = safeTime.split(":").map(Number);
+    return new Date(Date.UTC(y, (m || 1) - 1, d || 1, hh || 0, mm || 0, 0, 0)).toISOString();
+  };
   const [formData, setFormData] = useState<{
     planningType: "charter" | "technical_stop" | "maintenance" | "blocked";
     debut: string;
@@ -760,10 +790,15 @@ export default function Admin() {
                             const jours = ["dim", "lun", "mar", "mer", "jeu", "ven", "sam"];
                             const jourDebut = jours[debut.getUTCDay()];
                             const jourFin = jours[fin.getUTCDay()];
+                            const heureDebut = `${String(debut.getUTCHours()).padStart(2, "0")}:${String(debut.getUTCMinutes()).padStart(2, "0")}`;
+                            const heureFin = `${String(fin.getUTCHours()).padStart(2, "0")}:${String(fin.getUTCMinutes()).padStart(2, "0")}`;
+                            const showHours = heureDebut !== "00:00" || heureFin !== "00:00";
                             return (
                               <>
                                 {jourDebut} {debut.toLocaleDateString("fr-FR", { day: "2-digit", month: "short", timeZone: "UTC" })}
+                                {showHours && ` ${heureDebut}`}
                                 <br />→ {jourFin} {fin.toLocaleDateString("fr-FR", { day: "2-digit", month: "short", year: "2-digit", timeZone: "UTC" })}
+                                {showHours && ` ${heureFin}`}
                               </>
                             );
                           })()}
@@ -820,8 +855,10 @@ export default function Admin() {
                                   nbPersonnes: r.nbPersonnes,
                                   formule: r.formule,
                                   destination: r.destination,
-                                  dateDebut: new Date(r.dateDebut).toISOString().split("T")[0],
-                                  dateFin: new Date(r.dateFin).toISOString().split("T")[0],
+                                  dateDebut: toDatePart(r.dateDebut),
+                                  dateFin: toDatePart(r.dateFin),
+                                  heureDebut: toTimePart(r.dateDebut),
+                                  heureFin: toTimePart(r.dateFin),
                                   montantTotal: r.montantTotal,
                                   typeReservation: r.typeReservation || "cabine",
                                   nbCabines: r.nbCabines || 1,
@@ -1548,6 +1585,28 @@ export default function Admin() {
             <h3 className="text-lg font-bold text-blue-900 mb-4">
               {editingReservation ? "Éditer la réservation" : "Ajouter une réservation"}
             </h3>
+            <div className="mb-4 flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() =>
+                  setReservationFormData((prev) => ({
+                    ...prev,
+                    formule: "sortie_privee",
+                    destination: "La Ciotat",
+                    typeReservation: "bateau_entier",
+                    nbPersonnes: 8,
+                    nbCabines: 1,
+                    montantTotal: 87000,
+                    heureDebut: "16:00",
+                    heureFin: "21:00",
+                    workflowStatut: "demande",
+                  }))
+                }
+                className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-900 hover:bg-blue-100"
+              >
+                Pre-remplir sortie privative 16h-21h
+              </button>
+            </div>
             <form
               onSubmit={async (e) => {
                 e.preventDefault();
@@ -1585,6 +1644,8 @@ export default function Admin() {
                         headers: { "Content-Type": "application/json" },
                         body: JSON.stringify({
                           ...payload,
+                          dateDebut: buildReservationIso(payload.dateDebut as string, payload.heureDebut),
+                          dateFin: buildReservationIso(payload.dateFin as string, payload.heureFin),
                           nbPersonnes: safeNbPersonnes,
                           typeReservation: selectedTypeReservation,
                           nbCabines: computedNbCabines,
@@ -1600,8 +1661,8 @@ export default function Admin() {
                           nbPersonnes: safeNbPersonnes,
                           formule: payload.formule || "semaine",
                           destination: payload.destination || "Mediterranee",
-                          dateDebut: `${payload.dateDebut || new Date().toISOString().split("T")[0]}T00:00:00.000Z`,
-                          dateFin: `${payload.dateFin || new Date().toISOString().split("T")[0]}T00:00:00.000Z`,
+                          dateDebut: buildReservationIso(payload.dateDebut as string, payload.heureDebut),
+                          dateFin: buildReservationIso(payload.dateFin as string, payload.heureFin),
                           montantTotal: Math.round(Number(payload.montantTotal || 0)),
                           typeReservation: selectedTypeReservation,
                           nbCabines: computedNbCabines,
@@ -1721,11 +1782,29 @@ export default function Admin() {
                   />
                 </div>
                 <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Heure début</label>
+                  <input
+                    type="time"
+                    value={reservationFormData.heureDebut || "00:00"}
+                    onChange={(e) => setReservationFormData({ ...reservationFormData, heureDebut: e.target.value })}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-900"
+                  />
+                </div>
+                <div>
                   <label className="block text-sm font-medium text-slate-700 mb-1">Date fin</label>
                   <input
                     type="date"
                     value={reservationFormData.dateFin || ""}
                     onChange={(e) => setReservationFormData({ ...reservationFormData, dateFin: e.target.value })}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-900"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Heure fin</label>
+                  <input
+                    type="time"
+                    value={reservationFormData.heureFin || "00:00"}
+                    onChange={(e) => setReservationFormData({ ...reservationFormData, heureFin: e.target.value })}
                     className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-900"
                   />
                 </div>

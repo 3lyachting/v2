@@ -22,8 +22,12 @@ function Navbar() {
   const [open, setOpen] = useState(false);
 
   useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 40);
-    window.addEventListener("scroll", onScroll);
+    const onScroll = () => {
+      const nextScrolled = window.scrollY > 40;
+      setScrolled(prev => (prev === nextScrolled ? prev : nextScrolled));
+    };
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
@@ -45,7 +49,7 @@ function Navbar() {
     <nav
       className={`fixed top-0 left-0 right-0 z-50 transition-all duration-500 ${
         scrolled
-          ? "bg-black/90 backdrop-blur-md shadow-[0_8px_30px_rgba(0,0,0,0.35)] border-b border-white/10"
+          ? "bg-black/92 shadow-[0_8px_24px_rgba(0,0,0,0.28)] border-b border-white/10"
           : "bg-transparent"
       }`}
     >
@@ -61,7 +65,7 @@ function Navbar() {
             <img
               src="/logo-sabine.png"
               alt="Sabine Sailing"
-              className={`w-auto transition-all duration-500 ease-out mix-blend-screen ${scrolled ? "h-16 lg:h-20" : "h-28 lg:h-32"}`}
+              className={`w-auto object-contain transition-all duration-500 ease-out ${scrolled ? "h-16 lg:h-20" : "h-28 lg:h-32"}`}
             />
           </button>
 
@@ -102,7 +106,7 @@ function Navbar() {
 
       {/* Mobile menu */}
       {open && (
-        <div className="lg:hidden bg-[oklch(0.15_0.05_220)]/98 backdrop-blur-md border-t border-white/10">
+        <div className="lg:hidden bg-[oklch(0.15_0.05_220)]/98 border-t border-white/10">
           <div className="px-4 py-4 space-y-2">
             {navLinks.map(l => (
               <button
@@ -184,15 +188,9 @@ function Hero() {
       {/* Animated waves overlay */}
       <div className="absolute bottom-0 left-0 right-0">
         <svg viewBox="0 0 1440 120" preserveAspectRatio="none" className="w-full" style={{ height: 80 }}>
-          <motion.path
+          <path
             d="M0,60 C240,100 480,20 720,60 C960,100 1200,20 1440,60 L1440,120 L0,120 Z"
             fill="white"
-            animate={{ d: [
-              "M0,60 C240,100 480,20 720,60 C960,100 1200,20 1440,60 L1440,120 L0,120 Z",
-              "M0,40 C240,80 480,0 720,40 C960,80 1200,0 1440,40 L1440,120 L0,120 Z",
-              "M0,60 C240,100 480,20 720,60 C960,100 1200,20 1440,60 L1440,120 L0,120 Z",
-            ]}}
-            transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}
           />
         </svg>
       </div>
