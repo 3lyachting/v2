@@ -7,6 +7,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import { Plus, Edit2, Trash2, Calendar, LogOut, Anchor, CreditCard, Check, Clock, X, Link2, FileText, Users, Wrench, ChevronLeft, ChevronRight } from "lucide-react";
+import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import ConfigIcal from "@/components/ConfigIcal";
 import BackofficeOps from "@/components/BackofficeOps";
 import logoSabine from "/logo-sabine.png";
@@ -87,7 +88,7 @@ type ReservationFormData = Partial<Reservation> & {
 export default function Admin() {
   const [authChecked, setAuthChecked] = useState(false);
   const [authOk, setAuthOk] = useState(false);
-  const [tab, setTab] = useState<"disponibilites" | "reservations" | "config" | "documents" | "equipage" | "maintenance" | string>("disponibilites");
+  const [tab, setTab] = useState<"disponibilites" | "reservations" | "finances" | "config" | "documents" | "equipage" | "maintenance" | string>("disponibilites");
   const [reservations, setReservations] = useState<Reservation[]>([]);
   const [disponibilites, setDisponibilites] = useState<Disponibilite[]>([]);
   const [cabinesMap, setCabinesMap] = useState<Record<number, CabinesReservees>>({});
@@ -608,6 +609,44 @@ export default function Admin() {
     return { total, libres, partiels, bloques, totalReserveCents };
   }, [disponibilites, reservations]);
 
+  const financeMetrics = useMemo(() => {
+    const confirmed = reservations.filter((r) => ["acompte_confirme", "solde_confirme"].includes(r.workflowStatut || ""));
+    const totalAcomptesCents = confirmed.reduce((sum, r) => sum + Math.max(0, r.montantPaye || 0), 0);
+    const totalResasValideesCents = confirmed.reduce((sum, r) => sum + Math.max(0, r.montantTotal || 0), 0);
+    return { totalAcomptesCents, totalResasValideesCents };
+  }, [reservations]);
+
+  const financeChartData = useMemo(() => {
+    const monthMap = new Map<string, { label: string; acomptesCents: number; validesCents: number }>();
+    const now = new Date();
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - i, 1));
+      const key = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
+      monthMap.set(key, {
+        label: d.toLocaleDateString("fr-FR", { month: "short", year: "2-digit", timeZone: "UTC" }),
+        acomptesCents: 0,
+        validesCents: 0,
+      });
+    }
+
+    for (const r of reservations) {
+      if (!["acompte_confirme", "solde_confirme"].includes(r.workflowStatut || "")) continue;
+      const createdAt = new Date(r.createdAt);
+      if (Number.isNaN(createdAt.getTime())) continue;
+      const key = `${createdAt.getUTCFullYear()}-${String(createdAt.getUTCMonth() + 1).padStart(2, "0")}`;
+      const bucket = monthMap.get(key);
+      if (!bucket) continue;
+      bucket.acomptesCents += Math.max(0, r.montantPaye || 0);
+      bucket.validesCents += Math.max(0, r.montantTotal || 0);
+    }
+
+    return Array.from(monthMap.values()).map((row) => ({
+      ...row,
+      acomptes: Math.round(row.acomptesCents / 100),
+      valides: Math.round(row.validesCents / 100),
+    }));
+  }, [reservations]);
+
   const toDayStart = (value: string | Date) => {
     const d = new Date(value);
     return new Date(d.getFullYear(), d.getMonth(), d.getDate());
@@ -799,6 +838,16 @@ export default function Admin() {
           >
             <Wrench className="w-4 h-4" /> Maintenance
           </button>
+          <button
+            onClick={() => setTab("finances")}
+            className={`px-5 py-3 font-semibold text-sm flex items-center gap-2 border-b-2 transition-colors ${
+              tab === "finances"
+                ? "text-blue-900 border-blue-900"
+                : "text-slate-500 border-transparent hover:text-slate-700"
+            }`}
+          >
+            <CreditCard className="w-4 h-4" /> Finances
+          </button>
         </div>
 
         {/* Vue Synchronisation iCal */}
@@ -806,6 +855,52 @@ export default function Admin() {
         {tab === "documents" && <BackofficeOps mode="documents" />}
         {tab === "equipage" && <BackofficeOps mode="crew" />}
         {tab === "maintenance" && <BackofficeOps mode="maintenance" />}
+        {tab === "finances" && (
+          <div className="space-y-6">
+            <div>
+              <h2 className="text-3xl font-bold text-blue-900 flex items-center gap-2">
+                <CreditCard className="w-8 h-8" />
+                Finances
+              </h2>
+              <p className="text-slate-600 mt-1">Suivi des acomptes encaissés et des réservations validées</p>
+            </div>
+
+            <div className="grid sm:grid-cols-2 gap-4">
+              <div className="bg-white rounded-xl border border-emerald-200 p-5 shadow-sm">
+                <p className="text-xs uppercase text-emerald-700">Total acomptes encaissés (€)</p>
+                <p className="mt-2 text-3xl font-extrabold text-emerald-800">
+                  {(financeMetrics.totalAcomptesCents / 100).toLocaleString("fr-FR")}
+                </p>
+              </div>
+              <div className="bg-white rounded-xl border border-blue-200 p-5 shadow-sm">
+                <p className="text-xs uppercase text-blue-700">Total résas validées (€)</p>
+                <p className="mt-2 text-3xl font-extrabold text-blue-900">
+                  {(financeMetrics.totalResasValideesCents / 100).toLocaleString("fr-FR")}
+                </p>
+              </div>
+            </div>
+
+            <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm">
+              <p className="text-sm font-semibold text-slate-800 mb-4">Évolution mensuelle (6 derniers mois)</p>
+              <div className="h-[320px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={financeChartData}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="label" />
+                    <YAxis tickFormatter={(value) => `${Number(value).toLocaleString("fr-FR")}€`} />
+                    <Tooltip
+                      formatter={(value: any) => `${Number(value).toLocaleString("fr-FR")} €`}
+                      labelFormatter={(label) => `Période: ${label}`}
+                    />
+                    <Legend />
+                    <Bar dataKey="acomptes" name="Acomptes encaissés" fill="#10b981" radius={[6, 6, 0, 0]} />
+                    <Bar dataKey="valides" name="Résas validées" fill="#1d4ed8" radius={[6, 6, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Vue Réservations */}
         {tab === "reservations" && (
