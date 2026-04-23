@@ -5,7 +5,7 @@ export async function requireAdmin(req: Request, res: Response, next: NextFuncti
   // Security-first default: never bypass auth unless explicitly requested.
   // This avoids accidental open admin access when NODE_ENV is unset/misconfigured in hosting.
   const bypassEnabled =
-    process.env.NODE_ENV !== "production" &&
+    process.env.NODE_ENV === "development" &&
     process.env.ADMIN_AUTH_BYPASS === "true";
   if (bypassEnabled) {
     return next();

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useLocation } from "wouter";
 import { Anchor, LogIn } from "lucide-react";
 
@@ -8,27 +8,6 @@ export default function AdminLogin() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-
-  useEffect(() => {
-    const checkSession = async () => {
-      try {
-        const response = await fetch("/api/admin-auth/me", {
-          credentials: "include",
-        });
-        const contentType = response.headers.get("content-type") || "";
-        if (!response.ok || !contentType.includes("application/json")) {
-          return;
-        }
-        const payload = await response.json().catch(() => null);
-        if (payload?.role === "admin") {
-          setLocation("/admin");
-        }
-      } catch {
-        // ignore
-      }
-    };
-    void checkSession();
-  }, [setLocation]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
