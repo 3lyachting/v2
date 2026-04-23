@@ -2,7 +2,10 @@ import type { NextFunction, Request, Response } from "express";
 import { sdk } from "./sdk";
 
 export async function requireAdmin(req: Request, res: Response, next: NextFunction) {
-  if (process.env.NODE_ENV !== "production") {
+  // Security-first default: never bypass auth unless explicitly requested.
+  // This avoids accidental open admin access when NODE_ENV is unset/misconfigured in hosting.
+  const bypassEnabled = process.env.ADMIN_AUTH_BYPASS === "true";
+  if (bypassEnabled) {
     return next();
   }
   try {
