@@ -1,0 +1,9 @@
+services:
+  - type: web
+    name: catamaran-croisieres
+    env: node
+    plan: free
+    autoDeploy: true
+    buildCommand: corepack enable && pnpm install --frozen-lockfile && pnpm build
+    startCommand: node dist/index.js
+    healthCheckPath: /
