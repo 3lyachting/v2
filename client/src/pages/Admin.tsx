@@ -338,6 +338,23 @@ export default function Admin() {
     setShowForm(true);
   };
 
+  const handleCreateFromEmptyDay = (day: Date) => {
+    const dayIso = day.toISOString().split("T")[0];
+    setEditingId(null);
+    setFormData({
+      planningType: "charter",
+      debut: `${dayIso}T09:00`,
+      fin: `${dayIso}T17:00`,
+      statut: "disponible",
+      tarif: "",
+      tarifCabine: "",
+      destination: "La Ciotat",
+      note: "",
+      notePublique: "",
+    });
+    setShowForm(true);
+  };
+
   const handleDelete = async (id: number) => {
     if (!confirm("Êtes-vous sûr de vouloir supprimer cette disponibilité ?")) return;
     try {
@@ -1375,7 +1392,14 @@ export default function Admin() {
                     <button
                       key={day.toISOString()}
                       type="button"
-                      onClick={() => setSelectedCalendarDispo(dispo)}
+                      onClick={() => {
+                        if (dispo) {
+                          setSelectedCalendarDispo(dispo);
+                          return;
+                        }
+                        setSelectedCalendarDispo(null);
+                        handleCreateFromEmptyDay(day);
+                      }}
                       className={`aspect-square rounded-lg border text-xs font-semibold transition-colors ${
                         dispo ? `${getStatutColor(dispo.statut)}` : "bg-slate-50 text-slate-400 border-slate-200"
                       } ${isSelected ? "ring-2 ring-blue-900 ring-offset-1" : ""}`}
@@ -1474,7 +1498,9 @@ export default function Admin() {
                   </div>
                 </div>
               ) : (
-                <p className="text-sm text-slate-500">Cliquez sur une semaine dans le calendrier pour afficher ses détails.</p>
+                <p className="text-sm text-slate-500">
+                  Cliquez sur un créneau pour voir ses détails, ou sur une case vide pour créer un nouveau créneau prérempli.
+                </p>
               )}
             </div>
           </div>
