@@ -262,12 +262,30 @@ function isIsoInRange(iso: string, start: string, end: string) {
   return iso >= start && iso <= end;
 }
 
+function isLaCiotatDayTripSeason(isoDay: string) {
+  return isIsoInRange(isoDay, "2026-04-01", "2026-05-31");
+}
+
+function buildLaCiotatDayTripSlot(isoDay: string): Semaine {
+  return {
+    debut: isoDay,
+    fin: isoDay,
+    statut: "disponible",
+    destination: "La Ciotat · Sortie journée",
+    tarifJourPriva: 900,
+    tarifJourPersonne: 130,
+    tarifCabine: 130,
+    note: "Sortie journée: 900€ bateau entier ou 130€ par personne.",
+    produit: "croisiere_mediterranee",
+  };
+}
+
 function isDayInProductWindow(isoDay: string, produit: "tous" | "croisiere_mediterranee" | "transatlantique" | "croisiere_caraibes") {
   if (produit === "tous") return true;
   if (produit === "croisiere_mediterranee") {
     const d = parseDate(isoDay);
     const m = d.getUTCMonth() + 1;
-    return m >= 6 && m <= 9;
+    return (m >= 6 && m <= 9) || isLaCiotatDayTripSeason(isoDay);
   }
   if (produit === "transatlantique") {
     return isIsoInRange(isoDay, "2026-11-01", "2026-11-10") || isIsoInRange(isoDay, "2027-04-01", "2027-05-01");
@@ -355,6 +373,11 @@ export default function CalendrierDisponibilites() {
     const semaine = getSemaineForDate(date, semainesFiltrees);
     if (semaine) {
       setSemaineSelectionnee(semaine);
+      return;
+    }
+    const iso = date.toISOString().split("T")[0];
+    if (isLaCiotatDayTripSeason(iso) && (produitFiltre === "tous" || produitFiltre === "croisiere_mediterranee")) {
+      setSemaineSelectionnee(buildLaCiotatDayTripSlot(iso));
       return;
     }
     const { start, end } = getSaturdayToSaturdayWindow(date);
@@ -524,14 +547,17 @@ export default function CalendrierDisponibilites() {
                   const iso = day.toISOString().split("T")[0];
                   const semaine = getSemaineForDate(day, semainesFiltrees);
                   const inProductWindow = isDayInProductWindow(iso, produitFiltre);
-                  const resolved = semaine || {
-                    debut: iso,
-                    fin: iso,
-                    // Sans créneau réel en base/API, ne pas afficher "disponible" en vert.
-                    statut: "ferme" as Statut,
-                    destination: inProductWindow ? "Aucun créneau" : "Hors produit",
-                  };
-                  const visibleInFilter = Boolean(semaine) || inProductWindow;
+                  const isDayTrip = isLaCiotatDayTripSeason(iso) && (produitFiltre === "tous" || produitFiltre === "croisiere_mediterranee");
+                  const resolved = semaine || (isDayTrip
+                    ? buildLaCiotatDayTripSlot(iso)
+                    : {
+                        debut: iso,
+                        fin: iso,
+                        // Sans créneau réel en base/API, ne pas afficher "disponible" en vert.
+                        statut: "ferme" as Statut,
+                        destination: inProductWindow ? "Aucun créneau" : "Hors produit",
+                      });
+                  const visibleInFilter = Boolean(semaine) || inProductWindow || isDayTrip;
                   const turnoverSaturday = isTurnoverSaturday(day, semainesFiltrees);
                   const displayStatut: Statut = turnoverSaturday ? "option" : resolved.statut;
                   const endingWeek = turnoverSaturday ? getWeekForBoundary(iso, semainesFiltrees, "fin") : null;
@@ -557,7 +583,7 @@ export default function CalendrierDisponibilites() {
                       onClick={() => handleDateClick(day)}
                       disabled={!visibleInFilter}
                       className={`aspect-square min-h-[46px] sm:min-h-[86px] rounded-lg sm:rounded-xl text-[11px] sm:text-sm font-semibold transition-all duration-200 flex flex-col items-center justify-center leading-tight relative overflow-hidden ${
-                        `${turnoverSaturday ? "bg-transparent text-white" : getCalendarColor(semaine, displayStatut)} ${
+                        `${turnoverSaturday ? "bg-transparent text-white" : getCalendarColor(resolved, displayStatut)} ${
                           visibleInFilter ? "cursor-pointer hover:scale-[1.02] hover:shadow-lg" : "opacity-25 cursor-not-allowed"
                         } border ${
                           isSelected ? "ring-2 ring-offset-2" : ""

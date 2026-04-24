@@ -770,7 +770,7 @@ function SectionEquipage() {
             {
               nom: "Victor",
               age: "34 ans",
-              titre: "Capitaine 500 · Skipper hauturier",
+              titre: "Capitaine 500",
               desc: "Victor est le capitaine de Sabine. Titulaire du brevet capitaine 500, il a navigué en Méditerranée et traversé l'Atlantique plusieurs fois. Passionné de météo et de navigation hauturière, il assure la sécurité et le confort de tous à bord avec calme et professionnalisme.",
               color: "oklch(0.72_0.11_85)",
               img: "/photos%20site/victor-portrait.png",
@@ -791,7 +791,7 @@ function SectionEquipage() {
                   <div className="flex items-center gap-3 mb-3">
                     <div>
                       <div className="text-2xl font-extrabold text-white" style={{ fontFamily: "Cormorant Garamond, Times New Roman, serif" }}>{p.nom}</div>
-                      <div className="text-xs font-semibold" style={{ color: p.color }}>{p.age} · {p.titre}</div>
+                      <div className="text-sm font-semibold text-white/90">{p.age} · {p.titre}</div>
                     </div>
                   </div>
                   <p className="text-white/60 text-sm leading-relaxed">{p.desc}</p>
