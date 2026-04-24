@@ -264,10 +264,13 @@ router.post("/reservations/:id/send-contract", requireAdmin, async (req, res) =>
       return res.status(400).json({ error: "Contrat sans fichier PDF." });
     }
 
+    const configuredProvider = (process.env.ESIGN_PROVIDER || "other").toLowerCase();
+    const strictEsign = configuredProvider === "yousign" || configuredProvider === "docusign";
     let esignProvider: "yousign" | "docusign" | "other" = "other";
     let esignEnvelopeId = `manual-${reservationId}-${Date.now()}`;
     let signUrl: string | null = null;
     let sentAt: Date | null = null;
+    let fallbackReason: string | null = null;
 
     try {
       const signedUrl = await storageGetSignedUrl(contract.pdfStorageKey);
@@ -283,10 +286,17 @@ router.post("/reservations/:id/send-contract", requireAdmin, async (req, res) =>
       esignEnvelopeId = result.envelopeId;
       signUrl = result.signUrl;
       sentAt = result.sentAt;
-    } catch {
+    } catch (error: any) {
+      const reason = error?.message || "Erreur envoi e-sign";
+      if (strictEsign) {
+        return res.status(502).json({
+          error: `Échec ${configuredProvider}: ${reason}`,
+        });
+      }
       esignProvider = "other";
       esignEnvelopeId = `manual-${reservationId}-${Date.now()}`;
       sentAt = new Date();
+      fallbackReason = reason;
     }
 
     await db
@@ -325,6 +335,7 @@ router.post("/reservations/:id/send-contract", requireAdmin, async (req, res) =>
         provider: esignProvider,
         envelopeId: esignEnvelopeId,
         signUrl,
+        fallbackReason,
         webhookUrl: "/api/workflow/esign/webhook",
       },
     });

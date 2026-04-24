@@ -213,6 +213,8 @@ export default function Admin() {
     statut: "disponible" | "reserve" | "option" | "ferme";
     tarif: string;
     tarifCabine: string;
+    tarifJourPriva: string;
+    tarifJourPersonne: string;
     destination: string;
     note: string;
     notePublique: string;
@@ -223,6 +225,8 @@ export default function Admin() {
     statut: "disponible",
     tarif: "",
     tarifCabine: "",
+    tarifJourPriva: "",
+    tarifJourPersonne: "",
     destination: "Méditerranée",
     note: "",
     notePublique: "",
@@ -335,8 +339,8 @@ export default function Admin() {
         ...formData,
         tarif: formData.tarif ? parseInt(formData.tarif) : null,
         tarifCabine: formData.tarifCabine ? parseInt(formData.tarifCabine) : null,
-        tarifJourPersonne: null,
-        tarifJourPriva: null,
+        tarifJourPriva: formData.tarifJourPriva ? parseInt(formData.tarifJourPriva) : null,
+        tarifJourPersonne: formData.tarifJourPersonne ? parseInt(formData.tarifJourPersonne) : null,
         debut: new Date(formData.debut).toISOString(),
         fin: new Date(formData.fin).toISOString(),
       };
@@ -367,6 +371,8 @@ export default function Admin() {
         statut: "disponible",
         tarif: "",
         tarifCabine: "",
+        tarifJourPriva: "",
+        tarifJourPersonne: "",
         destination: "Méditerranée",
         note: "",
         notePublique: "",
@@ -390,6 +396,8 @@ export default function Admin() {
       statut: dispo.statut,
       tarif: dispo.tarif?.toString() || "",
       tarifCabine: dispo.tarifCabine?.toString() || "",
+      tarifJourPriva: dispo.tarifJourPriva?.toString() || "",
+      tarifJourPersonne: dispo.tarifJourPersonne?.toString() || "",
       destination: dispo.destination,
       note: dispo.note || "",
       notePublique: dispo.notePublique || "",
@@ -408,6 +416,8 @@ export default function Admin() {
       statut: "disponible",
       tarif: "",
       tarifCabine: "",
+      tarifJourPriva: "",
+      tarifJourPersonne: "",
       destination: "La Ciotat",
       note: "",
       notePublique: "",
@@ -437,6 +447,8 @@ export default function Admin() {
       statut: "disponible",
       tarif: "",
       tarifCabine: "",
+      tarifJourPriva: "",
+      tarifJourPersonne: "",
       destination: "Méditerranée",
       note: "",
       notePublique: "",
@@ -541,6 +553,41 @@ export default function Admin() {
       setReservationActionMessage("Aperçu du contrat ouvert.");
     } catch (error: any) {
       setReservationActionMessage(error?.message || "Erreur lors de l'ouverture du contrat");
+    } finally {
+      setReservationActionLoadingId(null);
+    }
+  };
+
+  const sendContractForSignature = async (reservationId: number) => {
+    if (reservationActionLoadingId !== null) return;
+    setReservationActionLoadingId(reservationId);
+    setReservationActionMessage("");
+    try {
+      const response = await fetch(`/api/workflow/reservations/${reservationId}/send-contract`, {
+        method: "POST",
+      });
+      if (!response.ok) {
+        throw new Error(await readErrorMessage(response, "Envoi contrat impossible"));
+      }
+      const payload = await response.json();
+      const provider = payload?.esign?.provider || "other";
+      const signUrl = payload?.esign?.signUrl as string | null;
+      const fallbackReason = payload?.esign?.fallbackReason as string | null;
+      if (signUrl) {
+        window.open(signUrl, "_blank", "noopener,noreferrer");
+      }
+      if (provider === "yousign") {
+        setReservationActionMessage("Contrat envoyé via Yousign.");
+      } else if (provider === "docusign") {
+        setReservationActionMessage("Contrat envoyé via DocuSign.");
+      } else if (fallbackReason) {
+        setReservationActionMessage(`Contrat envoyé en mode manuel (${fallbackReason}).`);
+      } else {
+        setReservationActionMessage("Contrat envoyé en mode manuel.");
+      }
+      await fetchReservations();
+    } catch (error: any) {
+      setReservationActionMessage(error?.message || "Erreur lors de l'envoi du contrat");
     } finally {
       setReservationActionLoadingId(null);
     }
@@ -1007,7 +1054,7 @@ export default function Admin() {
                             if (ws === "solde_confirme") {
                               return (
                                 <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-green-100 text-green-700 rounded-full text-xs font-semibold">
-                                  <Check className="w-3 h-3" /> Solde versé
+                                  <Check className="w-3 h-3" /> Contrat signé + solde versé
                                 </span>
                               );
                             }
@@ -1078,16 +1125,7 @@ export default function Admin() {
                               <Anchor className="w-4 h-4" />
                             </button>
                             <button
-                              onClick={() =>
-                                performReservationAction(
-                                  r.id,
-                                  () =>
-                                    fetch(`/api/workflow/reservations/${r.id}/send-contract`, {
-                                      method: "POST",
-                                    }),
-                                  "Contrat envoyé au client pour signature."
-                                )
-                              }
+                              onClick={() => sendContractForSignature(r.id)}
                               disabled={reservationActionLoadingId !== null}
                               className="p-2 text-blue-700 hover:bg-blue-50 rounded-lg transition-colors"
                               title="Envoyer le contrat au client"
@@ -1382,6 +1420,26 @@ export default function Admin() {
                 />
               </div>
               <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Prix journée privatif (€)</label>
+                <input
+                  type="number"
+                  value={formData.tarifJourPriva}
+                  onChange={(e) => setFormData({ ...formData, tarifJourPriva: e.target.value })}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-900"
+                  placeholder="900"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Prix journée par personne (€)</label>
+                <input
+                  type="number"
+                  value={formData.tarifJourPersonne}
+                  onChange={(e) => setFormData({ ...formData, tarifJourPersonne: e.target.value })}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-900"
+                  placeholder="130"
+                />
+              </div>
+              <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Note privée (admin)</label>
                 <input
                   type="text"
@@ -1479,6 +1537,16 @@ export default function Admin() {
                     {dispo.tarifCabine && (
                       <p className="text-xs text-slate-600 mt-1">
                         Cabine double: {dispo.tarifCabine.toLocaleString("fr-FR")} € / semaine
+                      </p>
+                    )}
+                    {dispo.tarifJourPriva && (
+                      <p className="text-xs text-slate-700 mt-1">
+                        Journée privatif: {dispo.tarifJourPriva.toLocaleString("fr-FR")} € / jour
+                      </p>
+                    )}
+                    {dispo.tarifJourPersonne && (
+                      <p className="text-xs text-slate-700 mt-1">
+                        Journée par personne: {dispo.tarifJourPersonne.toLocaleString("fr-FR")} € / pers
                       </p>
                     )}
                     {dispo.notePublique && (
@@ -1628,6 +1696,18 @@ export default function Admin() {
                     <div>
                       <p className="text-xs uppercase text-slate-500">Tarif cabine</p>
                       <p className="font-semibold text-slate-900">{selectedCalendarDispo.tarifCabine.toLocaleString("fr-FR")} €</p>
+                    </div>
+                  )}
+                  {selectedCalendarDispo.tarifJourPriva && (
+                    <div>
+                      <p className="text-xs uppercase text-slate-500">Tarif journée privatif</p>
+                      <p className="font-semibold text-slate-900">{selectedCalendarDispo.tarifJourPriva.toLocaleString("fr-FR")} €</p>
+                    </div>
+                  )}
+                  {selectedCalendarDispo.tarifJourPersonne && (
+                    <div>
+                      <p className="text-xs uppercase text-slate-500">Tarif journée par personne</p>
+                      <p className="font-semibold text-slate-900">{selectedCalendarDispo.tarifJourPersonne.toLocaleString("fr-FR")} €</p>
                     </div>
                   )}
                   <div>
@@ -2038,7 +2118,7 @@ export default function Admin() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Statut</label>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Suivi</label>
                   <select
                     value={reservationFormData.workflowStatut || "demande"}
                     onChange={(e) => setReservationFormData({ ...reservationFormData, workflowStatut: e.target.value as any })}
@@ -2048,20 +2128,6 @@ export default function Admin() {
                     <option value="validee_owner">Devis et contrat envoyés</option>
                     <option value="acompte_confirme">Validé (acompte reçu)</option>
                     <option value="solde_confirme">Solde versé</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Statut demande</label>
-                  <select
-                    value={reservationFormData.requestStatus || "nouvelle"}
-                    onChange={(e) => setReservationFormData({ ...reservationFormData, requestStatus: e.target.value as any })}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-900"
-                  >
-                    <option value="nouvelle">Nouvelle</option>
-                    <option value="en_cours">En cours</option>
-                    <option value="validee">Validée</option>
-                    <option value="refusee">Refusée</option>
-                    <option value="archivee">Archivée</option>
                   </select>
                 </div>
                 <div className="col-span-2">
