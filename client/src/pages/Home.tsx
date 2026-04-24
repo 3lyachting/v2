@@ -49,7 +49,7 @@ function Navbar() {
     <nav
       className={`fixed top-0 left-0 right-0 z-50 transition-all duration-500 ${
         scrolled
-          ? "bg-black/92 shadow-[0_8px_24px_rgba(0,0,0,0.28)] border-b border-white/10"
+          ? "bg-[linear-gradient(180deg,rgba(10,16,28,0.96),rgba(12,22,35,0.9))] shadow-[0_12px_34px_rgba(4,8,16,0.45)] border-b border-[#c8a96b]/35 backdrop-blur-md"
           : "bg-transparent"
       }`}
     >
@@ -75,20 +75,20 @@ function Navbar() {
               <button
                 key={l.href}
                 onClick={() => scrollTo(l.href)}
-                className={`${scrolled ? "text-white/90 hover:text-white" : "text-white/80 hover:text-white"} text-sm font-medium transition-colors`}
+                className={`${scrolled ? "text-white/80 hover:text-[#e4c58a]" : "text-white/80 hover:text-[#f3d59c]"} text-sm font-medium transition-colors`}
               >
                 {l.label}
               </button>
             ))}
             <button
               onClick={() => scrollTo("#calendrier")}
-              className={`${scrolled ? "bg-white text-black hover:bg-white/90" : "bg-white text-[oklch(0.2_0.06_240)] hover:bg-[oklch(0.96_0.01_90)]"} ml-2 px-5 py-2 rounded-full text-sm font-bold transition-all hover:scale-105`}
+              className="ml-2 rounded-full bg-[linear-gradient(135deg,#d7b879,#b08a4a)] px-5 py-2 text-sm font-bold text-[#111827] shadow-[0_8px_20px_rgba(176,138,74,0.35)] transition-all hover:scale-105 hover:brightness-105"
             >
               Réserver
             </button>
             <a
               href={withBasePath("/espace-client")}
-              className={`${scrolled ? "border border-white/70 text-white hover:bg-white hover:text-black" : "border border-white/70 text-white hover:bg-white hover:text-[oklch(0.2_0.06_240)]"} px-5 py-2 rounded-full text-sm font-bold transition-all`}
+              className="rounded-full border border-[#c8a96b]/70 px-5 py-2 text-sm font-bold text-[#f7e8c6] transition-all hover:bg-[#c8a96b] hover:text-[#111827]"
             >
               Espace client
             </a>
@@ -206,9 +206,9 @@ function Hero() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6 }}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/12 backdrop-blur-sm border border-white/25 text-white/90 text-sm font-medium mb-6"
+            className="mb-6 inline-flex items-center gap-2 rounded-full border border-[#e2c58b]/45 bg-[rgba(9,17,30,0.45)] px-4 py-2 text-sm font-medium text-[#f7e8c6] backdrop-blur-sm"
           >
-            <Anchor className="w-4 h-4 text-[oklch(0.88_0.03_95)]" />
+            <Anchor className="h-4 w-4 text-[#e2c58b]" />
             Catamaran Lagoon 570 · Pavillon Français
           </motion.div>
 
@@ -216,14 +216,14 @@ function Hero() {
             initial={{ opacity: 0, y: 30 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.8, delay: 0.1 }}
-            className="text-5xl sm:text-6xl lg:text-7xl font-extrabold text-white leading-[1.05] mb-6"
-            style={{ fontFamily: "Syne, sans-serif" }}
+            className="mb-6 text-5xl font-extrabold leading-[1.05] text-white sm:text-6xl lg:text-7xl"
+            style={{ fontFamily: "Cormorant Garamond, Times New Roman, serif" }}
           >
             Votre croisière
             <br />
-            <span className="text-[oklch(0.92_0.02_95)]">Méditerranée</span>
+            <span className="text-[#f3d9ab]">Méditerranée</span>
             <br />
-            <span className="text-[oklch(0.84_0.05_80)]">& Antilles</span>
+            <span className="text-[#d8b375]">& Antilles</span>
           </motion.h1>
 
           <motion.p
@@ -245,13 +245,13 @@ function Hero() {
           >
             <button
               onClick={() => document.querySelector("#calendrier")?.scrollIntoView({ behavior: "smooth" })}
-              className="px-7 py-3.5 rounded-full bg-white text-[oklch(0.2_0.06_240)] font-bold text-base hover:bg-[oklch(0.96_0.01_90)] transition-all hover:scale-105 shadow-lg"
+              className="rounded-full bg-[linear-gradient(135deg,#e4c58a,#b78f4f)] px-7 py-3.5 text-base font-bold text-[#111827] shadow-[0_12px_30px_rgba(163,123,58,0.4)] transition-all hover:scale-105 hover:brightness-105"
             >
               Voir les disponibilités
             </button>
             <button
               onClick={() => document.querySelector("#destinations")?.scrollIntoView({ behavior: "smooth" })}
-              className="px-7 py-3.5 rounded-full bg-transparent backdrop-blur-sm border border-white/45 text-white font-semibold text-base hover:bg-white/15 transition-all"
+              className="rounded-full border border-[#d3b57b]/60 bg-[rgba(12,24,40,0.45)] px-7 py-3.5 text-base font-semibold text-[#f8edd0] backdrop-blur-sm transition-all hover:bg-[rgba(18,34,55,0.7)]"
             >
               Découvrir les destinations
             </button>
@@ -262,7 +262,7 @@ function Hero() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ duration: 0.8, delay: 0.7 }}
-            className="flex flex-wrap gap-6 mt-12"
+            className="mt-12 flex flex-wrap gap-4"
           >
             {[
               { val: "17m", label: "Lagoon 570" },
@@ -270,9 +270,9 @@ function Hero() {
               { val: "10+", label: "Ans d'expérience" },
               { val: "3", label: "Univers de croisière" },
             ].map(s => (
-              <div key={s.label} className="text-center">
-                <div className="text-2xl font-extrabold text-white" style={{ fontFamily: "Syne, sans-serif" }}>{s.val}</div>
-                <div className="text-white/50 text-xs mt-0.5">{s.label}</div>
+              <div key={s.label} className="rounded-2xl border border-[#cfb37a]/35 bg-[rgba(12,24,38,0.48)] px-5 py-3 text-center backdrop-blur-sm">
+                <div className="text-2xl font-extrabold text-[#f7dfb0]" style={{ fontFamily: "Syne, sans-serif" }}>{s.val}</div>
+                <div className="mt-0.5 text-xs text-white/65">{s.label}</div>
               </div>
             ))}
           </motion.div>
@@ -306,7 +306,7 @@ function SectionCatamaran() {
   ];
 
   return (
-    <section id="catamaran" className="py-20 lg:py-28 bg-white">
+    <section id="catamaran" className="bg-[linear-gradient(180deg,#fdfaf3,#f6efe2)] py-20 lg:py-28">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <Reveal>
           <div className="text-center mb-16">
@@ -344,7 +344,7 @@ function SectionCatamaran() {
               </h3>
               <div className="grid grid-cols-2 gap-3">
                 {specs.map(s => (
-                  <div key={s.label} className="bg-[oklch(0.97_0.02_220)] rounded-xl p-3">
+                  <div key={s.label} className="rounded-xl border border-[#dcc294]/55 bg-[#fffaf0] p-3 shadow-[0_6px_18px_rgba(34,24,12,0.08)]">
                     <div className="text-xs text-[oklch(0.55_0.04_220)] font-medium">{s.label}</div>
                     <div className="text-base font-bold text-[oklch(0.22_0.07_220)] mt-0.5" style={{ fontFamily: "Syne, sans-serif" }}>{s.val}</div>
                   </div>
@@ -392,7 +392,7 @@ function SectionCatamaran() {
             },
           ].map((card, i) => (
             <Reveal key={card.title} delay={i * 0.12}>
-              <div className="bg-white rounded-3xl shadow-md overflow-hidden border border-[oklch(0.9_0.02_220)] hover:shadow-xl transition-shadow duration-300">
+              <div className="overflow-hidden rounded-3xl border border-[#d8bf91]/55 bg-[#fffdf7] shadow-[0_14px_30px_rgba(39,28,14,0.11)] transition-shadow duration-300 hover:shadow-[0_18px_36px_rgba(39,28,14,0.16)]">
                 <div className="relative h-44 overflow-hidden">
                   <img src={card.img} alt={card.title} className="w-full h-full object-cover" loading="lazy" decoding="async" />
                   <div className="absolute inset-0 bg-gradient-to-t from-[oklch(0.15_0.05_220)]/60 to-transparent" />
@@ -489,7 +489,7 @@ function SectionDestinations() {
   const dest = destinations[active];
 
   return (
-    <section id="destinations" className="py-20 lg:py-28 bg-[oklch(0.97_0.02_220)]">
+    <section id="destinations" className="bg-[#f5efe4] py-20 lg:py-28">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <Reveal>
           <div className="text-center mb-12">
@@ -854,18 +854,50 @@ function SectionGalerie() {
 
 function SectionInstagramHighlights() {
   const posts = [
-    "https://www.instagram.com/p/DXeMQkZAYrm/?img_index=1",
-    "https://www.instagram.com/p/DXWk0wFjHeM/",
-    "https://www.instagram.com/p/DXGsetYGgfw/",
-    "https://www.instagram.com/p/DW50d5rDUx2/",
-    "https://www.instagram.com/p/DWy2Z9Wl5C4/",
-    "https://www.instagram.com/p/DWqQ4lNjUKf/?img_index=1",
-    "https://www.instagram.com/p/DWow1veAG5v/",
-    "https://www.instagram.com/p/DWREpkNEWqG/",
+    {
+      url: "https://www.instagram.com/p/DXeMQkZAYrm/?img_index=1",
+      img: "/photos/IMG_4515.jpeg",
+      label: "Sortie coucher de soleil",
+    },
+    {
+      url: "https://www.instagram.com/p/DXWk0wFjHeM/",
+      img: "/photos/IMG_4405.jpeg",
+      label: "Navigation Mediterranee",
+    },
+    {
+      url: "https://www.instagram.com/p/DXGsetYGgfw/",
+      img: "/photos/IMG_4406.jpeg",
+      label: "Mouillage et baignade",
+    },
+    {
+      url: "https://www.instagram.com/p/DW50d5rDUx2/",
+      img: "/photos/IMG_4412.jpeg",
+      label: "Vie a bord",
+    },
+    {
+      url: "https://www.instagram.com/p/DWy2Z9Wl5C4/",
+      img: "/photos/IMG_4422.jpeg",
+      label: "Pont et exterieur",
+    },
+    {
+      url: "https://www.instagram.com/p/DWqQ4lNjUKf/?img_index=1",
+      img: "/photos/IMG_4483.jpeg",
+      label: "Ambiance croisiere",
+    },
+    {
+      url: "https://www.instagram.com/p/DWow1veAG5v/",
+      img: "/photos/IMG_4504.jpeg",
+      label: "Details de navigation",
+    },
+    {
+      url: "https://www.instagram.com/p/DWREpkNEWqG/",
+      img: "/photos/IMG_4449.jpeg",
+      label: "Destination Caraibes",
+    },
   ];
 
   return (
-    <section className="py-20 lg:py-24 bg-[oklch(0.985_0.004_95)]">
+    <section className="bg-[linear-gradient(180deg,#f5eee0,#efe5d4)] py-20 lg:py-24">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <Reveal>
           <div className="text-center mb-10">
@@ -880,23 +912,35 @@ function SectionInstagramHighlights() {
         </Reveal>
 
         <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {posts.map((url, i) => (
-            <Reveal key={url} delay={i * 0.05}>
+          {posts.map((post, i) => (
+            <Reveal key={post.url} delay={i * 0.05}>
               <a
-                href={url}
+                href={post.url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="group block rounded-2xl border border-[oklch(0.9_0.02_220)] bg-white p-5 hover:shadow-lg transition-all"
+                className="group block overflow-hidden rounded-2xl border border-[oklch(0.9_0.02_220)] bg-white hover:shadow-lg transition-all"
               >
-                <div className="flex items-center justify-between">
-                  <div className="text-sm font-bold text-[oklch(0.2_0.06_240)]">Post Instagram #{i + 1}</div>
-                  <Instagram className="w-4 h-4 text-[oklch(0.45_0.03_240)] group-hover:text-[oklch(0.2_0.06_240)]" />
+                <div className="relative h-48 overflow-hidden bg-[oklch(0.94_0.02_220)]">
+                  <img
+                    src={post.img}
+                    alt={post.label}
+                    className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+                    loading="lazy"
+                    decoding="async"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/15 to-transparent" />
+                  <div className="absolute left-3 right-3 bottom-3 flex items-center justify-between text-white">
+                    <div className="text-xs font-semibold">{post.label}</div>
+                    <Instagram className="w-4 h-4" />
+                  </div>
                 </div>
-                <div className="mt-3 text-xs text-[oklch(0.5_0.03_240)] break-all">
-                  {url.replace("https://www.instagram.com/", "instagram.com/")}
-                </div>
-                <div className="mt-4 text-sm font-semibold text-[oklch(0.28_0.08_240)] inline-flex items-center gap-2">
-                  Ouvrir le post <ArrowRight className="w-4 h-4" />
+                <div className="p-4">
+                  <div className="text-xs text-[oklch(0.5_0.03_240)] break-all">
+                    {post.url.replace("https://www.instagram.com/", "instagram.com/")}
+                  </div>
+                  <div className="mt-3 text-sm font-semibold text-[oklch(0.28_0.08_240)] inline-flex items-center gap-2">
+                    Ouvrir le post <ArrowRight className="w-4 h-4" />
+                  </div>
                 </div>
               </a>
             </Reveal>
