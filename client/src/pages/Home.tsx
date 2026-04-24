@@ -11,7 +11,7 @@ import { withBasePath } from "@/lib/basePath";
 import {
   Anchor, Wind, Waves, Sun, MapPin, Users, Star,
   Phone, Mail, Instagram, Facebook, ChevronDown,
-  Ship, Compass, Fish, Sunset, ArrowRight, Menu, X, MessageCircle, PlayCircle
+  Ship, Compass, Fish, Sunset, ArrowRight, Menu, X, MessageCircle
 } from "lucide-react";
 const CalendrierDisponibilites = lazy(() => import("@/components/CalendrierDisponibilites"));
 const AvisGoogle = lazy(() => import("@/components/AvisGoogle"));
@@ -52,7 +52,7 @@ function Navbar() {
     <nav
       className={`fixed top-0 left-0 right-0 z-50 transition-all duration-500 ${
         scrolled
-          ? "bg-[linear-gradient(180deg,rgba(10,16,28,0.96),rgba(12,22,35,0.9))] shadow-[0_12px_34px_rgba(4,8,16,0.45)] border-b border-[#c8a96b]/35 backdrop-blur-md"
+          ? "bg-[linear-gradient(180deg,rgba(0,56,74,0.96),rgba(0,56,74,0.9))] shadow-[0_12px_34px_rgba(0,32,44,0.45)] border-b border-[#b58e6e]/40 backdrop-blur-md"
           : "bg-transparent"
       }`}
     >
@@ -176,7 +176,7 @@ function WaveDivider({ fill = "#fff", flip = false }: { fill?: string; flip?: bo
 // ── Hero ──────────────────────────────────────────────────────────────────────
 function Hero() {
   const heroVideoUrl =
-    "https://www.youtube-nocookie.com/embed/kpjcoAyLiTE?autoplay=1&mute=1&controls=0&loop=1&playlist=kpjcoAyLiTE&modestbranding=1&rel=0&playsinline=1&iv_load_policy=3";
+    "https://www.youtube-nocookie.com/embed/8SaiovLCOHQ?autoplay=1&mute=1&controls=0&loop=1&playlist=8SaiovLCOHQ&modestbranding=1&rel=0&playsinline=1&iv_load_policy=3";
 
   return (
     <section className="relative min-h-screen flex items-center overflow-hidden">
@@ -860,62 +860,6 @@ function SectionGalerie() {
   );
 }
 
-function SectionVideosDrone() {
-  const videos = [
-    { id: "kpjcoAyLiTE", url: "https://youtu.be/kpjcoAyLiTE", title: "Vol drone - criques et turquoise" },
-    { id: "Djw_-FchtNI", url: "https://youtu.be/Djw_-FchtNI", title: "Sabine en navigation aerienne" },
-    { id: "p54hSGXNENw", url: "https://youtu.be/p54hSGXNENw", title: "Mouillage premium vu du ciel" },
-    { id: "DHDojaC0d0c", url: "https://youtu.be/DHDojaC0d0c", title: "Littoral et catamaran au drone" },
-    { id: "_uXgicKETjg", url: "https://youtu.be/_uXgicKETjg", title: "Sequence drone coucher de soleil" },
-    { id: "z7YxVmKSH1Y", url: "https://youtu.be/z7YxVmKSH1Y", title: "Sabine Sailing cinematic" },
-  ];
-
-  return (
-    <section className="relative py-20 lg:py-24 overflow-hidden">
-      <div className="absolute inset-0">
-        <iframe
-          src="https://www.youtube-nocookie.com/embed/Djw_-FchtNI?autoplay=1&mute=1&controls=0&loop=1&playlist=Djw_-FchtNI&modestbranding=1&rel=0&playsinline=1&iv_load_policy=3"
-          title="Ambiance drone Sabine Sailing"
-          className="absolute top-1/2 left-1/2 h-[56.25vw] min-h-full w-[177.78vh] min-w-full -translate-x-1/2 -translate-y-1/2 pointer-events-none"
-          allow="autoplay; encrypted-media; picture-in-picture"
-          referrerPolicy="strict-origin-when-cross-origin"
-        />
-      </div>
-      <div className="absolute inset-0" style={{ background: "linear-gradient(180deg,rgba(0,32,44,0.72),rgba(0,56,74,0.58),rgba(0,32,44,0.8))" }} />
-
-      <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <Reveal>
-          <div className="text-center mb-10">
-            <span className="inline-block text-sm font-bold tracking-widest uppercase mb-3 text-[#ead9c6]">Drone</span>
-            <h2 className="text-4xl lg:text-5xl font-extrabold text-white" style={{ fontFamily: "Cormorant Garamond, Times New Roman, serif" }}>
-              Ambiance aerienne Sabine Sailing
-            </h2>
-            <p className="mt-4 max-w-2xl mx-auto text-[#f2e6d8]">
-              Nos dernieres prises de vue drone en fond pour ressentir immediatement l'atmosphere a bord.
-            </p>
-          </div>
-        </Reveal>
-
-        <div className="flex flex-wrap justify-center gap-3">
-          {videos.map((video) => (
-            <a
-              key={video.id}
-              href={video.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 rounded-full border px-4 py-2 text-xs font-semibold transition-all hover:scale-[1.02]"
-              style={{ borderColor: `${BRAND_SAND}b8`, backgroundColor: "rgba(181,142,110,0.22)", color: "#fff6ea" }}
-            >
-              <PlayCircle className="w-4 h-4" />
-              {video.title}
-            </a>
-          ))}
-        </div>
-      </div>
-    </section>
-  );
-}
-
 // ── Section Contact ───────────────────────────────────────────────────────────
 function SectionContact() {
   const [form, setForm] = useState({ nom: "", email: "", tel: "", message: "", formule: "semaine" });
@@ -1265,7 +1209,6 @@ export default function Home() {
       <SectionEquipage />
       <SectionCalendrier />
       <SectionGalerie />
-      <SectionVideosDrone />
       <Suspense fallback={<div className="py-10 text-center text-sm text-[oklch(0.45_0.04_220)]">Chargement des avis...</div>}>
         <AvisGoogle />
       </Suspense>
