@@ -11,10 +11,13 @@ import { withBasePath } from "@/lib/basePath";
 import {
   Anchor, Wind, Waves, Sun, MapPin, Users, Star,
   Phone, Mail, Instagram, Facebook, ChevronDown,
-  Ship, Compass, Fish, Sunset, ArrowRight, Menu, X, MessageCircle
+  Ship, Compass, Fish, Sunset, ArrowRight, Menu, X, MessageCircle, PlayCircle
 } from "lucide-react";
 const CalendrierDisponibilites = lazy(() => import("@/components/CalendrierDisponibilites"));
 const AvisGoogle = lazy(() => import("@/components/AvisGoogle"));
+
+const BRAND_SAND = "#B58E6E";
+const BRAND_DEEP = "#00384A";
 
 // ── Navbar ────────────────────────────────────────────────────────────────────
 function Navbar() {
@@ -82,7 +85,8 @@ function Navbar() {
             ))}
             <button
               onClick={() => scrollTo("#calendrier")}
-              className="ml-2 rounded-full bg-[linear-gradient(135deg,#d7b879,#b08a4a)] px-5 py-2 text-sm font-bold text-[#111827] shadow-[0_8px_20px_rgba(176,138,74,0.35)] transition-all hover:scale-105 hover:brightness-105"
+              className="ml-2 rounded-full px-5 py-2 text-sm font-bold text-white shadow-[0_10px_24px_rgba(0,56,74,0.35)] transition-all hover:scale-105 hover:brightness-105"
+              style={{ backgroundColor: BRAND_DEEP }}
             >
               Réserver
             </button>
@@ -106,7 +110,7 @@ function Navbar() {
 
       {/* Mobile menu */}
       {open && (
-        <div className="lg:hidden bg-[oklch(0.15_0.05_220)]/98 border-t border-white/10">
+        <div className="lg:hidden border-t border-white/10" style={{ backgroundColor: "rgba(0,56,74,0.95)" }}>
           <div className="px-4 py-4 space-y-2">
             {navLinks.map(l => (
               <button
@@ -119,7 +123,8 @@ function Navbar() {
             ))}
             <button
               onClick={() => scrollTo("#calendrier")}
-              className="w-full mt-2 px-5 py-2.5 rounded-full bg-[oklch(0.72_0.11_85)] text-white text-sm font-bold"
+              className="w-full mt-2 px-5 py-2.5 rounded-full text-white text-sm font-bold"
+              style={{ backgroundColor: BRAND_SAND, color: BRAND_DEEP }}
             >
               Réserver
             </button>
@@ -171,7 +176,7 @@ function WaveDivider({ fill = "#fff", flip = false }: { fill?: string; flip?: bo
 // ── Hero ──────────────────────────────────────────────────────────────────────
 function Hero() {
   const heroVideoUrl =
-    "https://www.youtube-nocookie.com/embed/8SaiovLCOHQ?autoplay=1&mute=1&controls=0&loop=1&playlist=8SaiovLCOHQ&modestbranding=1&rel=0&playsinline=1&iv_load_policy=3";
+    "https://www.youtube-nocookie.com/embed/kpjcoAyLiTE?autoplay=1&mute=1&controls=0&loop=1&playlist=kpjcoAyLiTE&modestbranding=1&rel=0&playsinline=1&iv_load_policy=3";
 
   return (
     <section className="relative min-h-screen flex items-center overflow-hidden">
@@ -186,7 +191,7 @@ function Hero() {
         />
       </div>
       {/* Overlay gradient */}
-      <div className="absolute inset-0 bg-gradient-to-b from-[oklch(0.08_0.03_240)]/70 via-[oklch(0.15_0.05_240)]/40 to-[oklch(0.08_0.03_240)]/80" />
+      <div className="absolute inset-0" style={{ background: "linear-gradient(180deg,rgba(0,56,74,0.72),rgba(0,56,74,0.42),rgba(0,35,45,0.8))" }} />
 
       {/* Animated waves overlay */}
       <div className="absolute bottom-0 left-0 right-0">
@@ -206,10 +211,11 @@ function Hero() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6 }}
-            className="mb-6 inline-flex items-center gap-2 rounded-full border border-[#e2c58b]/45 bg-[rgba(9,17,30,0.45)] px-4 py-2 text-sm font-medium text-[#f7e8c6] backdrop-blur-sm"
+            className="mb-6 inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-medium backdrop-blur-sm"
+            style={{ borderColor: `${BRAND_SAND}80`, backgroundColor: "rgba(0,56,74,0.38)", color: "#f6ecdf" }}
           >
-            <Anchor className="h-4 w-4 text-[#e2c58b]" />
-            Catamaran Lagoon 570 · Pavillon Français
+            <Anchor className="h-4 w-4" style={{ color: BRAND_SAND }} />
+            Catamaran Lagoon 570 · Equipage professionnel
           </motion.div>
 
           <motion.h1
@@ -221,9 +227,9 @@ function Hero() {
           >
             Votre croisière
             <br />
-            <span className="text-[#f3d9ab]">Méditerranée</span>
+            <span style={{ color: "#f0decb" }}>Méditerranée</span>
             <br />
-            <span className="text-[#d8b375]">& Antilles</span>
+            <span style={{ color: BRAND_SAND }}>& Antilles</span>
           </motion.h1>
 
           <motion.p
@@ -245,13 +251,15 @@ function Hero() {
           >
             <button
               onClick={() => document.querySelector("#calendrier")?.scrollIntoView({ behavior: "smooth" })}
-              className="rounded-full bg-[linear-gradient(135deg,#e4c58a,#b78f4f)] px-7 py-3.5 text-base font-bold text-[#111827] shadow-[0_12px_30px_rgba(163,123,58,0.4)] transition-all hover:scale-105 hover:brightness-105"
+              className="rounded-full px-7 py-3.5 text-base font-bold text-white shadow-[0_12px_30px_rgba(0,56,74,0.4)] transition-all hover:scale-105 hover:brightness-105"
+              style={{ backgroundColor: BRAND_DEEP }}
             >
               Voir les disponibilités
             </button>
             <button
               onClick={() => document.querySelector("#destinations")?.scrollIntoView({ behavior: "smooth" })}
-              className="rounded-full border border-[#d3b57b]/60 bg-[rgba(12,24,40,0.45)] px-7 py-3.5 text-base font-semibold text-[#f8edd0] backdrop-blur-sm transition-all hover:bg-[rgba(18,34,55,0.7)]"
+              className="rounded-full border px-7 py-3.5 text-base font-semibold backdrop-blur-sm transition-all"
+              style={{ borderColor: `${BRAND_SAND}aa`, backgroundColor: "rgba(181,142,110,0.28)", color: "#fff6ea" }}
             >
               Découvrir les destinations
             </button>
@@ -270,8 +278,8 @@ function Hero() {
               { val: "10+", label: "Ans d'expérience" },
               { val: "3", label: "Univers de croisière" },
             ].map(s => (
-              <div key={s.label} className="rounded-2xl border border-[#cfb37a]/35 bg-[rgba(12,24,38,0.48)] px-5 py-3 text-center backdrop-blur-sm">
-                <div className="text-2xl font-extrabold text-[#f7dfb0]" style={{ fontFamily: "Syne, sans-serif" }}>{s.val}</div>
+              <div key={s.label} className="rounded-2xl border px-5 py-3 text-center backdrop-blur-sm" style={{ borderColor: `${BRAND_SAND}70`, backgroundColor: "rgba(0,56,74,0.42)" }}>
+                <div className="text-2xl font-extrabold" style={{ fontFamily: "Cormorant Garamond, Times New Roman, serif", color: "#f5e8d8" }}>{s.val}</div>
                 <div className="mt-0.5 text-xs text-white/65">{s.label}</div>
               </div>
             ))}
@@ -310,10 +318,10 @@ function SectionCatamaran() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <Reveal>
           <div className="text-center mb-16">
-            <h2 className="text-5xl lg:text-6xl font-extrabold text-[oklch(0.15_0.05_220)]" style={{ fontFamily: "Cormorant Garamond, Times New Roman, serif" }}>
+            <h2 className="text-5xl lg:text-6xl font-extrabold" style={{ fontFamily: "Cormorant Garamond, Times New Roman, serif", color: BRAND_DEEP }}>
               Sabine
             </h2>
-            <p className="mt-4 text-[oklch(0.45_0.04_220)] max-w-2xl mx-auto text-lg">
+            <p className="mt-4 max-w-2xl mx-auto text-lg" style={{ color: "#315564" }}>
               Catamaran de 57 pieds entierement modernise en 2025, concu et fabrique en France par le Chantier Naval Bordelais.
               Nous accueillons volontairement 8 passagers pour privilegier l'espace, le confort et la qualite d'accompagnement.
             </p>
@@ -325,12 +333,12 @@ function SectionCatamaran() {
           <Reveal>
             <div className="relative">
               <img
-                src="/photos/IMG_4409.jpeg"
+                src="/photos%20site/dji_fly_20260314_171456_155_1773505004694_photo_optimized.jpg"
                 alt="Catamaran Sabine Lagoon 570"
                 className="w-full h-80 lg:h-96 object-cover rounded-3xl shadow-xl"
               />
-              <div className="absolute -bottom-4 -right-4 bg-[oklch(0.28_0.08_240)] text-white rounded-2xl px-5 py-3 shadow-lg">
-                <div className="text-2xl font-extrabold" style={{ fontFamily: "Syne, sans-serif" }}>Lagoon 570</div>
+              <div className="absolute -bottom-4 -right-4 text-white rounded-2xl px-5 py-3 shadow-lg" style={{ backgroundColor: BRAND_DEEP }}>
+                <div className="text-2xl font-extrabold" style={{ fontFamily: "Cormorant Garamond, Times New Roman, serif" }}>Lagoon 570</div>
                 <div className="text-white/80 text-xs">Rénové 2025</div>
               </div>
             </div>
@@ -339,14 +347,14 @@ function SectionCatamaran() {
           {/* Specs */}
           <Reveal delay={0.15}>
             <div>
-              <h3 className="text-2xl font-bold text-[oklch(0.15_0.05_220)] mb-6" style={{ fontFamily: "Syne, sans-serif" }}>
+              <h3 className="text-2xl font-bold mb-6" style={{ fontFamily: "Cormorant Garamond, Times New Roman, serif", color: BRAND_DEEP }}>
                 Caractéristiques techniques
               </h3>
               <div className="grid grid-cols-2 gap-3">
                 {specs.map(s => (
                   <div key={s.label} className="rounded-xl border border-[#dcc294]/55 bg-[#fffaf0] p-3 shadow-[0_6px_18px_rgba(34,24,12,0.08)]">
-                    <div className="text-xs text-[oklch(0.55_0.04_220)] font-medium">{s.label}</div>
-                    <div className="text-base font-bold text-[oklch(0.22_0.07_220)] mt-0.5" style={{ fontFamily: "Syne, sans-serif" }}>{s.val}</div>
+                    <div className="text-xs font-medium" style={{ color: "#57717a" }}>{s.label}</div>
+                    <div className="text-base font-bold mt-0.5" style={{ fontFamily: "Cormorant Garamond, Times New Roman, serif", color: BRAND_DEEP }}>{s.val}</div>
                   </div>
                 ))}
               </div>
@@ -360,7 +368,7 @@ function SectionCatamaran() {
             {
               title: "Intérieur",
               icon: <Ship className="w-6 h-6" />,
-              img: "/photos/IMG_4477.jpeg",
+              img: "/photos%20site/cabine ar bb.jpeg",
               items: [
                 "4 cabines doubles climatisees, avec salle de bain et WC prives",
                 "Salon panoramique lumineux, Smart TV et systeme audio HiFi",
@@ -371,7 +379,7 @@ function SectionCatamaran() {
             {
               title: "Extérieur",
               icon: <Sun className="w-6 h-6" />,
-              img: "/photos/IMG_4485.jpeg",
+              img: "/photos%20site/dji_fly_20260313_143914_122_1773409216418_photo_optimized.jpg",
               items: [
                 "2 trampolines avant pour bronzer et observer dauphins ou baleines",
                 "Grand bain de soleil sur le bimini avec vue degagee",
@@ -382,7 +390,7 @@ function SectionCatamaran() {
             {
               title: "Équipements sportifs",
               icon: <Waves className="w-6 h-6" />,
-              img: "/photos/IMG_4517.jpeg",
+              img: "/photos%20site/dji_fly_20260313_182138_138_1773422563093_photo_optimized.jpg",
               items: [
                 "2 Stand Up Paddles (10,6 pieds)",
                 "1 canoe-kayak rigide 2 places",
@@ -432,9 +440,9 @@ function SectionDestinations() {
       label: "Méditerranée",
       saison: "Été (Juin → Octobre)",
       emoji: "🌊",
-      color: "oklch(0.28_0.08_240)",
-      colorLight: "oklch(0.92_0.04_220)",
-      img: "/photos/IMG_4414.jpeg",
+      color: "#00384A",
+      colorLight: "#EBDACA",
+      img: "/photos%20site/dji_fly_20260313_105718_116_1773396190675_photo_optimized.jpg",
       titre: "Corse & Sardaigne",
       depart: "La Ciotat / Ajaccio",
       description: "Naviguez entre Corse et Sardaigne depuis La Ciotat ou Ajaccio: calanques turquoise, mouillages sauvages et escales de caractere. Une Mediterranee authentique, elegante et accessible en toute serenite.",
@@ -451,9 +459,9 @@ function SectionDestinations() {
       label: "Traversée Atlantique",
       saison: "Octobre / Novembre",
       emoji: "⚓",
-      color: "oklch(0.38_0.1_220)",
-      colorLight: "oklch(0.92_0.04_220)",
-      img: "/photos/IMG_4255.jpeg",
+      color: "#0f4d62",
+      colorLight: "#e8d7c5",
+      img: "/photos%20site/dji_fly_20260314_085156_141_1773474731452_photo_optimized.jpg",
       titre: "La Grande Traversée",
       depart: "La Ciotat → Fort-de-France",
       description: "La grande traversee vers les Antilles: navigation hauturiere, quarts, meteo, vie de bord et nuits etoilees. Une experience rare, encadree par un equipage professionnel.",
@@ -470,9 +478,9 @@ function SectionDestinations() {
       label: "Caraïbes",
       saison: "Hiver (Novembre → Avril)",
       emoji: "🌴",
-      color: "oklch(0.72_0.11_85)",
-      colorLight: "oklch(0.95_0.04_85)",
-      img: "/photos/IMG_4449.jpeg",
+      color: "#B58E6E",
+      colorLight: "#f2e4d5",
+      img: "/photos%20site/IMG_4449.jpeg",
       titre: "Martinique & Grenadines",
       depart: "Fort-de-France / Pointe-à-Pitre",
       description: "Depuis Fort-de-France ou Pointe-a-Pitre, cap sur les Grenadines et les mouillages iconiques des Caraibes. Eaux turquoise, ambiance creole et itineraires adaptes a votre rythme.",
@@ -493,7 +501,7 @@ function SectionDestinations() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <Reveal>
           <div className="text-center mb-12">
-            <h2 className="text-4xl lg:text-5xl font-extrabold text-[oklch(0.15_0.05_220)]" style={{ fontFamily: "Cormorant Garamond, Times New Roman, serif" }}>
+            <h2 className="text-4xl lg:text-5xl font-extrabold" style={{ fontFamily: "Cormorant Garamond, Times New Roman, serif", color: BRAND_DEEP }}>
               Destinations
             </h2>
           </div>
@@ -538,7 +546,7 @@ function SectionDestinations() {
             <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent" />
             <div className="absolute bottom-5 left-5 text-white">
               <div className="text-xs font-bold tracking-widest uppercase opacity-80 mb-1">{dest.saison}</div>
-              <div className="text-2xl font-extrabold" style={{ fontFamily: "Syne, sans-serif" }}>{dest.titre}</div>
+              <div className="text-2xl font-extrabold" style={{ fontFamily: "Cormorant Garamond, Times New Roman, serif" }}>{dest.titre}</div>
             </div>
           </div>
 
@@ -551,7 +559,7 @@ function SectionDestinations() {
               <MapPin className="w-4 h-4" />
               Départ : {dest.depart}
             </div>
-            <h3 className="text-3xl font-extrabold text-[oklch(0.15_0.05_220)] mb-4" style={{ fontFamily: "Syne, sans-serif" }}>
+            <h3 className="text-3xl font-extrabold mb-4" style={{ fontFamily: "Cormorant Garamond, Times New Roman, serif", color: BRAND_DEEP }}>
               {dest.titre}
             </h3>
             <p className="text-[oklch(0.4_0.04_220)] leading-relaxed mb-6">{dest.description}</p>
@@ -598,8 +606,8 @@ function SectionProgramme() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <Reveal>
           <div className="text-center mb-16">
-            <span className="inline-block text-[oklch(0.28_0.08_240)] text-sm font-bold tracking-widest uppercase mb-3">Au programme</span>
-            <h2 className="text-4xl lg:text-5xl font-extrabold text-[oklch(0.15_0.05_220)]" style={{ fontFamily: "Syne, sans-serif" }}>
+            <span className="inline-block text-sm font-bold tracking-widest uppercase mb-3" style={{ color: BRAND_DEEP }}>Au programme</span>
+            <h2 className="text-4xl lg:text-5xl font-extrabold" style={{ fontFamily: "Cormorant Garamond, Times New Roman, serif", color: BRAND_DEEP }}>
               Votre semaine à bord
             </h2>
             <p className="mt-4 text-[oklch(0.45_0.04_220)] max-w-xl mx-auto">
@@ -615,7 +623,7 @@ function SectionProgramme() {
                 <div className="w-12 h-12 rounded-2xl bg-[oklch(0.94_0.04_220)] flex items-center justify-center text-[oklch(0.28_0.08_240)] mb-4 group-hover:bg-[oklch(0.28_0.08_240)] group-hover:text-white transition-colors duration-300">
                   {a.icon}
                 </div>
-                <h3 className="text-lg font-bold text-[oklch(0.15_0.05_220)] mb-2" style={{ fontFamily: "Syne, sans-serif" }}>{a.titre}</h3>
+                <h3 className="text-lg font-bold mb-2" style={{ fontFamily: "Cormorant Garamond, Times New Roman, serif", color: BRAND_DEEP }}>{a.titre}</h3>
                 <p className="text-sm text-[oklch(0.5_0.04_220)] leading-relaxed">{a.desc}</p>
               </div>
             </Reveal>
@@ -663,8 +671,8 @@ function SectionProgramme() {
                   style={!f.featured ? { color: f.color } : {}}>
                   {f.titre}
                 </div>
-                <div className={`text-2xl font-extrabold mb-1 ${f.featured ? "text-white" : "text-[oklch(0.15_0.05_220)]"}`}
-                  style={{ fontFamily: "Syne, sans-serif" }}>
+                <div className={`text-2xl font-extrabold mb-1 ${f.featured ? "text-white" : ""}`}
+                  style={{ fontFamily: "Cormorant Garamond, Times New Roman, serif", color: f.featured ? undefined : BRAND_DEEP }}>
                   {f.prix}
                 </div>
                 <div className={`text-sm mb-4 ${f.featured ? "text-white/70" : "text-[oklch(0.55_0.04_220)]"}`}>{f.desc}</div>
@@ -704,12 +712,12 @@ function SectionProgramme() {
 // ── Section Équipage ──────────────────────────────────────────────────────────
 function SectionEquipage() {
   return (
-    <section id="equipage" className="py-20 lg:py-28 bg-[oklch(0.12_0.05_220)]">
+    <section id="equipage" className="py-20 lg:py-28" style={{ backgroundColor: BRAND_DEEP }}>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <Reveal>
           <div className="text-center mb-16">
-            <span className="inline-block text-[oklch(0.75_0.1_220)] text-sm font-bold tracking-widest uppercase mb-3">L'Équipage</span>
-              <h2 className="text-4xl lg:text-5xl font-extrabold text-white" style={{ fontFamily: "Syne, sans-serif" }}>
+            <span className="inline-block text-sm font-bold tracking-widest uppercase mb-3" style={{ color: BRAND_SAND }}>L'Équipage</span>
+              <h2 className="text-4xl lg:text-5xl font-extrabold text-white" style={{ fontFamily: "Cormorant Garamond, Times New Roman, serif" }}>
               Victor & Lea
             </h2>
             <p className="mt-4 text-white/60 max-w-xl mx-auto">
@@ -726,7 +734,7 @@ function SectionEquipage() {
               titre: "Capitaine 500 · Skipper hauturier",
               desc: "Victor est le capitaine de Sabine. Titulaire du brevet capitaine 500, il a navigué en Méditerranée et traversé l'Atlantique plusieurs fois. Passionné de météo et de navigation hauturière, il assure la sécurité et le confort de tous à bord avec calme et professionnalisme.",
               color: "oklch(0.72_0.11_85)",
-              img: "/photos/IMG_4385.jpeg",
+              img: "/photos%20site/dji_fly_20260313_182132_137_1773422554613_photo_optimized.jpg",
             },
             {
               nom: "Lea",
@@ -734,7 +742,7 @@ function SectionEquipage() {
               titre: "Capitaine 200 voile · Charpentiere marine",
               desc: "Lea accompagne les manoeuvres, la vie de bord et les escales. Son approche allie exigence maritime, sens de l'accueil et attention aux details pour un voyage fluide et rassurant.",
               color: "oklch(0.72_0.11_85)",
-              img: "/photos/IMG_4485.jpeg",
+              img: "/photos%20site/dji_fly_20260313_182128_136_1773422559730_photo_optimized.jpg",
             },
           ].map((p, i) => (
             <Reveal key={p.nom} delay={i * 0.15}>
@@ -746,7 +754,7 @@ function SectionEquipage() {
                 <div className="p-6">
                   <div className="flex items-center gap-3 mb-3">
                     <div>
-                      <div className="text-2xl font-extrabold text-white" style={{ fontFamily: "Syne, sans-serif" }}>{p.nom}</div>
+                      <div className="text-2xl font-extrabold text-white" style={{ fontFamily: "Cormorant Garamond, Times New Roman, serif" }}>{p.nom}</div>
                       <div className="text-xs font-semibold" style={{ color: p.color }}>{p.age} · {p.titre}</div>
                     </div>
                   </div>
@@ -769,7 +777,7 @@ function SectionEquipage() {
                 <div className="w-10 h-10 rounded-xl bg-[oklch(0.28_0.08_240)]/20 flex items-center justify-center text-[oklch(0.75_0.1_220)] mb-3">
                   {v.icon}
                 </div>
-                <div className="text-white font-bold mb-1" style={{ fontFamily: "Syne, sans-serif" }}>{v.titre}</div>
+                <div className="text-white font-bold mb-1" style={{ fontFamily: "Cormorant Garamond, Times New Roman, serif" }}>{v.titre}</div>
                 <div className="text-white/50 text-sm">{v.desc}</div>
               </div>
             ))}
@@ -788,7 +796,7 @@ function SectionCalendrier() {
         <Reveal>
           <div className="text-center mb-14">
             <span className="editorial-kicker">Disponibilités & Tarifs</span>
-            <h2 className="editorial-title editorial-title-centered mt-4" style={{ fontFamily: "Syne, sans-serif" }}>
+            <h2 className="editorial-title editorial-title-centered mt-4" style={{ fontFamily: "Cormorant Garamond, Times New Roman, serif" }}>
               Calendrier 2025-2026
             </h2>
             <p className="editorial-lead max-w-2xl">
@@ -812,12 +820,12 @@ function SectionCalendrier() {
 // ── Section Galerie ───────────────────────────────────────────────────────────
 function SectionGalerie() {
   const photos = [
-    { src: "/photos/IMG_4405.jpeg", alt: "Sabine en navigation" },
-    { src: "/photos/IMG_4406.jpeg", alt: "Mouillage et navigation" },
-    { src: "/photos/IMG_4412.jpeg", alt: "Vie à bord" },
-    { src: "/photos/IMG_4422.jpeg", alt: "Pont et extérieur" },
-    { src: "/photos/IMG_4483.jpeg", alt: "Ambiance croisière" },
-    { src: "/photos/IMG_4504.jpeg", alt: "Détails de navigation" },
+    { src: "/photos%20site/dji_fly_20260313_144422_130_1773409482024_photo_optimized.jpg", alt: "Sabine en navigation" },
+    { src: "/photos%20site/dji_fly_20260314_171456_155_1773505004694_photo_optimized.jpg", alt: "Mouillage et navigation" },
+    { src: "/photos%20site/dji_fly_20260313_143914_122_1773409216418_photo_optimized.jpg", alt: "Vie à bord" },
+    { src: "/photos%20site/dji_fly_20260309_114022_78_1773052860296_photo_optimized.jpg", alt: "Pont et extérieur" },
+    { src: "/photos%20site/IMG_4415.jpeg", alt: "Ambiance croisière" },
+    { src: "/photos%20site/IMG_4517.jpeg", alt: "Détails de navigation" },
   ];
 
   return (
@@ -825,8 +833,8 @@ function SectionGalerie() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <Reveal>
           <div className="text-center mb-12">
-            <span className="inline-block text-[oklch(0.28_0.08_240)] text-sm font-bold tracking-widest uppercase mb-3">Galerie</span>
-            <h2 className="text-4xl lg:text-5xl font-extrabold text-[oklch(0.15_0.05_220)]" style={{ fontFamily: "Syne, sans-serif" }}>
+            <span className="inline-block text-sm font-bold tracking-widest uppercase mb-3" style={{ color: BRAND_DEEP }}>Galerie</span>
+            <h2 className="text-4xl lg:text-5xl font-extrabold" style={{ fontFamily: "Cormorant Garamond, Times New Roman, serif", color: BRAND_DEEP }}>
               À bord de Sabine
             </h2>
           </div>
@@ -852,111 +860,56 @@ function SectionGalerie() {
   );
 }
 
-function SectionInstagramHighlights() {
-  const posts = [
-    {
-      url: "https://www.instagram.com/p/DXeMQkZAYrm/?img_index=1",
-      img: "/photos/IMG_4515.jpeg",
-      label: "Sortie coucher de soleil",
-    },
-    {
-      url: "https://www.instagram.com/p/DXWk0wFjHeM/",
-      img: "/photos/IMG_4405.jpeg",
-      label: "Navigation Mediterranee",
-    },
-    {
-      url: "https://www.instagram.com/p/DXGsetYGgfw/",
-      img: "/photos/IMG_4406.jpeg",
-      label: "Mouillage et baignade",
-    },
-    {
-      url: "https://www.instagram.com/p/DW50d5rDUx2/",
-      img: "/photos/IMG_4412.jpeg",
-      label: "Vie a bord",
-    },
-    {
-      url: "https://www.instagram.com/p/DWy2Z9Wl5C4/",
-      img: "/photos/IMG_4422.jpeg",
-      label: "Pont et exterieur",
-    },
-    {
-      url: "https://www.instagram.com/p/DWqQ4lNjUKf/?img_index=1",
-      img: "/photos/IMG_4483.jpeg",
-      label: "Ambiance croisiere",
-    },
-    {
-      url: "https://www.instagram.com/p/DWow1veAG5v/",
-      img: "/photos/IMG_4504.jpeg",
-      label: "Details de navigation",
-    },
-    {
-      url: "https://www.instagram.com/p/DWREpkNEWqG/",
-      img: "/photos/IMG_4449.jpeg",
-      label: "Destination Caraibes",
-    },
+function SectionVideosDrone() {
+  const videos = [
+    { id: "kpjcoAyLiTE", url: "https://youtu.be/kpjcoAyLiTE", title: "Vol drone - criques et turquoise" },
+    { id: "Djw_-FchtNI", url: "https://youtu.be/Djw_-FchtNI", title: "Sabine en navigation aerienne" },
+    { id: "p54hSGXNENw", url: "https://youtu.be/p54hSGXNENw", title: "Mouillage premium vu du ciel" },
+    { id: "DHDojaC0d0c", url: "https://youtu.be/DHDojaC0d0c", title: "Littoral et catamaran au drone" },
+    { id: "_uXgicKETjg", url: "https://youtu.be/_uXgicKETjg", title: "Sequence drone coucher de soleil" },
+    { id: "z7YxVmKSH1Y", url: "https://youtu.be/z7YxVmKSH1Y", title: "Sabine Sailing cinematic" },
   ];
 
   return (
-    <section className="bg-[linear-gradient(180deg,#f5eee0,#efe5d4)] py-20 lg:py-24">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <section className="relative py-20 lg:py-24 overflow-hidden">
+      <div className="absolute inset-0">
+        <iframe
+          src="https://www.youtube-nocookie.com/embed/Djw_-FchtNI?autoplay=1&mute=1&controls=0&loop=1&playlist=Djw_-FchtNI&modestbranding=1&rel=0&playsinline=1&iv_load_policy=3"
+          title="Ambiance drone Sabine Sailing"
+          className="absolute top-1/2 left-1/2 h-[56.25vw] min-h-full w-[177.78vh] min-w-full -translate-x-1/2 -translate-y-1/2 pointer-events-none"
+          allow="autoplay; encrypted-media; picture-in-picture"
+          referrerPolicy="strict-origin-when-cross-origin"
+        />
+      </div>
+      <div className="absolute inset-0" style={{ background: "linear-gradient(180deg,rgba(0,32,44,0.72),rgba(0,56,74,0.58),rgba(0,32,44,0.8))" }} />
+
+      <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <Reveal>
           <div className="text-center mb-10">
-            <span className="inline-block text-[oklch(0.28_0.08_240)] text-sm font-bold tracking-widest uppercase mb-3">Instagram</span>
-            <h2 className="text-4xl lg:text-5xl font-extrabold text-[oklch(0.15_0.05_220)]" style={{ fontFamily: "Syne, sans-serif" }}>
-              Vu sur @sabinesailing
+            <span className="inline-block text-sm font-bold tracking-widest uppercase mb-3 text-[#ead9c6]">Drone</span>
+            <h2 className="text-4xl lg:text-5xl font-extrabold text-white" style={{ fontFamily: "Cormorant Garamond, Times New Roman, serif" }}>
+              Ambiance aerienne Sabine Sailing
             </h2>
-            <p className="mt-4 text-[oklch(0.45_0.04_220)] max-w-2xl mx-auto">
-              Extraits reels de vos sorties a bord: navigation, mouillages, ambiance et moments partages avec l'equipage.
+            <p className="mt-4 max-w-2xl mx-auto text-[#f2e6d8]">
+              Nos dernieres prises de vue drone en fond pour ressentir immediatement l'atmosphere a bord.
             </p>
           </div>
         </Reveal>
 
-        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {posts.map((post, i) => (
-            <Reveal key={post.url} delay={i * 0.05}>
-              <a
-                href={post.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="group block overflow-hidden rounded-2xl border border-[oklch(0.9_0.02_220)] bg-white hover:shadow-lg transition-all"
-              >
-                <div className="relative h-48 overflow-hidden bg-[oklch(0.94_0.02_220)]">
-                  <img
-                    src={post.img}
-                    alt={post.label}
-                    className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
-                    loading="lazy"
-                    decoding="async"
-                  />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/15 to-transparent" />
-                  <div className="absolute left-3 right-3 bottom-3 flex items-center justify-between text-white">
-                    <div className="text-xs font-semibold">{post.label}</div>
-                    <Instagram className="w-4 h-4" />
-                  </div>
-                </div>
-                <div className="p-4">
-                  <div className="text-xs text-[oklch(0.5_0.03_240)] break-all">
-                    {post.url.replace("https://www.instagram.com/", "instagram.com/")}
-                  </div>
-                  <div className="mt-3 text-sm font-semibold text-[oklch(0.28_0.08_240)] inline-flex items-center gap-2">
-                    Ouvrir le post <ArrowRight className="w-4 h-4" />
-                  </div>
-                </div>
-              </a>
-            </Reveal>
+        <div className="flex flex-wrap justify-center gap-3">
+          {videos.map((video) => (
+            <a
+              key={video.id}
+              href={video.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 rounded-full border px-4 py-2 text-xs font-semibold transition-all hover:scale-[1.02]"
+              style={{ borderColor: `${BRAND_SAND}b8`, backgroundColor: "rgba(181,142,110,0.22)", color: "#fff6ea" }}
+            >
+              <PlayCircle className="w-4 h-4" />
+              {video.title}
+            </a>
           ))}
-        </div>
-
-        <div className="mt-8 text-center">
-          <a
-            href="https://www.instagram.com/sabinesailing/"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-2 rounded-full border border-[oklch(0.2_0.06_240)] px-5 py-2.5 text-sm font-bold text-[oklch(0.2_0.06_240)] hover:bg-[oklch(0.2_0.06_240)] hover:text-white transition-all"
-          >
-            <Instagram className="w-4 h-4" />
-            Voir tout le compte Instagram
-          </a>
         </div>
       </div>
     </section>
@@ -1001,7 +954,7 @@ function SectionContact() {
           <Reveal>
             <div>
               <span className="editorial-kicker">Contact</span>
-              <h2 className="editorial-title mt-4 mb-6" style={{ fontFamily: "Syne, sans-serif" }}>
+              <h2 className="editorial-title mt-4 mb-6" style={{ fontFamily: "Cormorant Garamond, Times New Roman, serif" }}>
                 Organisons votre voyage
               </h2>
               <p className="text-[oklch(0.4_0.03_240)] text-lg leading-relaxed mb-10">
@@ -1059,7 +1012,7 @@ function SectionContact() {
               {/* Photo CTA */}
               <div className="mt-8 relative rounded-2xl overflow-hidden">
                 <img
-                  src="/photos/IMG_4515.jpeg"
+                  src="/photos%20site/dji_fly_20260313_105718_116_1773396190675_photo_optimized.jpg"
                   alt="Coucher de soleil en mer"
                   className="w-full h-40 object-cover"
                   loading="lazy"
@@ -1067,8 +1020,8 @@ function SectionContact() {
                 />
                 <div className="absolute inset-0 bg-gradient-to-r from-[oklch(0.2_0.06_240)]/70 to-transparent flex items-center px-6">
                   <div>
-                    <div className="text-white font-extrabold text-xl" style={{ fontFamily: "Syne, sans-serif" }}>Embarquez pour</div>
-                    <div className="text-[oklch(0.9_0.02_95)] font-extrabold text-xl" style={{ fontFamily: "Syne, sans-serif" }}>l'aventure !</div>
+                    <div className="text-white font-extrabold text-xl" style={{ fontFamily: "Cormorant Garamond, Times New Roman, serif" }}>Embarquez pour</div>
+                    <div className="font-extrabold text-xl" style={{ fontFamily: "Cormorant Garamond, Times New Roman, serif", color: "#f2e4d5" }}>l'aventure !</div>
                   </div>
                 </div>
               </div>
@@ -1083,7 +1036,7 @@ function SectionContact() {
                   <div className="w-16 h-16 rounded-full bg-[oklch(0.2_0.06_240)]/10 flex items-center justify-center mx-auto mb-4">
                     <Anchor className="w-8 h-8 text-[oklch(0.2_0.06_240)]" />
                   </div>
-                  <h3 className="text-xl font-bold text-[oklch(0.2_0.06_240)] mb-2" style={{ fontFamily: "Syne, sans-serif" }}>Message envoyé !</h3>
+                  <h3 className="text-xl font-bold text-[oklch(0.2_0.06_240)] mb-2" style={{ fontFamily: "Cormorant Garamond, Times New Roman, serif" }}>Message envoyé !</h3>
                   <p className="text-[oklch(0.45_0.03_240)] text-sm">Victor et son équipage vous répondront dans les 24h. Bon vent !</p>
                   <button onClick={() => setSent(false)} className="mt-4 text-[oklch(0.2_0.06_240)] text-sm hover:underline">
                     Envoyer un autre message
@@ -1091,7 +1044,7 @@ function SectionContact() {
                 </div>
               ) : (
                 <form onSubmit={handleSubmit} className="space-y-4">
-                  <h3 className="text-xl font-bold text-[oklch(0.2_0.06_240)] mb-2" style={{ fontFamily: "Syne, sans-serif" }}>Demande de réservation</h3>
+                  <h3 className="text-xl font-bold text-[oklch(0.2_0.06_240)] mb-2" style={{ fontFamily: "Cormorant Garamond, Times New Roman, serif" }}>Demande de réservation</h3>
 
                   <div className="grid grid-cols-2 gap-4">
                     <div>
@@ -1187,7 +1140,7 @@ function Footer() {
             <img src="/logo-sabine.png" alt="Sabine Sailing" className="h-14 w-auto rounded-full" />
           </div>
           <div className="text-[oklch(0.48_0.03_240)] text-xs text-center leading-relaxed">
-            © 2026 Sabine Sailing · La Ciotat · Pavillon Français<br />
+            © 2026 Sabine Sailing · La Ciotat<br />
             contact@sabine-sailing.com · +33 6 52 00 43 42
           </div>
           <div className="flex gap-3 md:justify-end justify-center">
@@ -1312,7 +1265,7 @@ export default function Home() {
       <SectionEquipage />
       <SectionCalendrier />
       <SectionGalerie />
-      <SectionInstagramHighlights />
+      <SectionVideosDrone />
       <Suspense fallback={<div className="py-10 text-center text-sm text-[oklch(0.45_0.04_220)]">Chargement des avis...</div>}>
         <AvisGoogle />
       </Suspense>

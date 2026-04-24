@@ -32,20 +32,26 @@ router.get("/", async (_req, res) => {
       return (await response.json()) as T;
     };
 
-    let placeId = process.env.GOOGLE_PLACE_ID || "";
-
-    if (!placeId) {
+    const resolvePlaceIdFromSearch = async (): Promise<string> => {
       const search = await callGooglePlaces<PlacesSearchResult>("textsearch", {
         query: DEFAULT_BUSINESS_QUERY,
         language: "fr",
       });
       if (search.status !== "OK" || !search.results?.length) {
+        return "";
+      }
+      return search.results?.[0]?.place_id || "";
+    };
+
+    let placeId = (process.env.GOOGLE_PLACE_ID || "").trim();
+    if (!placeId) {
+      placeId = await resolvePlaceIdFromSearch();
+      if (!placeId) {
         return res.status(404).json({
           error:
-            "Aucune fiche Google Business trouvee pour Sabine Sailing. Renseignez GOOGLE_PLACE_ID avec votre vrai Place ID.",
+            "Aucune fiche Google Business trouvee pour Sabine Sailing. Verifiez la fiche ou renseignez GOOGLE_PLACE_ID.",
         });
       }
-      placeId = search.results?.[0]?.place_id || "";
     }
 
     if (!placeId) {
@@ -54,14 +60,29 @@ router.get("/", async (_req, res) => {
       });
     }
 
-    const details = await callGooglePlaces<PlaceDetailsResult>("details", {
+    let details = await callGooglePlaces<PlaceDetailsResult>("details", {
       place_id: placeId,
       fields: "place_id,name,rating,user_ratings_total,reviews,url",
       language: "fr",
     });
+
+    // If configured PLACE_ID is stale/wrong, recover automatically from text search.
+    if (details.status !== "OK" || !details.result) {
+      const searchedPlaceId = await resolvePlaceIdFromSearch();
+      if (searchedPlaceId && searchedPlaceId !== placeId) {
+        placeId = searchedPlaceId;
+        details = await callGooglePlaces<PlaceDetailsResult>("details", {
+          place_id: placeId,
+          fields: "place_id,name,rating,user_ratings_total,reviews,url",
+          language: "fr",
+        });
+      }
+    }
+
     if (details.status !== "OK" || !details.result) {
       return res.status(502).json({
-        error: "Google Place Details indisponible pour cette fiche. Verifiez GOOGLE_PLACE_ID.",
+        error:
+          "Google Place Details indisponible pour cette fiche. Verifiez GOOGLE_PLACE_ID ou laissez le serveur resoudre la fiche automatiquement.",
       });
     }
 

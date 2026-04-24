@@ -72,7 +72,7 @@ export default function AvisGoogle() {
         {/* Titre */}
         <div className="text-center mb-16 lg:mb-20">
           <span className="editorial-kicker">Avis clients</span>
-          <h2 className="editorial-title editorial-title-centered mt-4 mb-4" style={{ fontFamily: "Syne, sans-serif" }}>
+          <h2 className="editorial-title editorial-title-centered mt-4 mb-4" style={{ fontFamily: "Cormorant Garamond, Times New Roman, serif" }}>
             Ce que disent nos clients
           </h2>
           <p className="editorial-lead max-w-2xl">
@@ -83,17 +83,18 @@ export default function AvisGoogle() {
         {/* Note globale + Widget Google */}
         <div className="grid lg:grid-cols-3 gap-8 lg:gap-10 items-start">
           {/* Résumé des avis */}
-          <div className="editorial-panel bg-gradient-to-b from-[oklch(0.99_0.004_95)] to-[oklch(0.96_0.008_220)] p-8">
+          <div className="editorial-panel p-8" style={{ background: "linear-gradient(180deg,#f5ebdd,#ead8c4)" }}>
             <div className="text-center">
               <div className="flex items-center justify-center gap-2 mb-3">
                 {[...Array(5)].map((_, i) => (
                   <Star
                     key={i}
-                    className="w-6 h-6 fill-[oklch(0.72_0.11_85)] text-[oklch(0.72_0.11_85)]"
+                    className="w-6 h-6"
+                    style={{ fill: "#B58E6E", color: "#B58E6E" }}
                   />
                 ))}
               </div>
-              <div className="text-5xl font-extrabold text-[oklch(0.15_0.05_220)] mb-2" style={{ fontFamily: "Syne, sans-serif" }}>
+              <div className="text-5xl font-extrabold text-[oklch(0.15_0.05_220)] mb-2" style={{ fontFamily: "Cormorant Garamond, Times New Roman, serif" }}>
                 {loading ? "..." : data ? data.rating.toFixed(1) : "-"}
               </div>
               <p className="text-[oklch(0.45_0.04_220)] text-sm mb-6">
@@ -107,7 +108,8 @@ export default function AvisGoogle() {
                 href={placeUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-block px-6 py-3 bg-[oklch(0.2_0.06_240)] text-white rounded-full font-semibold text-sm hover:bg-[oklch(0.16_0.05_240)] transition-colors"
+                className="inline-block px-6 py-3 text-white rounded-full font-semibold text-sm transition-colors"
+                style={{ backgroundColor: "#00384A" }}
               >
                 Voir tous les avis Google
               </a>
@@ -119,17 +121,11 @@ export default function AvisGoogle() {
                 <div key={stat.stars} className="flex items-center gap-3">
                   <div className="flex items-center gap-1 w-12">
                     {[...Array(stat.stars)].map((_, i) => (
-                      <Star
-                        key={i}
-                        className="w-3 h-3 fill-[oklch(0.72_0.11_85)] text-[oklch(0.72_0.11_85)]"
-                      />
+                      <Star key={i} className="w-3 h-3" style={{ fill: "#B58E6E", color: "#B58E6E" }} />
                     ))}
                   </div>
                   <div className="flex-1 h-2 bg-[oklch(0.88_0.03_220)] rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-[oklch(0.72_0.11_85)]"
-                      style={{ width: `${stat.percent}%` }}
-                    />
+                    <div className="h-full" style={{ width: `${stat.percent}%`, backgroundColor: "#00384A" }} />
                   </div>
                   <span className="text-xs text-[oklch(0.45_0.04_220)] w-8 text-right">
                     {stat.count}
@@ -171,7 +167,7 @@ export default function AvisGoogle() {
                     </svg>
                   </div>
                   <div>
-                    <p className="text-sm font-semibold text-[oklch(0.2_0.06_240)]">Google Reviews</p>
+                    <p className="text-sm font-semibold" style={{ color: "#00384A" }}>Google Reviews</p>
                     <p className="text-xs text-slate-500">Avis vérifiés</p>
                   </div>
                 </div>
@@ -200,10 +196,7 @@ export default function AvisGoogle() {
                         <p className="font-semibold text-slate-900 text-sm">{review.authorName}</p>
                         <div className="flex gap-1">
                           {[...Array(Math.round(review.rating))].map((_, j) => (
-                            <Star
-                              key={j}
-                              className="w-4 h-4 fill-[oklch(0.72_0.11_85)] text-[oklch(0.72_0.11_85)]"
-                            />
+                            <Star key={j} className="w-4 h-4" style={{ fill: "#B58E6E", color: "#B58E6E" }} />
                           ))}
                         </div>
                       </div>
@@ -220,7 +213,8 @@ export default function AvisGoogle() {
                     href={placeUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center gap-2 text-sm font-semibold text-[oklch(0.28_0.08_240)] hover:text-[oklch(0.22_0.08_240)] transition-colors"
+                    className="inline-flex items-center gap-2 text-sm font-semibold transition-colors"
+                    style={{ color: "#00384A" }}
                   >
                     Lire tous les avis sur Google →
                   </a>
@@ -253,7 +247,7 @@ export default function AvisGoogle() {
           ].map((item, i) => (
             <div key={i} className="editorial-panel rounded-2xl p-6">
               <div className="text-3xl mb-3">{item.icon}</div>
-              <h3 className="font-bold text-[oklch(0.15_0.05_220)] mb-2" style={{ fontFamily: "Syne, sans-serif" }}>
+              <h3 className="font-bold mb-2" style={{ fontFamily: "Cormorant Garamond, Times New Roman, serif", color: "#00384A" }}>
                 {item.titre}
               </h3>
               <p className="text-sm text-[oklch(0.45_0.04_220)]">{item.desc}</p>
