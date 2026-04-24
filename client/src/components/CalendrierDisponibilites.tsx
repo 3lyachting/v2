@@ -210,17 +210,6 @@ function getWeekForBoundary(iso: string, semaines: Semaine[], boundary: "debut" 
   return matches[0];
 }
 
-function getSaturdayToSaturdayWindow(date: Date) {
-  const start = new Date(date);
-  start.setUTCHours(0, 0, 0, 0);
-  const day = start.getUTCDay(); // 0 dim, 6 sam
-  const distanceToPrevSaturday = (day + 1) % 7;
-  start.setUTCDate(start.getUTCDate() - distanceToPrevSaturday);
-  const end = new Date(start);
-  end.setUTCDate(end.getUTCDate() + 7);
-  return { start, end };
-}
-
 function remainingPlaces(semaine?: Semaine | null) {
   if (!semaine) return null;
   if (typeof semaine.capaciteTotale !== "number") return null;
@@ -232,6 +221,17 @@ function remainingPlaces(semaine?: Semaine | null) {
   const reservedUnits = typeof semaine.cabinesReservees === "number" ? semaine.cabinesReservees : 0;
   const reservedPlaces = reservedUnits * multiplier;
   return Math.max(0, totalPlaces - reservedPlaces);
+}
+
+function getTotalUnits(semaine?: Semaine | null) {
+  if (!semaine) return 0;
+  if (typeof semaine.capaciteTotale === "number" && semaine.capaciteTotale > 0) return semaine.capaciteTotale;
+  return 4;
+}
+
+function getReservedUnits(semaine?: Semaine | null) {
+  if (!semaine) return 0;
+  return Math.max(0, typeof semaine.cabinesReservees === "number" ? semaine.cabinesReservees : 0);
 }
 
 function formatCompactPrice(value?: number) {
@@ -273,25 +273,6 @@ function getInclusiveDays(startIso: string, endIso: string) {
   return Math.max(1, diff + 1);
 }
 
-function buildLaCiotatDayTripSlot(startIso: string, endIso = startIso, pendingEndSelection = false): Semaine {
-  const days = getInclusiveDays(startIso, endIso);
-  const totalPriva = 900 * days;
-  const totalPerson = 130 * days;
-  return {
-    debut: startIso,
-    fin: endIso,
-    statut: "disponible",
-    destination: "La Ciotat · Sortie journée",
-    tarifJourPriva: 900,
-    tarifJourPersonne: 130,
-    tarifCabine: 130,
-    note: pendingEndSelection
-      ? "Sélectionnez maintenant votre jour d'arrivée pour calculer le total."
-      : `Sortie journée ${days} jour${days > 1 ? "s" : ""}: ${totalPriva.toLocaleString("fr-FR")}€ bateau entier ou ${totalPerson.toLocaleString("fr-FR")}€ par personne.`,
-    produit: "croisiere_mediterranee",
-  };
-}
-
 function isDayInProductWindow(isoDay: string, produit: "tous" | "croisiere_mediterranee" | "transatlantique" | "croisiere_caraibes") {
   if (produit === "tous") return true;
   if (produit === "croisiere_mediterranee") {
@@ -316,7 +297,6 @@ export default function CalendrierDisponibilites() {
   const [semaineSelectionnee, setSemaineSelectionnee] = useState<Semaine | null>(null);
   const [produitFiltre, setProduitFiltre] = useState<"tous" | "croisiere_mediterranee" | "transatlantique" | "croisiere_caraibes">("tous");
   const [reservationMode, setReservationMode] = useState<"priva" | "cabine">("cabine");
-  const [dayTripDepartureIso, setDayTripDepartureIso] = useState<string | null>(null);
 
   // Charger les disponibilités depuis l'API
   useEffect(() => {
@@ -390,33 +370,10 @@ export default function CalendrierDisponibilites() {
   const handleDateClick = (date: Date) => {
     const semaine = getSemaineForDate(date, semainesFiltrees);
     if (semaine) {
-      setDayTripDepartureIso(null);
       setSemaineSelectionnee(semaine);
       return;
     }
-    const iso = date.toISOString().split("T")[0];
-    if (isLaCiotatDayTripSeason(iso) && (produitFiltre === "tous" || produitFiltre === "croisiere_mediterranee")) {
-      if (!dayTripDepartureIso) {
-        setDayTripDepartureIso(iso);
-        setSemaineSelectionnee(buildLaCiotatDayTripSlot(iso, iso, true));
-        return;
-      }
-      const startIso = dayTripDepartureIso <= iso ? dayTripDepartureIso : iso;
-      const endIso = dayTripDepartureIso <= iso ? iso : dayTripDepartureIso;
-      setDayTripDepartureIso(null);
-      setSemaineSelectionnee(buildLaCiotatDayTripSlot(startIso, endIso));
-      return;
-    }
-    setDayTripDepartureIso(null);
-    const { start, end } = getSaturdayToSaturdayWindow(date);
-    setSemaineSelectionnee({
-      debut: start.toISOString().split("T")[0],
-      fin: end.toISOString().split("T")[0],
-      statut: "disponible",
-      destination: "Méditerranée",
-      note: "Créneau semaine (samedi -> samedi) libre",
-      produit: produitFiltre === "tous" ? "croisiere_mediterranee" : produitFiltre,
-    });
+    setSemaineSelectionnee(null);
   };
 
   // Générer les jours du mois en UTC
@@ -499,6 +456,31 @@ export default function CalendrierDisponibilites() {
       : semaineSelectionnee.tarifCabine ?? semaineSelectionnee.tarifJourPersonne ?? semaineSelectionnee.tarif ?? 0
     : 0;
   const selectedTotalAmount = isSelectedDayTrip ? selectedBaseAmount * selectedDayCount : selectedBaseAmount;
+  const selectedTotalUnits = getTotalUnits(semaineSelectionnee);
+  const selectedReservedUnits = getReservedUnits(semaineSelectionnee);
+  const selectedHasPrivaOffer =
+    Boolean(semaineSelectionnee) &&
+    (typeof semaineSelectionnee?.tarif === "number" || typeof semaineSelectionnee?.tarifJourPriva === "number");
+  const selectedHasCabineOffer =
+    Boolean(semaineSelectionnee) &&
+    (typeof semaineSelectionnee?.tarifCabine === "number" || typeof semaineSelectionnee?.tarifJourPersonne === "number");
+  const selectedStatusIsBookable = Boolean(
+    semaineSelectionnee && (semaineSelectionnee.statut === "disponible" || semaineSelectionnee.statut === "option")
+  );
+  const canBookPrivate = selectedStatusIsBookable && selectedHasPrivaOffer && selectedReservedUnits === 0;
+  const canBookCabine =
+    selectedStatusIsBookable && selectedHasCabineOffer && selectedReservedUnits < selectedTotalUnits;
+
+  useEffect(() => {
+    if (!semaineSelectionnee) return;
+    if (reservationMode === "priva" && !canBookPrivate && canBookCabine) {
+      setReservationMode("cabine");
+      return;
+    }
+    if (reservationMode === "cabine" && !canBookCabine && canBookPrivate) {
+      setReservationMode("priva");
+    }
+  }, [reservationMode, canBookPrivate, canBookCabine, semaineSelectionnee]);
 
   return (
     <div className="editorial-panel rounded-3xl border p-6 shadow-[0_24px_60px_-30px_rgba(15,23,42,0.35)] lg:p-10" style={{ borderColor: "#dcc6ae", background: "linear-gradient(180deg,#fbf3ea,#f2e3d1)" }}>
@@ -590,15 +572,15 @@ export default function CalendrierDisponibilites() {
                   const semaine = getSemaineForDate(day, semainesFiltrees);
                   const inProductWindow = isDayInProductWindow(iso, produitFiltre);
                   const isDayTrip = isLaCiotatDayTripSeason(iso) && (produitFiltre === "tous" || produitFiltre === "croisiere_mediterranee");
-                  const resolved = semaine || (isDayTrip
-                    ? buildLaCiotatDayTripSlot(iso)
-                    : {
-                        debut: iso,
-                        fin: iso,
-                        // Sans créneau réel en base/API, ne pas afficher "disponible" en vert.
-                        statut: "ferme" as Statut,
-                        destination: inProductWindow ? "Aucun créneau" : "Hors produit",
-                      });
+                  const resolved =
+                    semaine ||
+                    {
+                      debut: iso,
+                      fin: iso,
+                      // Sans créneau réel en base/API, ne pas afficher "disponible" en vert.
+                      statut: "ferme" as Statut,
+                      destination: inProductWindow ? "Aucun créneau" : "Hors produit",
+                    };
                   const visibleInFilter = Boolean(semaine) || inProductWindow || isDayTrip;
                   const turnoverSaturday = isTurnoverSaturday(day, semainesFiltrees);
                   const displayStatut: Statut = turnoverSaturday ? "option" : resolved.statut;
@@ -708,28 +690,30 @@ export default function CalendrierDisponibilites() {
                     </span>
                   </div>
 
-                  {(semaineSelectionnee.statut === "disponible" || semaineSelectionnee.statut === "option") && (
+                  {selectedStatusIsBookable && (
                     <div>
                       <p className="text-xs text-[oklch(0.45_0.04_220)] uppercase font-semibold mb-2">Type de réservation</p>
                       <div className="grid grid-cols-2 gap-2 mb-3">
                         <button
                           onClick={() => setReservationMode("priva")}
+                          disabled={!canBookPrivate}
                           className={`px-3 py-2 rounded-lg text-xs font-semibold border ${
                             reservationMode === "priva"
                               ? "text-white"
                               : "bg-white"
-                          }`}
+                          } ${canBookPrivate ? "" : "opacity-40 cursor-not-allowed"}`}
                           style={reservationMode === "priva" ? { backgroundColor: BRAND_DEEP, borderColor: BRAND_DEEP } : { color: BRAND_DEEP, borderColor: "#d8c1a6" }}
                         >
                           Privatif
                         </button>
                         <button
                           onClick={() => setReservationMode("cabine")}
+                          disabled={!canBookCabine}
                           className={`px-3 py-2 rounded-lg text-xs font-semibold border ${
                             reservationMode === "cabine"
                               ? "text-white"
                               : "bg-white"
-                          }`}
+                          } ${canBookCabine ? "" : "opacity-40 cursor-not-allowed"}`}
                           style={reservationMode === "cabine" ? { backgroundColor: BRAND_DEEP, borderColor: BRAND_DEEP } : { color: BRAND_DEEP, borderColor: "#d8c1a6" }}
                         >
                           {isSelectedDayTrip ? "Par personne" : "Cabine"}
@@ -757,7 +741,7 @@ export default function CalendrierDisponibilites() {
                     </div>
                   )}
 
-                  {(semaineSelectionnee.statut === "disponible" || semaineSelectionnee.statut === "option") && (
+                  {(canBookPrivate || canBookCabine) && (
                     <a
                       href={`/reservation?id=${semaineSelectionnee.id}&destination=${encodeURIComponent(semaineSelectionnee.destination || "")}&formule=semaine&typeReservation=${reservationMode === "priva" ? "bateau_entier" : "cabine"}&montant=${selectedTotalAmount}&dateDebut=${encodeURIComponent(semaineSelectionnee.debut || "")}&dateFin=${encodeURIComponent(semaineSelectionnee.fin || "")}`}
                       className="w-full mt-6 px-4 py-3.5 text-white rounded-xl font-bold transition-colors text-center block shadow-lg"

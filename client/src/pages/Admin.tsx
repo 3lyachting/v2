@@ -699,19 +699,6 @@ export default function Admin() {
     return new Date(d.getFullYear(), d.getMonth(), d.getDate());
   };
 
-  const isLaCiotatDayTripSeason = (day: Date) => {
-    const y = day.getFullYear();
-    const m = day.getMonth() + 1;
-    return y === 2026 && (m === 4 || m === 5);
-  };
-
-  const getReservationCalendarStatus = (r: Reservation): Disponibilite["statut"] | null => {
-    const ws = String(r.workflowStatut || "");
-    if (["acompte_confirme", "solde_confirme", "contrat_signe"].includes(ws)) return "reserve";
-    if (["validee_owner", "contrat_envoye"].includes(ws) || String(r.requestStatus || "") === "validee") return "option";
-    return null;
-  };
-
   const statutPriority = (statut: Disponibilite["statut"]) => {
     if (statut === "reserve") return 4;
     if (statut === "option") return 3;
@@ -721,50 +708,13 @@ export default function Admin() {
 
   const findDispoForDate = (date: Date) => {
     const day = toDayStart(date);
-    const matching = filteredDisponibilites.filter((d) => {
+    const matching = disponibilites.filter((d) => {
       const start = toDayStart(d.debut);
       const end = toDayStart(d.fin);
       return day >= start && day <= end;
     });
     if (matching.length) {
       return matching.sort((a, b) => statutPriority(b.statut) - statutPriority(a.statut))[0];
-    }
-
-    // Keep backoffice calendar behavior aligned with client April/May day-trip view.
-    if (isLaCiotatDayTripSeason(day)) {
-      const dayStartMs = day.getTime();
-      const dayEndMs = new Date(day.getFullYear(), day.getMonth(), day.getDate() + 1).getTime();
-      const overlappingReservations = reservations.filter((r) => {
-        const rStart = new Date(r.dateDebut).getTime();
-        const rEnd = new Date(r.dateFin).getTime();
-        return rStart < dayEndMs && rEnd > dayStartMs;
-      });
-      const reservationStatuses = overlappingReservations
-        .map(getReservationCalendarStatus)
-        .filter(Boolean) as Disponibilite["statut"][];
-      const syntheticStatus: Disponibilite["statut"] =
-        reservationStatuses.includes("reserve")
-          ? "reserve"
-          : reservationStatuses.includes("option")
-            ? "option"
-            : "disponible";
-
-      return {
-        id: -Number(`${day.getFullYear()}${String(day.getMonth() + 1).padStart(2, "0")}${String(day.getDate()).padStart(2, "0")}`),
-        planningType: "charter",
-        debut: day.toISOString(),
-        fin: day.toISOString(),
-        statut: syntheticStatus,
-        tarif: null,
-        tarifCabine: null,
-        tarifJourPriva: 900,
-        tarifJourPersonne: 130,
-        destination: "La Ciotat · Sortie journée",
-        note: null,
-        notePublique: "Sortie journée: 900€ privatif ou 130€ / personne",
-        createdAt: day.toISOString(),
-        updatedAt: day.toISOString(),
-      } satisfies Disponibilite;
     }
 
     return null;
@@ -786,9 +736,9 @@ export default function Admin() {
   useEffect(() => {
     if (!selectedCalendarDispo) return;
     if (selectedCalendarDispo.id <= 0) return;
-    const stillVisible = filteredDisponibilites.some((d) => d.id === selectedCalendarDispo.id);
+    const stillVisible = disponibilites.some((d) => d.id === selectedCalendarDispo.id);
     if (!stillVisible) setSelectedCalendarDispo(null);
-  }, [filteredDisponibilites, selectedCalendarDispo]);
+  }, [disponibilites, selectedCalendarDispo]);
 
   const selectedDispoReservations = useMemo(() => {
     if (!selectedCalendarDispo) return [];

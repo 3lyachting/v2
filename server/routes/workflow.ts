@@ -16,6 +16,10 @@ import {
 import { buildInvoicePdf, buildQuoteContractPdf } from "../_core/commercialDocs";
 import { dispatchEsign } from "../_core/esign";
 import { storageGetSignedUrl } from "../storage";
+import {
+  resolveDisponibiliteIdForReservation,
+  refreshDisponibiliteBookingState,
+} from "../_core/bookingRules";
 
 const router = Router();
 
@@ -26,105 +30,6 @@ const buildQuoteNumber = (id: number) => `DV-${nowYear()}-${pad(id)}`;
 const buildContractNumber = (id: number) => `CT-${nowYear()}-${pad(id)}`;
 const buildInvoiceNumber = (id: number, type: "acompte" | "solde" | "full") =>
   `FAC-${type.toUpperCase()}-${nowYear()}-${pad(id)}`;
-
-async function resolveDisponibiliteIdForReservation(db: any, r: any): Promise<number | null> {
-  if (r.disponibiliteId) return r.disponibiliteId;
-  const rows = await db.select().from(disponibilites);
-  const reservationStart = new Date(r.dateDebut).toISOString().slice(0, 10);
-  const reservationEnd = new Date(r.dateFin).toISOString().slice(0, 10);
-  let match = rows.find((d: any) => {
-    const dStart = new Date(d.debut).toISOString().slice(0, 10);
-    const dEnd = new Date(d.fin).toISOString().slice(0, 10);
-    return dStart === reservationStart && dEnd === reservationEnd;
-  });
-  if (!match) {
-    // Fallback robuste: chevauchement de période (utile si les heures diffèrent).
-    const rStartMs = new Date(r.dateDebut).getTime();
-    const rEndMs = new Date(r.dateFin).getTime();
-    match = rows.find((d: any) => {
-      const dStartMs = new Date(d.debut).getTime();
-      const dEndMs = new Date(d.fin).getTime();
-      return rStartMs < dEndMs && rEndMs > dStartMs;
-    });
-  }
-  if (!match?.id) return null;
-  await db
-    .update(reservations)
-    .set({ disponibiliteId: match.id, updatedAt: new Date() })
-    .where(eq(reservations.id, r.id));
-  return match.id;
-}
-
-async function refreshDisponibiliteBookingState(db: any, disponibiliteId: number) {
-  const dispoRows = await db.select().from(disponibilites).where(eq(disponibilites.id, disponibiliteId)).limit(1);
-  const dispo = dispoRows[0];
-  if (!dispo) return;
-  if (dispo.planningType && dispo.planningType !== "charter") {
-    await db
-      .update(disponibilites)
-      .set({
-        statut: "ferme",
-        cabinesReservees: 0,
-        updatedAt: new Date(),
-      })
-      .where(eq(disponibilites.id, disponibiliteId));
-    return;
-  }
-
-  const OPTION_HOLD_DAYS = 7;
-  const allReservations = await db
-    .select()
-    .from(reservations)
-    .where(eq(reservations.disponibiliteId, disponibiliteId));
-
-  const confirmedReservations = allReservations.filter((r: any) =>
-    ["contrat_signe", "acompte_confirme", "solde_confirme"].includes(String(r.workflowStatut || ""))
-  );
-  const activeOptionReservations = allReservations.filter((r: any) => {
-    const ws = String(r?.workflowStatut || "");
-    if (!["validee_owner", "contrat_envoye"].includes(ws)) return false;
-    const baseDateRaw = r?.ownerValidatedAt || r?.updatedAt || r?.createdAt;
-    if (!baseDateRaw) return false;
-    const baseDate = new Date(baseDateRaw);
-    if (Number.isNaN(baseDate.getTime())) return false;
-    const expiry = new Date(baseDate);
-    expiry.setUTCDate(expiry.getUTCDate() + OPTION_HOLD_DAYS);
-    return expiry.getTime() > Date.now();
-  });
-
-  const hasPrivate = confirmedReservations.some((r: any) => r.typeReservation === "bateau_entier");
-  const hasPrivateOption =
-    !hasPrivate && activeOptionReservations.some((r: any) => r.typeReservation === "bateau_entier");
-  const confirmedCabins = hasPrivate
-    ? dispo.capaciteTotale
-    : confirmedReservations
-        .filter((r: any) => r.typeReservation === "cabine" || r.typeReservation === "place")
-        .reduce((sum: number, r: any) => sum + Math.max(1, r.nbCabines || 1), 0);
-  const optionCabins = hasPrivateOption
-    ? dispo.capaciteTotale
-    : activeOptionReservations
-        .filter((r: any) => r.typeReservation === "cabine" || r.typeReservation === "place")
-        .reduce((sum: number, r: any) => sum + Math.max(1, r.nbCabines || 1), 0);
-  const confirmedClampedCabins = Math.max(0, Math.min(dispo.capaciteTotale || 4, confirmedCabins));
-  const reservedCabins = hasPrivate ? confirmedCabins : confirmedCabins + optionCabins;
-  const clampedReservedCabins = Math.max(0, Math.min(dispo.capaciteTotale || 4, reservedCabins));
-
-  let statut: "disponible" | "option" | "reserve" = "disponible";
-  if (hasPrivate || confirmedClampedCabins >= (dispo.capaciteTotale || 4)) {
-    statut = "reserve";
-  } else if (clampedReservedCabins > 0 || hasPrivateOption) {
-    statut = "option";
-  }
-
-  await db
-    .update(disponibilites)
-    .set({
-      statut,
-      cabinesReservees: clampedReservedCabins,
-      updatedAt: new Date(),
-    })
-    .where(eq(disponibilites.id, disponibiliteId));
-}
 
 router.post("/reservations/:id/owner-validate", requireAdmin, async (req, res) => {
   try {

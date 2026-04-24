@@ -116,17 +116,24 @@ router.post("/request", async (req, res) => {
       dateFin,
     });
 
-    if ((normalizedTypeReservation === "cabine" || normalizedTypeReservation === "place") && parsedDisponibiliteId) {
+    if (parsedDisponibiliteId) {
       const { totalUnits, reservedUnits, hasPrivate } = await getConfirmedBookingUsage(db, parsedDisponibiliteId);
-      if (hasPrivate) {
+      if (hasPrivate && (normalizedTypeReservation === "cabine" || normalizedTypeReservation === "place")) {
         return res.status(400).json({ error: "Ce créneau est déjà privatisé." });
       }
-      const nextReserved = reservedUnits + computedNbCabines;
-      if (nextReserved > totalUnits) {
-        const remaining = Math.max(0, totalUnits - reservedUnits);
+      if (normalizedTypeReservation === "bateau_entier" && reservedUnits > 0) {
         return res
           .status(400)
-          .json({ error: `Il ne reste pas assez de cabines disponibles (${remaining} restante(s)).` });
+          .json({ error: "Ce créneau a déjà des options/réservations en cours. Privatisation impossible." });
+      }
+      if (normalizedTypeReservation === "cabine" || normalizedTypeReservation === "place") {
+        const nextReserved = reservedUnits + computedNbCabines;
+        if (nextReserved > totalUnits) {
+          const remaining = Math.max(0, totalUnits - reservedUnits);
+          return res
+            .status(400)
+            .json({ error: `Il ne reste pas assez de cabines disponibles (${remaining} restante(s)).` });
+        }
       }
     }
 
