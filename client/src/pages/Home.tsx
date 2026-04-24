@@ -266,7 +266,7 @@ function Hero() {
             className="text-white/80 text-lg sm:text-xl leading-relaxed mb-8 max-w-xl"
           >
             Naviguez à bord de <strong className="text-white">« Sabine »</strong>, un Lagoon 570 
-            fraîchement restauré, avec Victor et son matelot cuisinier.
+            fraîchement restauré, avec Victor.
             Corse & Sardaigne l'été, Martinique & Grenadines l'hiver.
           </motion.p>
 
@@ -624,7 +624,7 @@ function SectionDestinations() {
 // ── Section Programme ─────────────────────────────────────────────────────────
 function SectionProgramme() {
   const activites = [
-    { icon: <Wind className="w-7 h-7" />, titre: "Navigation à la voile", desc: "Prenez la barre ou laissez-vous porter. Victor et son matelot cuisinier s'adaptent à votre niveau et vos envies." },
+    { icon: <Wind className="w-7 h-7" />, titre: "Navigation à la voile", desc: "Prenez la barre ou laissez-vous porter. Victor s'adapte à votre niveau et vos envies." },
     { icon: <Waves className="w-7 h-7" />, titre: "Paddle & Kayak", desc: "Explorez les criques et mouillages à votre rythme avec nos 2 SUP et notre kayak 2 places." },
     { icon: <Fish className="w-7 h-7" />, titre: "Snorkeling", desc: "Masques, palmes et tubas pour tous. Plongez dans des eaux cristallines et découvrez les fonds marins." },
     { icon: <Sun className="w-7 h-7" />, titre: "Bronzette & Apéro", desc: "Trampolines avant, bains de soleil, cocktails au coucher du soleil — la dolce vita en mer." },
@@ -749,7 +749,7 @@ function SectionEquipage() {
           <div className="text-center mb-16">
             <span className="inline-block text-sm font-bold tracking-widest uppercase mb-3" style={{ color: BRAND_SAND }}>L'Équipage</span>
               <h2 className="text-4xl lg:text-5xl font-extrabold text-white" style={{ fontFamily: "Cormorant Garamond, Times New Roman, serif" }}>
-              Victor & son matelot cuisinier
+              Victor
             </h2>
             <p className="mt-4 text-white/60 max-w-xl mx-auto">
               Deux marins professionnels, brevets capitaine 500 UMS et capitaine 200 voile, avec plus de 10 ans d'experience en Mediterranee, Atlantique et Caraibes.
@@ -757,7 +757,7 @@ function SectionEquipage() {
           </div>
         </Reveal>
 
-        <div className="grid lg:grid-cols-2 gap-8 mb-12">
+        <div className="grid grid-cols-1 max-w-2xl mx-auto gap-8 mb-12">
           {[
             {
               nom: "Victor",
@@ -766,14 +766,6 @@ function SectionEquipage() {
               desc: "Victor est le capitaine de Sabine. Titulaire du brevet capitaine 500, il a navigué en Méditerranée et traversé l'Atlantique plusieurs fois. Passionné de météo et de navigation hauturière, il assure la sécurité et le confort de tous à bord avec calme et professionnalisme.",
               color: "oklch(0.72_0.11_85)",
               img: "/photos%20site/victor-portrait.png",
-            },
-            {
-              nom: "Matelot cuisinier",
-              age: "",
-              titre: "Accueil & cuisine à bord",
-              desc: "Aux côtés de Victor, son matelot cuisinier accompagne la vie de bord, le service et les repas pour une expérience conviviale et premium tout au long de la croisière.",
-              color: "oklch(0.72_0.11_85)",
-              img: "/photos%20site/cabine ar bb.jpeg",
             },
           ].map((p, i) => (
             <Reveal key={p.nom} delay={i * 0.15}>
@@ -934,7 +926,7 @@ function SectionContact() {
               </h2>
               <p className="text-[oklch(0.4_0.03_240)] text-lg leading-relaxed mb-10">
                 Vous avez un projet de croisière ? Une question sur les disponibilités ou les tarifs ? 
-                Victor et son matelot cuisinier vous répondent personnellement dans les 24h.
+                Victor vous répond personnellement dans les 24h.
               </p>
               <div className="mb-6 rounded-xl border border-[oklch(0.88_0.02_220)] bg-white px-4 py-3 text-sm text-[oklch(0.35_0.03_240)]">
                 Pour toute demande, merci d'utiliser le formulaire ci-contre.
@@ -1012,7 +1004,7 @@ function SectionContact() {
                     <Anchor className="w-8 h-8 text-[oklch(0.2_0.06_240)]" />
                   </div>
                   <h3 className="text-xl font-bold text-[oklch(0.2_0.06_240)] mb-2" style={{ fontFamily: "Cormorant Garamond, Times New Roman, serif" }}>Message envoyé !</h3>
-                  <p className="text-[oklch(0.45_0.03_240)] text-sm">Victor et son matelot cuisinier vous répondront dans les 24h. Bon vent !</p>
+                  <p className="text-[oklch(0.45_0.03_240)] text-sm">Victor vous répondra dans les 24h. Bon vent !</p>
                   <button onClick={() => setSent(false)} className="mt-4 text-[oklch(0.2_0.06_240)] text-sm hover:underline">
                     Envoyer un autre message
                   </button>

@@ -1,5 +1,4 @@
 import { Router } from "express";
-import type { PlaceDetailsResult, PlacesSearchResult } from "../_core/map";
 
 const router = Router();
 
@@ -49,7 +48,71 @@ router.get("/", async (_req, res) => {
       });
     }
 
-    const callGooglePlaces = async <T>(
+    const headers = {
+      "Content-Type": "application/json",
+      "X-Goog-Api-Key": apiKey,
+    };
+
+    type PlaceNewDetailsResponse = {
+      id?: string;
+      displayName?: { text?: string };
+      rating?: number;
+      userRatingCount?: number;
+      googleMapsUri?: string;
+      reviews?: Array<{
+        authorAttribution?: { displayName?: string };
+        rating?: number;
+        text?: { text?: string };
+        publishTime?: string;
+      }>;
+    };
+
+    type PlaceNewSearchResponse = {
+      places?: Array<{
+        id?: string;
+      }>;
+    };
+
+    const fetchJson = async <T>(url: string, init?: RequestInit): Promise<T> => {
+      const response = await fetch(url, init);
+      const body = await response.text();
+      if (!response.ok) {
+        throw new Error(`Google Places request failed (${response.status}): ${body.slice(0, 220)}`);
+      }
+      return JSON.parse(body) as T;
+    };
+
+    const searchPlaceIdNew = async (): Promise<string> => {
+      const payload = await fetchJson<PlaceNewSearchResponse>(
+        "https://places.googleapis.com/v1/places:searchText",
+        {
+          method: "POST",
+          headers: {
+            ...headers,
+            "X-Goog-FieldMask": "places.id",
+          },
+          body: JSON.stringify({
+            textQuery: DEFAULT_BUSINESS_QUERY,
+            languageCode: "fr",
+            maxResultCount: 1,
+          }),
+        }
+      );
+      return payload.places?.[0]?.id || "";
+    };
+
+    const getPlaceDetailsNew = async (placeId: string): Promise<PlaceNewDetailsResponse> => {
+      return fetchJson<PlaceNewDetailsResponse>(`https://places.googleapis.com/v1/places/${placeId}`, {
+        method: "GET",
+        headers: {
+          ...headers,
+          "X-Goog-FieldMask":
+            "id,displayName,rating,userRatingCount,googleMapsUri,reviews.authorAttribution,reviews.rating,reviews.text,reviews.publishTime",
+        },
+      });
+    };
+
+    const callGooglePlacesLegacy = async <T>(
       endpoint: "textsearch" | "details",
       params: Record<string, string>
     ): Promise<T> => {
@@ -60,13 +123,73 @@ router.get("/", async (_req, res) => {
       }
       const response = await fetch(url.toString());
       if (!response.ok) {
-        throw new Error(`Google Places API request failed (${response.status})`);
+        throw new Error(`Google Places legacy request failed (${response.status})`);
       }
       return (await response.json()) as T;
     };
 
-    const resolvePlaceIdFromSearch = async (): Promise<string> => {
-      const search = await callGooglePlaces<PlacesSearchResult>("textsearch", {
+    let placeId = (process.env.GOOGLE_PLACE_ID || "").trim();
+    try {
+      if (!placeId) {
+        placeId = await searchPlaceIdNew();
+      }
+
+      if (placeId) {
+        const detailsNew = await getPlaceDetailsNew(placeId);
+        const reviewsNew = (detailsNew.reviews || []).map(review => {
+          const publishEpoch = review.publishTime ? Math.floor(new Date(review.publishTime).getTime() / 1000) : 0;
+          return {
+            authorName: review.authorAttribution?.displayName || "Client Google",
+            rating: review.rating || 0,
+            text: review.text?.text || "",
+            time: Number.isFinite(publishEpoch) ? publishEpoch : 0,
+          };
+        });
+
+        if ((detailsNew.displayName?.text || "").trim()) {
+          return res.json({
+            placeId: detailsNew.id || placeId,
+            name: detailsNew.displayName?.text || "Sabine Sailing",
+            rating: detailsNew.rating || 0,
+            userRatingsTotal: detailsNew.userRatingCount || 0,
+            url:
+              detailsNew.googleMapsUri ||
+              `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+                detailsNew.displayName?.text || DEFAULT_BUSINESS_QUERY
+              )}`,
+            reviews: reviewsNew,
+            source: "google_places_new",
+          });
+        }
+      }
+    } catch {
+      // If Places API (New) is not enabled yet, continue with legacy API.
+    }
+
+    // Legacy fallback for projects not yet migrated in Google Cloud.
+    type LegacyTextSearchResponse = {
+      status?: string;
+      results?: Array<{ place_id?: string }>;
+    };
+    type LegacyDetailsResponse = {
+      status?: string;
+      result?: {
+        place_id?: string;
+        name?: string;
+        rating?: number;
+        user_ratings_total?: number;
+        url?: string;
+        reviews?: Array<{
+          author_name?: string;
+          rating?: number;
+          text?: string;
+          time?: number;
+        }>;
+      };
+    };
+
+    const resolvePlaceIdFromSearchLegacy = async (): Promise<string> => {
+      const search = await callGooglePlacesLegacy<LegacyTextSearchResponse>("textsearch", {
         query: DEFAULT_BUSINESS_QUERY,
         language: "fr",
       });
@@ -76,74 +199,63 @@ router.get("/", async (_req, res) => {
       return search.results?.[0]?.place_id || "";
     };
 
-    let placeId = (process.env.GOOGLE_PLACE_ID || "").trim();
     if (!placeId) {
-      placeId = await resolvePlaceIdFromSearch();
-      if (!placeId) {
-        return res.status(404).json({
-          error:
-            "Aucune fiche Google Business trouvee pour Sabine Sailing. Verifiez la fiche ou renseignez GOOGLE_PLACE_ID.",
+      placeId = await resolvePlaceIdFromSearchLegacy();
+    }
+
+    if (placeId) {
+      let details = await callGooglePlacesLegacy<LegacyDetailsResponse>("details", {
+        place_id: placeId,
+        fields: "place_id,name,rating,user_ratings_total,reviews,url",
+        language: "fr",
+      });
+
+      if (details.status !== "OK" || !details.result) {
+        const searchedPlaceId = await resolvePlaceIdFromSearchLegacy();
+        if (searchedPlaceId && searchedPlaceId !== placeId) {
+          placeId = searchedPlaceId;
+          details = await callGooglePlacesLegacy<LegacyDetailsResponse>("details", {
+            place_id: placeId,
+            fields: "place_id,name,rating,user_ratings_total,reviews,url",
+            language: "fr",
+          });
+        }
+      }
+
+      if (details.status === "OK" && details.result) {
+        const place = details.result;
+        const reviews = (place.reviews || []).map(review => ({
+          authorName: review.author_name || "Client Google",
+          rating: review.rating || 0,
+          text: review.text || "",
+          time: review.time || 0,
+        }));
+
+        return res.json({
+          placeId: place.place_id || placeId,
+          name: place.name || "Sabine Sailing",
+          rating: place.rating || 0,
+          userRatingsTotal: place.user_ratings_total || 0,
+          url:
+            place.url ||
+            `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+              place.name || DEFAULT_BUSINESS_QUERY
+            )}`,
+          reviews,
+          source: "google_places_legacy",
         });
       }
     }
-
-    if (!placeId) {
-      return res.status(400).json({
-        error: "GOOGLE_PLACE_ID manquant. Impossible de charger les vrais avis Google.",
-      });
-    }
-
-    let details = await callGooglePlaces<PlaceDetailsResult>("details", {
-      place_id: placeId,
-      fields: "place_id,name,rating,user_ratings_total,reviews,url",
-      language: "fr",
-    });
-
-    // If configured PLACE_ID is stale/wrong, recover automatically from text search.
-    if (details.status !== "OK" || !details.result) {
-      const searchedPlaceId = await resolvePlaceIdFromSearch();
-      if (searchedPlaceId && searchedPlaceId !== placeId) {
-        placeId = searchedPlaceId;
-        details = await callGooglePlaces<PlaceDetailsResult>("details", {
-          place_id: placeId,
-          fields: "place_id,name,rating,user_ratings_total,reviews,url",
-          language: "fr",
-        });
-      }
-    }
-
-    if (details.status !== "OK" || !details.result) {
-      return res.json({
-        placeId: process.env.GOOGLE_PLACE_ID || "",
-        name: "Sabine Sailing",
-        rating: 5,
-        userRatingsTotal: FALLBACK_REVIEWS.length,
-        url: DEFAULT_PLACE_URL,
-        reviews: FALLBACK_REVIEWS,
-        source: "fallback_manual",
-        note: "Google Place Details indisponible",
-      });
-    }
-
-    const place = details.result;
-    const placeUrl = (place as { url?: string }).url;
-    const reviews = (place.reviews || []).map(review => ({
-      authorName: review.author_name,
-      rating: review.rating,
-      text: review.text,
-      time: review.time,
-    }));
 
     return res.json({
-      placeId: place.place_id,
-      name: place.name,
-      rating: place.rating || 0,
-      userRatingsTotal: place.user_ratings_total || 0,
-      url:
-        placeUrl ||
-        `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(place.name || DEFAULT_BUSINESS_QUERY)}`,
-      reviews,
-      source: "google",
+      placeId: process.env.GOOGLE_PLACE_ID || "",
+      name: "Sabine Sailing",
+      rating: 5,
+      userRatingsTotal: FALLBACK_REVIEWS.length,
+      url: DEFAULT_PLACE_URL,
+      reviews: FALLBACK_REVIEWS,
+      source: "fallback_manual",
+      note: "Google Place Details indisponible",
     });
   } catch (error: any) {
     const message = error?.message || "Failed to fetch Google reviews";
