@@ -973,6 +973,17 @@ export default function Admin() {
               </div>
               <p className="text-slate-600 mt-1">Suivi des demandes de devis clients</p>
             </div>
+            <div className="mb-4 rounded-lg border border-slate-200 bg-white px-4 py-3 text-xs text-slate-700">
+              <p className="font-semibold text-slate-900 mb-2">Repère couleurs calendrier</p>
+              <div className="flex flex-wrap gap-2">
+                <span className="inline-flex items-center gap-1 rounded-full bg-orange-100 px-2.5 py-1 font-medium text-orange-800">
+                  Orange: devis/contrat envoyé (option 7 jours)
+                </span>
+                <span className="inline-flex items-center gap-1 rounded-full bg-red-100 px-2.5 py-1 font-medium text-red-800">
+                  Rouge: acompte reçu ou solde reçu (réservé)
+                </span>
+              </div>
+            </div>
             {reservationActionMessage && (
               <div className="mb-4 rounded-lg border border-emerald-300 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-900 shadow-sm">
                 {reservationActionMessage}
