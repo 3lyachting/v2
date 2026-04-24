@@ -6,13 +6,46 @@ const router = Router();
 const DEFAULT_BUSINESS_QUERY = "Sabine Sailing La Ciotat";
 const DEFAULT_PLACE_URL =
   "https://www.google.com/maps/search/?api=1&query=Sabine+Sailing+La+Ciotat";
+const FALLBACK_REVIEWS = [
+  {
+    authorName: "Thierry Leydet",
+    rating: 5,
+    text: "Un capitaine a la hauteur, un hote attentif, un confort a bord comme a la maison. Des balades a la voile magiques.",
+    time: 0,
+  },
+  {
+    authorName: "Florence Ile le",
+    rating: 5,
+    text: "Une semaine de reve sur le Sabine en Corse et Sardaigne. Victor est un vrai pro experimente et tres sympa.",
+    time: 0,
+  },
+  {
+    authorName: "Benjamin Aburbe",
+    rating: 5,
+    text: "Superbe visite de criques magnifiques en Corse avec Sabine Sailing. Une tres belle ambiance et des souvenirs incroyables.",
+    time: 0,
+  },
+  {
+    authorName: "Corentin Marteau",
+    rating: 5,
+    text: "Deux semaines incroyables entre Girolata et La Maddalena. Une experience inoubliable, je recommande a 100%.",
+    time: 0,
+  },
+];
 
 router.get("/", async (_req, res) => {
   try {
     const apiKey = (process.env.GOOGLE_MAPS_API_KEY || "").trim();
     if (!apiKey) {
-      return res.status(503).json({
-        error: "GOOGLE_MAPS_API_KEY manquante. Activez la cle API pour recuperer les avis Google en direct.",
+      return res.json({
+        placeId: process.env.GOOGLE_PLACE_ID || "",
+        name: "Sabine Sailing",
+        rating: 5,
+        userRatingsTotal: FALLBACK_REVIEWS.length,
+        url: DEFAULT_PLACE_URL,
+        reviews: FALLBACK_REVIEWS,
+        source: "fallback_manual",
+        note: "GOOGLE_MAPS_API_KEY manquante",
       });
     }
 
@@ -80,9 +113,15 @@ router.get("/", async (_req, res) => {
     }
 
     if (details.status !== "OK" || !details.result) {
-      return res.status(502).json({
-        error:
-          "Google Place Details indisponible pour cette fiche. Verifiez GOOGLE_PLACE_ID ou laissez le serveur resoudre la fiche automatiquement.",
+      return res.json({
+        placeId: process.env.GOOGLE_PLACE_ID || "",
+        name: "Sabine Sailing",
+        rating: 5,
+        userRatingsTotal: FALLBACK_REVIEWS.length,
+        url: DEFAULT_PLACE_URL,
+        reviews: FALLBACK_REVIEWS,
+        source: "fallback_manual",
+        note: "Google Place Details indisponible",
       });
     }
 
@@ -108,7 +147,16 @@ router.get("/", async (_req, res) => {
     });
   } catch (error: any) {
     const message = error?.message || "Failed to fetch Google reviews";
-    return res.status(500).json({ error: message });
+    return res.json({
+      placeId: process.env.GOOGLE_PLACE_ID || "",
+      name: "Sabine Sailing",
+      rating: 5,
+      userRatingsTotal: FALLBACK_REVIEWS.length,
+      url: DEFAULT_PLACE_URL,
+      reviews: FALLBACK_REVIEWS,
+      source: "fallback_manual",
+      note: message,
+    });
   }
 });
 

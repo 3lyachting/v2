@@ -636,7 +636,7 @@ function SectionProgramme() {
             {[
               {
                 titre: "Semaine Méditerranée",
-                prix: "Sur devis",
+                prix: "À partir de 1750€ /personne",
                 desc: "Cabine ou privatisation",
                 color: "oklch(0.28_0.08_240)",
                 items: ["Départ le samedi", "Corse / Sardaigne", "Équipage professionnel", "Tarifs modulables selon période"],
@@ -651,7 +651,7 @@ function SectionProgramme() {
               },
               {
                 titre: "Semaine Caraïbes",
-                prix: "Sur devis",
+                prix: "À partir de 1750€ /personne",
                 desc: "1 à 3 semaines",
                 color: "oklch(0.38_0.1_220)",
                 items: ["Départ samedi", "Grenadines", "Cabine ou privatisation", "Itinéraire sur mesure"],
@@ -664,7 +664,7 @@ function SectionProgramme() {
               >
                 {f.featured && (
                   <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-[oklch(0.84_0.05_80)] text-[oklch(0.15_0.05_240)] text-xs font-bold px-4 py-1 rounded-full">
-                    ⭐ Le plus populaire
+                    ⭐ Transatlantique
                   </div>
                 )}
                 <div className={`text-sm font-bold tracking-widest uppercase mb-2 ${f.featured ? "text-white/70" : ""}`}
