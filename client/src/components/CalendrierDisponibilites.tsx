@@ -8,6 +8,9 @@
 import { useState, useEffect, useMemo } from "react";
 import { ChevronLeft, ChevronRight, Info } from "lucide-react";
 
+const BRAND_SAND = "#B58E6E";
+const BRAND_DEEP = "#00384A";
+
 // ── Types ─────────────────────────────────────────────────────────────────────
 type Statut = "disponible" | "reserve" | "option" | "ferme";
 
@@ -433,7 +436,7 @@ export default function CalendrierDisponibilites() {
   };
 
   return (
-    <div className="editorial-panel rounded-3xl border border-white/60 bg-gradient-to-b from-white to-[oklch(0.985_0.006_95)] p-6 shadow-[0_24px_60px_-30px_rgba(15,23,42,0.35)] lg:p-10">
+    <div className="editorial-panel rounded-3xl border p-6 shadow-[0_24px_60px_-30px_rgba(15,23,42,0.35)] lg:p-10" style={{ borderColor: "#dcc6ae", background: "linear-gradient(180deg,#fbf3ea,#f2e3d1)" }}>
       <div className="mb-10">
         <p className="editorial-kicker mb-4">Filtrer par produit</p>
         <div className="flex flex-wrap gap-2.5">
@@ -448,22 +451,27 @@ export default function CalendrierDisponibilites() {
               onClick={() => setProduitFiltre(item.id as any)}
               className={`px-4 py-2 rounded-full text-sm font-semibold transition-all duration-200 ${
                 produitFiltre === item.id
-                  ? "bg-[oklch(0.2_0.06_240)] text-white shadow-[0_10px_25px_-14px_rgba(30,58,138,0.9)]"
-                  : "bg-white text-[oklch(0.42_0.03_240)] border border-[oklch(0.9_0.02_220)] hover:border-[oklch(0.2_0.06_240)] hover:text-[oklch(0.2_0.06_240)]"
+                  ? "text-white shadow-[0_10px_25px_-14px_rgba(0,56,74,0.9)]"
+                  : "bg-white border hover:text-white"
               }`}
+              style={
+                produitFiltre === item.id
+                  ? { backgroundColor: BRAND_DEEP, borderColor: BRAND_DEEP }
+                  : { color: BRAND_DEEP, borderColor: "#dbc4aa" }
+              }
             >
               {item.label}
             </button>
           ))}
         </div>
         <div className="mt-5 flex flex-wrap gap-2 text-xs">
-          <span className="inline-flex items-center gap-1 rounded-full border border-emerald-600 bg-emerald-500 px-3 py-1 font-semibold text-white shadow-sm">
+          <span className="inline-flex items-center gap-1 rounded-full border px-3 py-1 font-semibold text-white shadow-sm" style={{ borderColor: BRAND_DEEP, backgroundColor: BRAND_DEEP }}>
             Libre
           </span>
-          <span className="inline-flex items-center gap-1 rounded-full border border-orange-500 bg-orange-400 px-3 py-1 font-semibold text-white shadow-sm">
+          <span className="inline-flex items-center gap-1 rounded-full border px-3 py-1 font-semibold shadow-sm" style={{ borderColor: BRAND_SAND, backgroundColor: BRAND_SAND, color: BRAND_DEEP }}>
             Option / partiel
           </span>
-          <span className="inline-flex items-center gap-1 rounded-full border border-red-600 bg-red-500 px-3 py-1 font-semibold text-white shadow-sm">
+          <span className="inline-flex items-center gap-1 rounded-full border px-3 py-1 font-semibold text-white shadow-sm" style={{ borderColor: "#8b3f3f", backgroundColor: "#a24d4d" }}>
             Réservé / fermé
           </span>
         </div>
@@ -471,29 +479,29 @@ export default function CalendrierDisponibilites() {
 
       {loading ? (
         <div className="text-center py-12">
-          <div className="inline-block animate-spin rounded-full h-10 w-10 border-b-2 border-[oklch(0.2_0.06_240)]"></div>
+          <div className="inline-block animate-spin rounded-full h-10 w-10 border-b-2" style={{ borderColor: BRAND_DEEP }}></div>
           <p className="text-[oklch(0.45_0.04_220)] mt-4">Chargement du calendrier...</p>
         </div>
       ) : (
         <div className="grid lg:grid-cols-3 gap-6 lg:gap-12">
             {/* Calendrier */}
-            <div className="lg:col-span-2 rounded-2xl border border-[oklch(0.9_0.02_220)] bg-white p-3 sm:p-5 lg:p-8 shadow-[0_18px_45px_-28px_rgba(15,23,42,0.45)]">
+            <div className="lg:col-span-2 rounded-2xl border bg-white p-3 sm:p-5 lg:p-8 shadow-[0_18px_45px_-28px_rgba(15,23,42,0.45)]" style={{ borderColor: "#dac2a7" }}>
               {/* Navigation mois */}
               <div className="flex items-center justify-between mb-4 sm:mb-6">
                 <button
                   onClick={handlePrevMonth}
                   className="p-2 sm:p-2.5 hover:bg-slate-100 rounded-xl transition-colors"
                 >
-                  <ChevronLeft className="w-5 h-5 text-[oklch(0.2_0.06_240)]" />
+                  <ChevronLeft className="w-5 h-5" style={{ color: BRAND_DEEP }} />
                 </button>
-                <h3 className="text-base sm:text-xl lg:text-2xl font-bold tracking-[-0.01em] text-[oklch(0.15_0.05_220)] text-center px-2" style={{ fontFamily: "Syne, sans-serif" }}>
+                <h3 className="text-base sm:text-xl lg:text-2xl font-bold tracking-[-0.01em] text-center px-2" style={{ fontFamily: "Cormorant Garamond, Times New Roman, serif", color: BRAND_DEEP }}>
                   {MOIS_COMPLETS[moisAffiche.getUTCMonth()]} {moisAffiche.getUTCFullYear()}
                 </h3>
                 <button
                   onClick={handleNextMonth}
                   className="p-2 sm:p-2.5 hover:bg-slate-100 rounded-xl transition-colors"
                 >
-                  <ChevronRight className="w-5 h-5 text-[oklch(0.2_0.06_240)]" />
+                  <ChevronRight className="w-5 h-5" style={{ color: BRAND_DEEP }} />
                 </button>
               </div>
 
@@ -552,9 +560,10 @@ export default function CalendrierDisponibilites() {
                         `${turnoverSaturday ? "bg-transparent text-white" : getCalendarColor(semaine, displayStatut)} ${
                           visibleInFilter ? "cursor-pointer hover:scale-[1.02] hover:shadow-lg" : "opacity-25 cursor-not-allowed"
                         } border ${
-                          isSelected ? "ring-2 ring-[oklch(0.2_0.06_240)] ring-offset-2" : ""
+                          isSelected ? "ring-2 ring-offset-2" : ""
                         }`
                       }`}
+                      style={isSelected ? { ["--tw-ring-color" as any]: BRAND_DEEP } : undefined}
                     >
                       {turnoverSaturday && (
                         <>
@@ -576,8 +585,8 @@ export default function CalendrierDisponibilites() {
             </div>
 
             {/* Détails de la semaine sélectionnée */}
-            <div className="rounded-2xl border border-[oklch(0.9_0.02_220)] bg-white p-6 shadow-[0_18px_45px_-28px_rgba(15,23,42,0.45)] lg:p-7 h-fit">
-              <h3 className="text-xl font-bold text-[oklch(0.15_0.05_220)] mb-5 tracking-[-0.01em]" style={{ fontFamily: "Syne, sans-serif" }}>
+            <div className="rounded-2xl border bg-white p-6 shadow-[0_18px_45px_-28px_rgba(15,23,42,0.45)] lg:p-7 h-fit" style={{ borderColor: "#dac2a7" }}>
+              <h3 className="text-xl font-bold mb-5 tracking-[-0.01em]" style={{ fontFamily: "Cormorant Garamond, Times New Roman, serif", color: BRAND_DEEP }}>
                 Détails
               </h3>
 
@@ -633,9 +642,10 @@ export default function CalendrierDisponibilites() {
                           onClick={() => setReservationMode("priva")}
                           className={`px-3 py-2 rounded-lg text-xs font-semibold border ${
                             reservationMode === "priva"
-                              ? "bg-[oklch(0.2_0.06_240)] text-white border-[oklch(0.2_0.06_240)]"
-                              : "bg-white text-[oklch(0.2_0.06_240)] border-[oklch(0.85_0.02_220)]"
+                              ? "text-white"
+                              : "bg-white"
                           }`}
+                          style={reservationMode === "priva" ? { backgroundColor: BRAND_DEEP, borderColor: BRAND_DEEP } : { color: BRAND_DEEP, borderColor: "#d8c1a6" }}
                         >
                           Privatif
                         </button>
@@ -643,15 +653,16 @@ export default function CalendrierDisponibilites() {
                           onClick={() => setReservationMode("cabine")}
                           className={`px-3 py-2 rounded-lg text-xs font-semibold border ${
                             reservationMode === "cabine"
-                              ? "bg-[oklch(0.2_0.06_240)] text-white border-[oklch(0.2_0.06_240)]"
-                              : "bg-white text-[oklch(0.2_0.06_240)] border-[oklch(0.85_0.02_220)]"
+                              ? "text-white"
+                              : "bg-white"
                           }`}
+                          style={reservationMode === "cabine" ? { backgroundColor: BRAND_DEEP, borderColor: BRAND_DEEP } : { color: BRAND_DEEP, borderColor: "#d8c1a6" }}
                         >
                           Cabine
                         </button>
                       </div>
                       <p className="text-xs text-[oklch(0.45_0.04_220)] uppercase font-semibold mb-1">Tarif</p>
-                      <p className="text-2xl font-bold text-[oklch(0.2_0.06_240)]">
+                      <p className="text-2xl font-bold" style={{ color: BRAND_DEEP, fontFamily: "Cormorant Garamond, Times New Roman, serif" }}>
                         {(
                           reservationMode === "priva"
                             ? semaineSelectionnee.tarifJourPriva ?? semaineSelectionnee.tarif ?? 0
@@ -677,7 +688,8 @@ export default function CalendrierDisponibilites() {
                           ? semaineSelectionnee.tarifJourPriva ?? semaineSelectionnee.tarif ?? 0
                           : semaineSelectionnee.tarifCabine ?? semaineSelectionnee.tarifJourPersonne ?? semaineSelectionnee.tarif ?? 0
                       }&dateDebut=${encodeURIComponent(semaineSelectionnee.debut || "")}&dateFin=${encodeURIComponent(semaineSelectionnee.fin || "")}`}
-                      className="w-full mt-6 px-4 py-3.5 bg-[oklch(0.2_0.06_240)] text-white rounded-xl font-bold hover:bg-[oklch(0.16_0.05_240)] transition-colors text-center block shadow-lg"
+                      className="w-full mt-6 px-4 py-3.5 text-white rounded-xl font-bold transition-colors text-center block shadow-lg"
+                      style={{ backgroundColor: BRAND_DEEP }}
                     >
                       Réserver →
                     </a>
