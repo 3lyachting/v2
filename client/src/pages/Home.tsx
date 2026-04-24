@@ -77,7 +77,7 @@ function Navbar() {
             <img
               src="/logo-sabine.png"
               alt="Sabine Sailing"
-              className={`w-auto object-contain transition-all duration-500 ease-out ${scrolled ? "h-16 lg:h-20" : "h-36 lg:h-40"}`}
+              className={`w-auto object-contain transition-all duration-500 ease-out ${scrolled ? "h-16 lg:h-20" : "h-[11.7rem] lg:h-[13rem]"}`}
             />
           </button>
 
@@ -771,7 +771,7 @@ function SectionEquipage() {
               nom: "Victor",
               age: "34 ans",
               titre: "Capitaine 500",
-              desc: "Victor est le capitaine de Sabine. Titulaire du brevet capitaine 500, il a navigué en Méditerranée et traversé l'Atlantique plusieurs fois. Passionné de météo et de navigation hauturière, il assure la sécurité et le confort de tous à bord avec calme et professionnalisme.",
+              desc: "Victor a grandi à La Ciotat, avec la mer comme horizon depuis toujours. À 34 ans, il partage sa vie entre les Antilles l'hiver et la Méditerranée l'été, un rythme qu'il suit depuis 8 ans. Après 3 transatlantiques et des navigations sur monocoques, catamarans, trimarans et vieux gréements, il aime surtout transmettre une mer simple, vraie et accessible à bord de Sabine.",
               color: "oklch(0.72_0.11_85)",
               img: "/photos%20site/victor-portrait.png",
             },
