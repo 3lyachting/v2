@@ -1,4 +1,4 @@
-import { and, eq, inArray } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { disponibilites, reservations } from "../../drizzle/schema";
 
 type BookingDb = any;
@@ -11,6 +11,20 @@ export type BookingUsage = {
 };
 
 const CONFIRMED_WORKFLOW_STATUSES = ["contrat_signe", "acompte_confirme", "solde_confirme"] as const;
+const OPTION_WORKFLOW_STATUSES = ["validee_owner", "contrat_envoye"] as const;
+const OPTION_HOLD_DAYS = 7;
+
+function isActiveOptionReservation(r: any) {
+  const ws = String(r?.workflowStatut || "");
+  if (!OPTION_WORKFLOW_STATUSES.includes(ws as any)) return false;
+  const baseDateRaw = r?.ownerValidatedAt || r?.updatedAt || r?.createdAt;
+  if (!baseDateRaw) return false;
+  const baseDate = new Date(baseDateRaw);
+  if (Number.isNaN(baseDate.getTime())) return false;
+  const expiry = new Date(baseDate);
+  expiry.setUTCDate(expiry.getUTCDate() + OPTION_HOLD_DAYS);
+  return expiry.getTime() > Date.now();
+}
 
 export async function resolveDisponibiliteIdForReservation(db: BookingDb, r: any): Promise<number | null> {
   if (r.disponibiliteId) return r.disponibiliteId;
@@ -49,27 +63,34 @@ export async function getConfirmedBookingUsage(db: BookingDb, disponibiliteId: n
     return { totalUnits, reservedUnits: 0, hasPrivate: false, status: "ferme" };
   }
 
-  const confirmedReservations = await db
+  const allReservations = await db
     .select()
     .from(reservations)
-    .where(
-      and(
-        eq(reservations.disponibiliteId, disponibiliteId),
-        inArray(reservations.workflowStatut, [...CONFIRMED_WORKFLOW_STATUSES] as any)
-      )
-    );
+    .where(eq(reservations.disponibiliteId, disponibiliteId));
+
+  const confirmedReservations = allReservations.filter((r: any) =>
+    CONFIRMED_WORKFLOW_STATUSES.includes(r.workflowStatut as any)
+  );
+  const activeOptionReservations = allReservations.filter((r: any) => isActiveOptionReservation(r));
 
   const hasPrivate = confirmedReservations.some((r: any) => r.typeReservation === "bateau_entier");
-  const reservedUnits = hasPrivate
+  const hasPrivateOption = !hasPrivate && activeOptionReservations.some((r: any) => r.typeReservation === "bateau_entier");
+  const confirmedUnits = hasPrivate
     ? totalUnits
     : confirmedReservations
         .filter((r: any) => r.typeReservation === "cabine" || r.typeReservation === "place")
         .reduce((sum: number, r: any) => sum + Math.max(1, r.nbCabines || 1), 0);
+  const optionUnits = hasPrivateOption
+    ? totalUnits
+    : activeOptionReservations
+        .filter((r: any) => r.typeReservation === "cabine" || r.typeReservation === "place")
+        .reduce((sum: number, r: any) => sum + Math.max(1, r.nbCabines || 1), 0);
+  const reservedUnits = hasPrivate ? confirmedUnits : confirmedUnits + optionUnits;
   const clampedReserved = Math.max(0, Math.min(totalUnits, reservedUnits));
 
   let status: BookingUsage["status"] = "disponible";
   if (hasPrivate || clampedReserved >= totalUnits) status = "reserve";
-  else if (clampedReserved > 0) status = "option";
+  else if (clampedReserved > 0 || hasPrivateOption) status = "option";
 
   return {
     totalUnits,

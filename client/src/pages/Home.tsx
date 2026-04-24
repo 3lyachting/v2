@@ -192,20 +192,22 @@ function Hero() {
     setShowVideo(isDesktop && !reduceMotion);
   }, []);
 
-  const heroVideoUrl =
-    "https://www.youtube-nocookie.com/embed/CigyvtC3MpM?autoplay=1&mute=1&controls=0&loop=1&playlist=CigyvtC3MpM&modestbranding=1&rel=0&playsinline=1&iv_load_policy=3";
+  const heroVideoSrc = "/photos%20site/dji_fly_20260311_123359_0_1773228839480_video_low_quality.mp4";
 
   return (
     <section className="relative min-h-screen flex items-center overflow-hidden">
       {/* Hero video */}
       <div className="absolute inset-0 w-full h-full overflow-hidden">
         {showVideo ? (
-          <iframe
-            src={heroVideoUrl}
-            title="Sabine Sailing video background"
-            className="absolute top-1/2 left-1/2 h-[56.25vw] min-h-full w-[177.78vh] min-w-full -translate-x-1/2 -translate-y-1/2 pointer-events-none"
-            allow="autoplay; encrypted-media; picture-in-picture"
-            referrerPolicy="strict-origin-when-cross-origin"
+          <video
+            className="h-full w-full object-cover"
+            src={heroVideoSrc}
+            autoPlay
+            muted
+            loop
+            playsInline
+            preload="metadata"
+            poster="/photos%20site/dji_fly_20260314_171456_155_1773505004694_photo_optimized.jpg"
           />
         ) : (
           <img
@@ -623,9 +625,15 @@ function SectionDestinations() {
 
 // ── Section Programme ─────────────────────────────────────────────────────────
 function SectionProgramme() {
-  const programmeVideoUrl =
-    "https://www.youtube-nocookie.com/embed/wLKmbEixeYA?autoplay=1&mute=1&controls=0&loop=1&playlist=wLKmbEixeYA&modestbranding=1&rel=0&playsinline=1&iv_load_policy=3";
+  const [showVideo, setShowVideo] = useState(false);
 
+  useEffect(() => {
+    const isDesktop = window.matchMedia("(min-width: 1024px)").matches;
+    const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    setShowVideo(isDesktop && !reduceMotion);
+  }, []);
+
+  const programmeVideoSrc = "/photos%20site/dji_fly_20260311_123045_0_1773228645468_video_low_quality.mp4";
   const activites = [
     { icon: <Wind className="w-7 h-7" />, titre: "Navigation à la voile", desc: "Prenez la barre ou laissez-vous porter. Victor s'adapte à votre niveau et vos envies." },
     { icon: <Waves className="w-7 h-7" />, titre: "Paddle & Kayak", desc: "Explorez les criques et mouillages à votre rythme avec nos 2 SUP et notre kayak 2 places." },
@@ -637,17 +645,30 @@ function SectionProgramme() {
 
   return (
     <section id="programme" className="relative py-20 lg:py-28 overflow-hidden">
-      <div className="absolute inset-0 w-full h-full overflow-hidden">
-        <iframe
-          src={programmeVideoUrl}
-          title="Sabine Sailing programme video background"
-          className="absolute top-1/2 left-1/2 h-[56.25vw] min-h-full w-[177.78vh] min-w-full -translate-x-1/2 -translate-y-1/2 pointer-events-none"
-          allow="autoplay; encrypted-media; picture-in-picture"
-          referrerPolicy="strict-origin-when-cross-origin"
-        />
+      <div className="absolute inset-0">
+        {showVideo ? (
+          <video
+            className="h-full w-full object-cover"
+            src={programmeVideoSrc}
+            autoPlay
+            muted
+            loop
+            playsInline
+            preload="metadata"
+            poster="/photos%20site/dji_fly_20260314_171456_155_1773505004694_photo_optimized.jpg"
+          />
+        ) : (
+          <img
+            src="/photos%20site/dji_fly_20260314_171456_155_1773505004694_photo_optimized.jpg"
+            alt=""
+            className="h-full w-full object-cover"
+            loading="lazy"
+            decoding="async"
+          />
+        )}
       </div>
-      <div className="absolute inset-0 bg-white/88" />
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div className="absolute inset-0 bg-white/90" />
+      <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <Reveal>
           <div className="text-center mb-16">
             <span className="inline-block text-sm font-bold tracking-widest uppercase mb-3" style={{ color: BRAND_DEEP }}>Au programme</span>
