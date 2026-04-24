@@ -1104,7 +1104,7 @@ function Footer() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="grid md:grid-cols-3 gap-8 items-center">
           <div className="flex items-center gap-3 md:justify-start justify-center">
-            <img src="/logo-sabine.png" alt="Sabine Sailing" className="h-14 w-auto rounded-full" />
+            <img src="/logo-sabine.png" alt="Sabine Sailing" className="h-14 w-auto object-contain" />
           </div>
           <div className="text-[oklch(0.48_0.03_240)] text-xs text-center leading-relaxed">
             © 2026 Sabine Sailing · La Ciotat<br />
