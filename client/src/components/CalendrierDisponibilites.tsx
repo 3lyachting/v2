@@ -356,7 +356,12 @@ export default function CalendrierDisponibilites() {
       if (produitFiltre === "croisiere_mediterranee") {
         const d = parseDate(s.debut);
         const month = d.getUTCMonth() + 1;
-        return month >= 6 && month <= 9 && !String(s.destination || "").toLowerCase().includes("cara") && !String(s.destination || "").toLowerCase().includes("travers");
+        const iso = d.toISOString().split("T")[0];
+        return (
+          ((month >= 6 && month <= 9) || isLaCiotatDayTripSeason(iso)) &&
+          !String(s.destination || "").toLowerCase().includes("cara") &&
+          !String(s.destination || "").toLowerCase().includes("travers")
+        );
       }
       return s.produit === produitFiltre;
     });

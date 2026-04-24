@@ -13,10 +13,15 @@ export type BookingUsage = {
 const CONFIRMED_WORKFLOW_STATUSES = ["contrat_signe", "acompte_confirme", "solde_confirme"] as const;
 const OPTION_WORKFLOW_STATUSES = ["validee_owner", "contrat_envoye"] as const;
 const OPTION_HOLD_DAYS = 7;
+const BLOCKING_WORKFLOW_STATUSES = [
+  ...OPTION_WORKFLOW_STATUSES,
+  ...CONFIRMED_WORKFLOW_STATUSES,
+] as const;
 
 function isActiveOptionReservation(r: any) {
   const ws = String(r?.workflowStatut || "");
-  if (!OPTION_WORKFLOW_STATUSES.includes(ws as any)) return false;
+  const requestValidated = String(r?.requestStatus || "") === "validee";
+  if (!OPTION_WORKFLOW_STATUSES.includes(ws as any) && !requestValidated) return false;
   const baseDateRaw = r?.ownerValidatedAt || r?.updatedAt || r?.createdAt;
   if (!baseDateRaw) return false;
   const baseDate = new Date(baseDateRaw);
@@ -115,9 +120,30 @@ export async function refreshDisponibiliteBookingState(db: BookingDb, disponibil
 export async function syncDisponibilitesFromReservations(db: BookingDb) {
   const allDispos = await db.select().from(disponibilites);
   const allReservations = await db.select().from(reservations);
+  const createdDispoIds: number[] = [];
 
   for (const r of allReservations) {
-    const bestId = await resolveDisponibiliteIdForReservation(db, r);
+    let bestId = await resolveDisponibiliteIdForReservation(db, r);
+    const isBlockingByWorkflow = BLOCKING_WORKFLOW_STATUSES.includes(String(r.workflowStatut || "") as any);
+    const isBlockingByRequest = String(r?.requestStatus || "") === "validee";
+    if (!bestId && (isBlockingByWorkflow || isBlockingByRequest)) {
+      // Si une réservation est déjà en phase bloquante (option/confirmée) mais ne matche aucun créneau,
+      // on crée un créneau dédié pour que le calendrier client/backoffice reflète bien l'occupation.
+      const created = await db
+        .insert(disponibilites)
+        .values({
+          planningType: "charter",
+          debut: new Date(r.dateDebut),
+          fin: new Date(r.dateFin),
+          statut: "option",
+          destination: r.destination || "La Ciotat",
+          notePublique: "Créneau créé automatiquement depuis réservation",
+          capaciteTotale: 4,
+        })
+        .returning({ id: disponibilites.id });
+      bestId = created[0]?.id || null;
+      if (bestId) createdDispoIds.push(bestId);
+    }
     if (bestId && r.disponibiliteId !== bestId) {
       await db
         .update(reservations)
@@ -129,7 +155,9 @@ export async function syncDisponibilitesFromReservations(db: BookingDb) {
     }
   }
 
-  for (const dispo of allDispos) {
-    await refreshDisponibiliteBookingState(db, dispo.id);
+  const idsToRefresh = [...new Set([...allDispos.map((d: any) => d.id), ...createdDispoIds])];
+  for (const dispoId of idsToRefresh) {
+    if (!dispoId) continue;
+    await refreshDisponibiliteBookingState(db, dispoId);
   }
 }
