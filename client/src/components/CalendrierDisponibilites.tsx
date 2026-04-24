@@ -266,16 +266,28 @@ function isLaCiotatDayTripSeason(isoDay: string) {
   return isIsoInRange(isoDay, "2026-04-01", "2026-05-31");
 }
 
-function buildLaCiotatDayTripSlot(isoDay: string): Semaine {
+function getInclusiveDays(startIso: string, endIso: string) {
+  const start = parseDate(startIso).getTime();
+  const end = parseDate(endIso).getTime();
+  const diff = Math.round((end - start) / (1000 * 60 * 60 * 24));
+  return Math.max(1, diff + 1);
+}
+
+function buildLaCiotatDayTripSlot(startIso: string, endIso = startIso, pendingEndSelection = false): Semaine {
+  const days = getInclusiveDays(startIso, endIso);
+  const totalPriva = 900 * days;
+  const totalPerson = 130 * days;
   return {
-    debut: isoDay,
-    fin: isoDay,
+    debut: startIso,
+    fin: endIso,
     statut: "disponible",
     destination: "La Ciotat · Sortie journée",
     tarifJourPriva: 900,
     tarifJourPersonne: 130,
     tarifCabine: 130,
-    note: "Sortie journée: 900€ bateau entier ou 130€ par personne.",
+    note: pendingEndSelection
+      ? "Sélectionnez maintenant votre jour d'arrivée pour calculer le total."
+      : `Sortie journée ${days} jour${days > 1 ? "s" : ""}: ${totalPriva.toLocaleString("fr-FR")}€ bateau entier ou ${totalPerson.toLocaleString("fr-FR")}€ par personne.`,
     produit: "croisiere_mediterranee",
   };
 }
@@ -304,6 +316,7 @@ export default function CalendrierDisponibilites() {
   const [semaineSelectionnee, setSemaineSelectionnee] = useState<Semaine | null>(null);
   const [produitFiltre, setProduitFiltre] = useState<"tous" | "croisiere_mediterranee" | "transatlantique" | "croisiere_caraibes">("tous");
   const [reservationMode, setReservationMode] = useState<"priva" | "cabine">("cabine");
+  const [dayTripDepartureIso, setDayTripDepartureIso] = useState<string | null>(null);
 
   // Charger les disponibilités depuis l'API
   useEffect(() => {
@@ -372,14 +385,24 @@ export default function CalendrierDisponibilites() {
   const handleDateClick = (date: Date) => {
     const semaine = getSemaineForDate(date, semainesFiltrees);
     if (semaine) {
+      setDayTripDepartureIso(null);
       setSemaineSelectionnee(semaine);
       return;
     }
     const iso = date.toISOString().split("T")[0];
     if (isLaCiotatDayTripSeason(iso) && (produitFiltre === "tous" || produitFiltre === "croisiere_mediterranee")) {
-      setSemaineSelectionnee(buildLaCiotatDayTripSlot(iso));
+      if (!dayTripDepartureIso) {
+        setDayTripDepartureIso(iso);
+        setSemaineSelectionnee(buildLaCiotatDayTripSlot(iso, iso, true));
+        return;
+      }
+      const startIso = dayTripDepartureIso <= iso ? dayTripDepartureIso : iso;
+      const endIso = dayTripDepartureIso <= iso ? iso : dayTripDepartureIso;
+      setDayTripDepartureIso(null);
+      setSemaineSelectionnee(buildLaCiotatDayTripSlot(startIso, endIso));
       return;
     }
+    setDayTripDepartureIso(null);
     const { start, end } = getSaturdayToSaturdayWindow(date);
     setSemaineSelectionnee({
       debut: start.toISOString().split("T")[0],
@@ -457,6 +480,20 @@ export default function CalendrierDisponibilites() {
         return statut;
     }
   };
+
+  const isSelectedDayTrip = Boolean(
+    semaineSelectionnee &&
+      isLaCiotatDayTripSeason(semaineSelectionnee.debut) &&
+      isLaCiotatDayTripSeason(semaineSelectionnee.fin) &&
+      semaineSelectionnee.destination?.includes("Sortie journée")
+  );
+  const selectedDayCount = semaineSelectionnee ? getInclusiveDays(semaineSelectionnee.debut, semaineSelectionnee.fin) : 1;
+  const selectedBaseAmount = semaineSelectionnee
+    ? reservationMode === "priva"
+      ? semaineSelectionnee.tarifJourPriva ?? semaineSelectionnee.tarif ?? 0
+      : semaineSelectionnee.tarifCabine ?? semaineSelectionnee.tarifJourPersonne ?? semaineSelectionnee.tarif ?? 0
+    : 0;
+  const selectedTotalAmount = isSelectedDayTrip ? selectedBaseAmount * selectedDayCount : selectedBaseAmount;
 
   return (
     <div className="editorial-panel rounded-3xl border p-6 shadow-[0_24px_60px_-30px_rgba(15,23,42,0.35)] lg:p-10" style={{ borderColor: "#dcc6ae", background: "linear-gradient(180deg,#fbf3ea,#f2e3d1)" }}>
@@ -576,7 +613,13 @@ export default function CalendrierDisponibilites() {
                       : semaine?.tarifCabine ?? semaine?.tarifJourPersonne ?? semaine?.tarif;
                   const isBookableWeek = resolved.statut === "disponible" || resolved.statut === "option";
                   const priceLabel = isBookableWeek ? formatCompactPrice(cardPrice) : "";
-                  const priceSuffix = reservationMode === "cabine" ? " cabine" : "";
+                  const priceSuffix = isDayTrip
+                    ? reservationMode === "cabine"
+                      ? " /pers"
+                      : " privatif"
+                    : reservationMode === "cabine"
+                      ? " cabine"
+                      : "";
                   return (
                     <button
                       key={day.toISOString()}
@@ -684,19 +727,21 @@ export default function CalendrierDisponibilites() {
                           }`}
                           style={reservationMode === "cabine" ? { backgroundColor: BRAND_DEEP, borderColor: BRAND_DEEP } : { color: BRAND_DEEP, borderColor: "#d8c1a6" }}
                         >
-                          Cabine
+                          {isSelectedDayTrip ? "Par personne" : "Cabine"}
                         </button>
                       </div>
                       <p className="text-xs text-[oklch(0.45_0.04_220)] uppercase font-semibold mb-1">Tarif</p>
                       <p className="text-2xl font-bold" style={{ color: BRAND_DEEP, fontFamily: "Cormorant Garamond, Times New Roman, serif" }}>
-                        {(
-                          reservationMode === "priva"
-                            ? semaineSelectionnee.tarifJourPriva ?? semaineSelectionnee.tarif ?? 0
-                            : semaineSelectionnee.tarifCabine ?? semaineSelectionnee.tarifJourPersonne ?? semaineSelectionnee.tarif ?? 0
-                        ).toLocaleString("fr-FR")} €
+                        {selectedTotalAmount.toLocaleString("fr-FR")} €
                       </p>
                       <p className="text-xs text-[oklch(0.45_0.04_220)]">
-                        {reservationMode === "priva" ? "bateau privatisé" : "par cabine / personne"}
+                        {isSelectedDayTrip
+                          ? reservationMode === "priva"
+                            ? `${selectedDayCount} jour${selectedDayCount > 1 ? "s" : ""} · bateau entier`
+                            : `${selectedDayCount} jour${selectedDayCount > 1 ? "s" : ""} · par personne`
+                          : reservationMode === "priva"
+                            ? "bateau privatisé"
+                            : "par cabine / personne"}
                       </p>
                     </div>
                   )}
@@ -709,11 +754,7 @@ export default function CalendrierDisponibilites() {
 
                   {(semaineSelectionnee.statut === "disponible" || semaineSelectionnee.statut === "option") && (
                     <a
-                      href={`/reservation?id=${semaineSelectionnee.id}&destination=${encodeURIComponent(semaineSelectionnee.destination || "")}&formule=semaine&typeReservation=${reservationMode === "priva" ? "bateau_entier" : "cabine"}&montant=${
-                        reservationMode === "priva"
-                          ? semaineSelectionnee.tarifJourPriva ?? semaineSelectionnee.tarif ?? 0
-                          : semaineSelectionnee.tarifCabine ?? semaineSelectionnee.tarifJourPersonne ?? semaineSelectionnee.tarif ?? 0
-                      }&dateDebut=${encodeURIComponent(semaineSelectionnee.debut || "")}&dateFin=${encodeURIComponent(semaineSelectionnee.fin || "")}`}
+                      href={`/reservation?id=${semaineSelectionnee.id}&destination=${encodeURIComponent(semaineSelectionnee.destination || "")}&formule=semaine&typeReservation=${reservationMode === "priva" ? "bateau_entier" : "cabine"}&montant=${selectedTotalAmount}&dateDebut=${encodeURIComponent(semaineSelectionnee.debut || "")}&dateFin=${encodeURIComponent(semaineSelectionnee.fin || "")}`}
                       className="w-full mt-6 px-4 py-3.5 text-white rounded-xl font-bold transition-colors text-center block shadow-lg"
                       style={{ backgroundColor: BRAND_DEEP }}
                     >
