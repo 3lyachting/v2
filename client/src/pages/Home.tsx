@@ -266,7 +266,7 @@ function Hero() {
             className="text-white/80 text-lg sm:text-xl leading-relaxed mb-8 max-w-xl"
           >
             Naviguez à bord de <strong className="text-white">« Sabine »</strong>, un Lagoon 570 
-            fraîchement restauré, avec Victor.
+            entièrement rénové, avec Victor.
             Corse & Sardaigne l'été, Martinique & Grenadines l'hiver.
           </motion.p>
 
@@ -706,7 +706,15 @@ function SectionProgramme() {
                   style={{ fontFamily: "Cormorant Garamond, Times New Roman, serif", color: f.featured ? undefined : BRAND_DEEP }}>
                   {f.prix}
                 </div>
-                <div className={`text-sm mb-4 ${f.featured ? "text-white/70" : "text-[oklch(0.55_0.04_220)]"}`}>{f.desc}</div>
+                <div
+                  className={`mb-4 text-sm leading-relaxed ${
+                    f.featured
+                      ? "text-white font-medium bg-white/10 border border-white/15 rounded-xl px-3 py-2"
+                      : "text-[oklch(0.55_0.04_220)]"
+                  }`}
+                >
+                  {f.desc}
+                </div>
                 <ul className="space-y-2">
                   {f.items.map(item => (
                     <li key={item} className={`flex items-center gap-2 text-sm ${f.featured ? "text-white/90" : "text-[oklch(0.4_0.04_220)]"}`}>
@@ -770,15 +778,14 @@ function SectionEquipage() {
           ].map((p, i) => (
             <Reveal key={p.nom} delay={i * 0.15}>
               <div className="bg-white/5 backdrop-blur-sm rounded-3xl overflow-hidden border border-white/10 hover:border-white/20 transition-all duration-300">
-                <div className="relative h-52 overflow-hidden">
+                <div className="relative h-80 md:h-[30rem] overflow-hidden bg-[linear-gradient(180deg,rgba(255,255,255,0.04),rgba(255,255,255,0.01))] p-4">
                   <img
                     src={p.img}
                     alt={p.nom}
-                    className="w-full h-full object-contain bg-[oklch(0.12_0.03_240)]"
+                    className="w-full h-full object-contain object-center rounded-2xl"
                     loading="lazy"
                     decoding="async"
                   />
-                  <div className="absolute inset-0 bg-gradient-to-t from-[oklch(0.12_0.05_220)] to-transparent" />
                 </div>
                 <div className="p-6">
                   <div className="flex items-center gap-3 mb-3">
