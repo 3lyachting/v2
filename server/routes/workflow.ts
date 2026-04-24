@@ -105,11 +105,12 @@ async function refreshDisponibiliteBookingState(db: any, disponibiliteId: number
     : activeOptionReservations
         .filter((r: any) => r.typeReservation === "cabine" || r.typeReservation === "place")
         .reduce((sum: number, r: any) => sum + Math.max(1, r.nbCabines || 1), 0);
+  const confirmedClampedCabins = Math.max(0, Math.min(dispo.capaciteTotale || 4, confirmedCabins));
   const reservedCabins = hasPrivate ? confirmedCabins : confirmedCabins + optionCabins;
   const clampedReservedCabins = Math.max(0, Math.min(dispo.capaciteTotale || 4, reservedCabins));
 
   let statut: "disponible" | "option" | "reserve" = "disponible";
-  if (hasPrivate || clampedReservedCabins >= (dispo.capaciteTotale || 4)) {
+  if (hasPrivate || confirmedClampedCabins >= (dispo.capaciteTotale || 4)) {
     statut = "reserve";
   } else if (clampedReservedCabins > 0 || hasPrivateOption) {
     statut = "option";

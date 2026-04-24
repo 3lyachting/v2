@@ -90,11 +90,12 @@ export async function getConfirmedBookingUsage(db: BookingDb, disponibiliteId: n
     : activeOptionReservations
         .filter((r: any) => r.typeReservation === "cabine" || r.typeReservation === "place")
         .reduce((sum: number, r: any) => sum + Math.max(1, r.nbCabines || 1), 0);
+  const confirmedClamped = Math.max(0, Math.min(totalUnits, confirmedUnits));
   const reservedUnits = hasPrivate ? confirmedUnits : confirmedUnits + optionUnits;
   const clampedReserved = Math.max(0, Math.min(totalUnits, reservedUnits));
 
   let status: BookingUsage["status"] = "disponible";
-  if (hasPrivate || clampedReserved >= totalUnits) status = "reserve";
+  if (hasPrivate || confirmedClamped >= totalUnits) status = "reserve";
   else if (clampedReserved > 0 || hasPrivateOption) status = "option";
 
   return {
