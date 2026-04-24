@@ -77,7 +77,7 @@ function Navbar() {
             <img
               src="/logo-sabine.png"
               alt="Sabine Sailing"
-              className={`w-auto object-contain transition-all duration-500 ease-out ${scrolled ? "h-16 lg:h-20" : "h-28 lg:h-32"}`}
+              className={`w-auto object-contain transition-all duration-500 ease-out ${scrolled ? "h-16 lg:h-20" : "h-36 lg:h-40"}`}
             />
           </button>
 
