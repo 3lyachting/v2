@@ -668,14 +668,14 @@ function SectionProgramme() {
               {
                 titre: "Semaine Méditerranée",
                 prix: "À partir de 1750€ /personne",
-                desc: "Cabine ou privatisation",
+                desc: "Élégance méditerranéenne: cabine ou privatisation sur mesure",
                 color: "oklch(0.28_0.08_240)",
                 items: ["Départ le samedi", "Corse / Sardaigne", "Équipage professionnel", "Tarifs modulables selon période"],
               },
               {
                 titre: "Transatlantique",
-                prix: "Sur devis",
-                desc: "Jusqu'à 8 personnes",
+                prix: "À partir de 3000€ /personne",
+                desc: "Route Atlantique: La Ciotat → Guadeloupe via Gibraltar, Canaries et Cap-Vert",
                 color: "oklch(0.2_0.06_240)",
                 items: ["Traversées océan", "Cabine ou place", "Navigation hauturière", "Accompagnement équipage"],
                 featured: true,
@@ -683,7 +683,7 @@ function SectionProgramme() {
               {
                 titre: "Semaine Caraïbes",
                 prix: "À partir de 1750€ /personne",
-                desc: "1 à 3 semaines",
+                desc: "Évasion caribéenne: de 1 à 3 semaines entre îles iconiques",
                 color: "oklch(0.38_0.1_220)",
                 items: ["Départ samedi", "Grenadines", "Cabine ou privatisation", "Itinéraire sur mesure"],
               },
@@ -765,7 +765,7 @@ function SectionEquipage() {
               titre: "Capitaine 500 · Skipper hauturier",
               desc: "Victor est le capitaine de Sabine. Titulaire du brevet capitaine 500, il a navigué en Méditerranée et traversé l'Atlantique plusieurs fois. Passionné de météo et de navigation hauturière, il assure la sécurité et le confort de tous à bord avec calme et professionnalisme.",
               color: "oklch(0.72_0.11_85)",
-              img: "/photos%20site/dji_fly_20260313_182132_137_1773422554613_photo_optimized.jpg",
+              img: "/photos%20site/victor-portrait.png",
             },
             {
               nom: "Matelot cuisinier",
