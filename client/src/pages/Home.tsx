@@ -193,7 +193,7 @@ function Hero() {
   }, []);
 
   const heroVideoUrl =
-    "https://www.youtube-nocookie.com/embed/8SaiovLCOHQ?autoplay=1&mute=1&controls=0&loop=1&playlist=8SaiovLCOHQ&modestbranding=1&rel=0&playsinline=1&iv_load_policy=3";
+    "https://www.youtube-nocookie.com/embed/CigyvtC3MpM?autoplay=1&mute=1&controls=0&loop=1&playlist=CigyvtC3MpM&modestbranding=1&rel=0&playsinline=1&iv_load_policy=3";
 
   return (
     <section className="relative min-h-screen flex items-center overflow-hidden">
@@ -771,7 +771,13 @@ function SectionEquipage() {
             <Reveal key={p.nom} delay={i * 0.15}>
               <div className="bg-white/5 backdrop-blur-sm rounded-3xl overflow-hidden border border-white/10 hover:border-white/20 transition-all duration-300">
                 <div className="relative h-52 overflow-hidden">
-                  <img src={p.img} alt={p.nom} className="w-full h-full object-cover" loading="lazy" decoding="async" />
+                  <img
+                    src={p.img}
+                    alt={p.nom}
+                    className="w-full h-full object-contain bg-[oklch(0.12_0.03_240)]"
+                    loading="lazy"
+                    decoding="async"
+                  />
                   <div className="absolute inset-0 bg-gradient-to-t from-[oklch(0.12_0.05_220)] to-transparent" />
                 </div>
                 <div className="p-6">
