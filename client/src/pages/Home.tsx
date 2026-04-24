@@ -545,7 +545,7 @@ function SectionDestinations() {
                 onClick={() => setActive(i)}
                 className={`flex items-center gap-2 px-5 py-2.5 rounded-full font-semibold text-sm transition-all duration-300 ${
                   active === i
-                    ? "text-[oklch(0.15_0.05_220)] shadow-lg scale-105 border border-black/10"
+                    ? "text-white shadow-lg scale-105 border border-white/30"
                     : "bg-white text-[oklch(0.45_0.04_220)] hover:bg-[oklch(0.92_0.04_220)]"
                 }`}
                 style={active === i ? { backgroundColor: d.color } : {}}
@@ -623,6 +623,9 @@ function SectionDestinations() {
 
 // ── Section Programme ─────────────────────────────────────────────────────────
 function SectionProgramme() {
+  const programmeVideoUrl =
+    "https://www.youtube-nocookie.com/embed/wLKmbEixeYA?autoplay=1&mute=1&controls=0&loop=1&playlist=wLKmbEixeYA&modestbranding=1&rel=0&playsinline=1&iv_load_policy=3";
+
   const activites = [
     { icon: <Wind className="w-7 h-7" />, titre: "Navigation à la voile", desc: "Prenez la barre ou laissez-vous porter. Victor s'adapte à votre niveau et vos envies." },
     { icon: <Waves className="w-7 h-7" />, titre: "Paddle & Kayak", desc: "Explorez les criques et mouillages à votre rythme avec nos 2 SUP et notre kayak 2 places." },
@@ -633,7 +636,17 @@ function SectionProgramme() {
   ];
 
   return (
-    <section id="programme" className="py-20 lg:py-28 bg-white">
+    <section id="programme" className="relative py-20 lg:py-28 overflow-hidden">
+      <div className="absolute inset-0 w-full h-full overflow-hidden">
+        <iframe
+          src={programmeVideoUrl}
+          title="Sabine Sailing programme video background"
+          className="absolute top-1/2 left-1/2 h-[56.25vw] min-h-full w-[177.78vh] min-w-full -translate-x-1/2 -translate-y-1/2 pointer-events-none"
+          allow="autoplay; encrypted-media; picture-in-picture"
+          referrerPolicy="strict-origin-when-cross-origin"
+        />
+      </div>
+      <div className="absolute inset-0 bg-white/88" />
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <Reveal>
           <div className="text-center mb-16">
