@@ -371,7 +371,7 @@ function SectionCatamaran({ isEnglish = false }: { isEnglish?: boolean }) {
         { label: "Sail area", val: "200 m²" },
         { label: "Cabins", val: "4 double" },
         { label: "Guests", val: "8 (cruise)" },
-        { label: "Max capacity", val: "8 guests" },
+        { label: "Max day capacity", val: "12 guests (day trip)" },
       ]
     : [
         { label: "Longueur", val: "17,06 m" },
@@ -381,7 +381,7 @@ function SectionCatamaran({ isEnglish = false }: { isEnglish?: boolean }) {
         { label: "Voilure", val: "200 m²" },
         { label: "Cabines", val: "4 doubles" },
         { label: "Passagers", val: "8 (croisière)" },
-        { label: "Capacité max", val: "8 passagers" },
+        { label: "Capacité max journée", val: "12 passagers" },
       ];
 
   return (

@@ -162,6 +162,7 @@ export async function syncDisponibilitesFromReservations(db: BookingDb) {
               tarifJourPersonne: null,
               tarifCabine: null,
               notePublique: "Journée privative tout inclus (1000€) : voile, kayak, paddle.",
+              capaciteTotale: 6,
               updatedAt: new Date(),
             })
             .where(eq(disponibilites.id, existing.id));
@@ -179,7 +180,7 @@ export async function syncDisponibilitesFromReservations(db: BookingDb) {
             tarifJourPersonne: null,
             tarifCabine: null,
             notePublique: "Journée privative tout inclus (1000€) : voile, kayak, paddle.",
-            capaciteTotale: 4,
+            capaciteTotale: 6,
           })
           .returning({ id: disponibilites.id });
         if (inserted[0]?.id) {
@@ -211,7 +212,7 @@ export async function syncDisponibilitesFromReservations(db: BookingDb) {
           statut: CONFIRMED_WORKFLOW_STATUSES.includes(String(r.workflowStatut || "") as any) ? "reserve" : "option",
           destination: r.destination || "La Ciotat",
           notePublique: "Créneau créé automatiquement depuis réservation",
-          capaciteTotale: 4,
+          capaciteTotale: String(r.formule || "") === "journee" ? 6 : 4,
         })
         .returning({ id: disponibilites.id });
       bestId = created[0]?.id || null;
