@@ -19,7 +19,9 @@ const BLOCKING_WORKFLOW_STATUSES = [
 ] as const;
 
 function toIsoDay(value: any) {
-  return new Date(value).toISOString().slice(0, 10);
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return null;
+  return d.toISOString().slice(0, 10);
 }
 
 function overlapsIsoDayRange(aStart: string, aEnd: string, bStart: string, bEnd: string) {
@@ -29,6 +31,7 @@ function overlapsIsoDayRange(aStart: string, aEnd: string, bStart: string, bEnd:
 function getInclusiveReservationIsoRange(r: any) {
   const start = toIsoDay(r.dateDebut);
   const endRaw = toIsoDay(r.dateFin);
+  if (!start || !endRaw) return null;
   const end = endRaw < start ? start : endRaw;
   return { start, end };
 }
@@ -49,16 +52,20 @@ function isActiveOptionReservation(r: any) {
 export async function resolveDisponibiliteIdForReservation(db: BookingDb, r: any): Promise<number | null> {
   if (r.disponibiliteId) return r.disponibiliteId;
   const rows = await db.select().from(disponibilites);
-  const { start: reservationStart, end: reservationEnd } = getInclusiveReservationIsoRange(r);
+  const range = getInclusiveReservationIsoRange(r);
+  if (!range) return null;
+  const { start: reservationStart, end: reservationEnd } = range;
   let match = rows.find((d: any) => {
     const dStart = toIsoDay(d.debut);
     const dEnd = toIsoDay(d.fin);
+    if (!dStart || !dEnd) return false;
     return dStart === reservationStart && dEnd === reservationEnd;
   });
   if (!match) {
     match = rows.find((d: any) => {
       const dStart = toIsoDay(d.debut);
       const dEnd = toIsoDay(d.fin);
+      if (!dStart || !dEnd) return false;
       return overlapsIsoDayRange(reservationStart, reservationEnd, dStart, dEnd);
     });
   }
@@ -134,13 +141,22 @@ export async function syncDisponibilitesFromReservations(db: BookingDb) {
   const allDispos = await db.select().from(disponibilites);
   const daySlotByIso = new Map<string, any>(
     allDispos
-      .filter((d: any) => toIsoDay(d.debut) === toIsoDay(d.fin))
-      .map((d: any) => [toIsoDay(d.debut), d])
+      .filter((d: any) => {
+        const start = toIsoDay(d.debut);
+        const end = toIsoDay(d.fin);
+        return Boolean(start && end && start === end);
+      })
+      .map((d: any) => [toIsoDay(d.debut) as string, d])
   );
   const existingDaySlots = new Set(
     allDispos
-      .filter((d: any) => toIsoDay(d.debut) === toIsoDay(d.fin))
+      .filter((d: any) => {
+        const start = toIsoDay(d.debut);
+        const end = toIsoDay(d.fin);
+        return Boolean(start && end && start === end);
+      })
       .map((d: any) => toIsoDay(d.debut))
+      .filter(Boolean) as string[]
   );
   const dayTripPeriods = [
     { start: "2026-04-01", end: "2026-05-31" },
