@@ -341,6 +341,15 @@ router.put("/:id", requireAdmin, async (req, res) => {
       updatedAt: new Date(),
     }).where(eq(reservations.id, parseInt(id)));
 
+    // Recalculer les 2 créneaux (ancien + nouveau) après déplacement de réservation.
+    // Sinon l'ancien créneau peut rester bloqué visuellement.
+    const disponibilitesToRefresh = new Set<number>();
+    if (existing[0].disponibiliteId) disponibilitesToRefresh.add(existing[0].disponibiliteId);
+    if (resolvedDisponibiliteId) disponibilitesToRefresh.add(resolvedDisponibiliteId);
+    for (const dispoId of disponibilitesToRefresh) {
+      await refreshDisponibiliteBookingState(db, dispoId);
+    }
+
     res.json({ success: true, message: "Réservation mise à jour" });
   } catch (error: any) {
     console.error("[Reservations] Erreur lors de la mise à jour:", error);
