@@ -167,23 +167,7 @@ export async function syncDisponibilitesFromReservations(db: BookingDb) {
     const end = new Date(`${period.end}T00:00:00.000Z`);
     while (cursor <= end) {
       const iso = cursor.toISOString().slice(0, 10);
-      if (existingDaySlots.has(iso)) {
-        const existing = daySlotByIso.get(iso);
-        if (existing?.id) {
-          await db
-            .update(disponibilites)
-            .set({
-              destination: "La Ciotat - Cassis (plage de l'Arène) - retour",
-              tarifJourPriva: 1000,
-              tarifJourPersonne: null,
-              tarifCabine: null,
-              notePublique: "Journée privative tout inclus (1000€) : voile, kayak, paddle.",
-              capaciteTotale: 6,
-              updatedAt: new Date(),
-            })
-            .where(eq(disponibilites.id, existing.id));
-        }
-      } else {
+      if (!existingDaySlots.has(iso)) {
         const inserted = await db
           .insert(disponibilites)
           .values({
@@ -211,6 +195,7 @@ export async function syncDisponibilitesFromReservations(db: BookingDb) {
   const allDisposAfterSeed = await db.select().from(disponibilites);
   const allReservations = await db.select().from(reservations);
   const createdDispoIds: number[] = [];
+  const linkedDispoIds = new Set<number>();
 
   for (const r of allReservations) {
     let bestId = await resolveDisponibiliteIdForReservation(db, r);
@@ -234,6 +219,8 @@ export async function syncDisponibilitesFromReservations(db: BookingDb) {
       bestId = created[0]?.id || null;
       if (bestId) createdDispoIds.push(bestId);
     }
+    if (bestId) linkedDispoIds.add(bestId);
+    if (r.disponibiliteId) linkedDispoIds.add(r.disponibiliteId);
     if (bestId && r.disponibiliteId !== bestId) {
       await db
         .update(reservations)
@@ -245,7 +232,7 @@ export async function syncDisponibilitesFromReservations(db: BookingDb) {
     }
   }
 
-  const idsToRefresh = [...new Set([...allDisposAfterSeed.map((d: any) => d.id), ...createdDispoIds])];
+  const idsToRefresh = [...new Set([...Array.from(linkedDispoIds), ...createdDispoIds])];
   for (const dispoId of idsToRefresh) {
     if (!dispoId) continue;
     await refreshDisponibiliteBookingState(db, dispoId);
