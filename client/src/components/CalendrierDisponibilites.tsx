@@ -289,6 +289,10 @@ function isDayInProductWindow(isoDay: string, produit: "tous" | "croisiere_medit
   return false;
 }
 
+function overlapsIsoRange(startIso: string, endIso: string, rangeStartIso: string, rangeEndIso: string) {
+  return startIso <= rangeEndIso && endIso >= rangeStartIso;
+}
+
 // ── Composant principal ───────────────────────────────────────────────────────
 export default function CalendrierDisponibilites() {
   const [semaines, setSemaines] = useState<Semaine[]>([]);
@@ -334,11 +338,12 @@ export default function CalendrierDisponibilites() {
     return semaines.filter((s) => {
       if (produitFiltre === "tous") return true;
       if (produitFiltre === "croisiere_mediterranee") {
-        const d = parseDate(s.debut);
-        const month = d.getUTCMonth() + 1;
-        const iso = d.toISOString().split("T")[0];
+        const startIso = s.debut;
+        const endIso = s.fin;
+        const overlapsMainSeason = overlapsIsoRange(startIso, endIso, "2026-06-01", "2026-09-30");
+        const overlapsDayTripSeason = overlapsIsoRange(startIso, endIso, "2026-04-01", "2026-05-31");
         return (
-          ((month >= 6 && month <= 9) || isLaCiotatDayTripSeason(iso)) &&
+          (overlapsMainSeason || overlapsDayTripSeason) &&
           !String(s.destination || "").toLowerCase().includes("cara") &&
           !String(s.destination || "").toLowerCase().includes("travers")
         );

@@ -46,6 +46,20 @@ async function findAvailablePort(startPort: number = 3000): Promise<number> {
 async function startServer() {
   const app = express();
   const server = createServer(app);
+  app.enable("trust proxy");
+  app.use((req, res, next) => {
+    const host = String(req.headers.host || "");
+    const forwardedProto = String(req.headers["x-forwarded-proto"] || "");
+    const isProd = process.env.NODE_ENV === "production";
+
+    if (isProd && host.startsWith("www.")) {
+      return res.redirect(301, `https://${host.replace(/^www\./, "")}${req.originalUrl}`);
+    }
+    if (isProd && forwardedProto && forwardedProto !== "https") {
+      return res.redirect(301, `https://${host}${req.originalUrl}`);
+    }
+    next();
+  });
   // Stripe webhook DOIT utiliser express.raw AVANT express.json pour vérifier la signature
   app.use("/api/stripe/webhook", express.raw({ type: "application/json" }), stripeWebhookRouter);
   // Configure body parser with larger size limit for file uploads

@@ -17,6 +17,8 @@ function Router() {
     <WouterRouter base={APP_BASE_PATH}>
       <Switch>
         <Route path="/" component={Home} />
+        <Route path="/en" component={Home} />
+        <Route path="/en/:rest*" component={Home} />
         <Route path="/admin/login" component={AdminLogin} />
         <Route path="/admin" component={Admin} />
         <Route path="/reservation" component={Reservation} />

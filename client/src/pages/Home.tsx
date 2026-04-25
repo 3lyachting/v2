@@ -20,7 +20,7 @@ const BRAND_SAND = "#B58E6E";
 const BRAND_DEEP = "#00384A";
 
 // ── Navbar ────────────────────────────────────────────────────────────────────
-function Navbar() {
+function Navbar({ isEnglish = false }: { isEnglish?: boolean }) {
   const [scrolled, setScrolled] = useState(false);
   const [open, setOpen] = useState(false);
 
@@ -43,14 +43,23 @@ function Navbar() {
     };
   }, []);
 
-  const navLinks = [
-    { href: "#catamaran", label: "Sabine" },
-    { href: "#destinations", label: "Destinations" },
-    { href: "#programme", label: "Programme" },
-    { href: "#equipage", label: "Équipage" },
-    { href: "#calendrier", label: "Calendrier & Tarifs" },
-    { href: "#contact", label: "Contact" },
-  ];
+  const navLinks = isEnglish
+    ? [
+        { href: "#catamaran", label: "Sabine" },
+        { href: "#destinations", label: "Destinations" },
+        { href: "#programme", label: "Onboard" },
+        { href: "#equipage", label: "Crew" },
+        { href: "#calendrier", label: "Availability & Rates" },
+        { href: "#contact", label: "Contact" },
+      ]
+    : [
+        { href: "#catamaran", label: "Sabine" },
+        { href: "#destinations", label: "Destinations" },
+        { href: "#programme", label: "Programme" },
+        { href: "#equipage", label: "Équipage" },
+        { href: "#calendrier", label: "Calendrier & Tarifs" },
+        { href: "#contact", label: "Contact" },
+      ];
 
   const scrollTo = (id: string) => {
     document.querySelector(id)?.scrollIntoView({ behavior: "smooth" });
@@ -77,7 +86,7 @@ function Navbar() {
             <img
               src="/logo-sabine.png"
               alt="Sabine Sailing"
-              className={`w-auto object-contain transition-all duration-500 ease-out ${scrolled ? "h-16 lg:h-20" : "h-[11.7rem] lg:h-[13rem]"}`}
+              className={`w-auto object-contain transition-all duration-500 ease-out ${scrolled ? "h-14 sm:h-16 lg:h-20" : "h-24 sm:h-28 lg:h-[13rem]"}`}
             />
           </button>
 
@@ -97,13 +106,19 @@ function Navbar() {
               className="ml-2 rounded-full px-5 py-2 text-sm font-bold text-white shadow-[0_10px_24px_rgba(0,56,74,0.35)] transition-all hover:scale-105 hover:brightness-105"
               style={{ backgroundColor: BRAND_DEEP }}
             >
-              Réserver
+              {isEnglish ? "Book now" : "Réserver"}
             </button>
+            <a
+              href={isEnglish ? "/" : "/en"}
+              className="rounded-full border border-[#c8a96b]/70 px-4 py-2 text-sm font-bold text-[#f7e8c6] transition-all hover:bg-[#c8a96b] hover:text-[#111827]"
+            >
+              {isEnglish ? "FR" : "EN"}
+            </a>
             <a
               href={withBasePath("/espace-client")}
               className="rounded-full border border-[#c8a96b]/70 px-5 py-2 text-sm font-bold text-[#f7e8c6] transition-all hover:bg-[#c8a96b] hover:text-[#111827]"
             >
-              Espace client
+              {isEnglish ? "Client area" : "Espace client"}
             </a>
           </div>
 
@@ -120,7 +135,7 @@ function Navbar() {
       {/* Mobile menu */}
       {open && (
         <div className="lg:hidden border-t border-white/10" style={{ backgroundColor: "rgba(0,56,74,0.95)" }}>
-          <div className="px-4 py-4 space-y-2">
+          <div className="max-h-[70vh] overflow-y-auto px-4 py-4 space-y-2">
             {navLinks.map(l => (
               <button
                 key={l.href}
@@ -135,14 +150,21 @@ function Navbar() {
               className="w-full mt-2 px-5 py-2.5 rounded-full text-white text-sm font-bold"
               style={{ backgroundColor: BRAND_SAND, color: BRAND_DEEP }}
             >
-              Réserver
+              {isEnglish ? "Book now" : "Réserver"}
             </button>
+            <a
+              href={isEnglish ? "/" : "/en"}
+              onClick={() => setOpen(false)}
+              className="block w-full mt-2 px-5 py-2.5 rounded-full border border-white/30 text-white text-center text-sm font-bold"
+            >
+              {isEnglish ? "Switch to French" : "Switch to English"}
+            </a>
             <a
               href={withBasePath("/espace-client")}
               onClick={() => setOpen(false)}
               className="block w-full mt-2 px-5 py-2.5 rounded-full border border-white/30 text-white text-center text-sm font-bold"
             >
-              Espace client
+              {isEnglish ? "Client area" : "Espace client"}
             </a>
           </div>
         </div>
@@ -183,7 +205,7 @@ function WaveDivider({ fill = "#fff", flip = false }: { fill?: string; flip?: bo
 }
 
 // ── Hero ──────────────────────────────────────────────────────────────────────
-function Hero() {
+function Hero({ isEnglish = false }: { isEnglish?: boolean }) {
   const [showVideo, setShowVideo] = useState(false);
 
   useEffect(() => {
@@ -244,7 +266,7 @@ function Hero() {
             style={{ borderColor: `${BRAND_SAND}80`, backgroundColor: "rgba(0,56,74,0.38)", color: "#f6ecdf" }}
           >
             <Anchor className="h-4 w-4" style={{ color: BRAND_SAND }} />
-            Catamaran Lagoon 570 · Equipage professionnel
+            {isEnglish ? "Lagoon 570 Catamaran · Professional crew" : "Catamaran Lagoon 570 · Equipage professionnel"}
           </motion.div>
 
           <motion.h1
@@ -254,11 +276,11 @@ function Hero() {
             className="mb-6 text-5xl font-extrabold leading-[1.05] text-white sm:text-6xl lg:text-7xl"
             style={{ fontFamily: "Cormorant Garamond, Times New Roman, serif" }}
           >
-            Votre croisière
+            {isEnglish ? "Your cruise" : "Votre croisière"}
             <br />
-            <span style={{ color: "#f0decb" }}>Méditerranée</span>
+            <span style={{ color: "#f0decb" }}>{isEnglish ? "Mediterranean" : "Méditerranée"}</span>
             <br />
-            <span style={{ color: BRAND_SAND }}>& Antilles</span>
+            <span style={{ color: BRAND_SAND }}>{isEnglish ? "& Caribbean" : "& Antilles"}</span>
           </motion.h1>
 
           <motion.p
@@ -267,9 +289,18 @@ function Hero() {
             transition={{ duration: 0.7, delay: 0.25 }}
             className="text-white/80 text-lg sm:text-xl leading-relaxed mb-8 max-w-xl"
           >
-            Naviguez à bord de <strong className="text-white">« Sabine »</strong>, un Lagoon 570 
-            entièrement rénové, avec Victor.
-            Corse & Sardaigne l'été, Martinique & Grenadines l'hiver.
+            {isEnglish ? (
+              <>
+                Sail aboard <strong className="text-white">"Sabine"</strong>, a fully refitted Lagoon 570 with Victor.
+                {" "}Corsica & Sardinia in summer, Martinique & the Grenadines in winter.
+              </>
+            ) : (
+              <>
+                Naviguez à bord de <strong className="text-white">« Sabine »</strong>, un Lagoon 570
+                entièrement rénové, avec Victor.
+                Corse & Sardaigne l'été, Martinique & Grenadines l'hiver.
+              </>
+            )}
           </motion.p>
 
           <motion.div
@@ -283,14 +314,14 @@ function Hero() {
               className="rounded-full px-7 py-3.5 text-base font-bold text-white shadow-[0_12px_30px_rgba(0,56,74,0.4)] transition-all hover:scale-105 hover:brightness-105"
               style={{ backgroundColor: BRAND_DEEP }}
             >
-              Voir les disponibilités
+              {isEnglish ? "See availability" : "Voir les disponibilités"}
             </button>
             <button
               onClick={() => document.querySelector("#destinations")?.scrollIntoView({ behavior: "smooth" })}
               className="rounded-full border px-7 py-3.5 text-base font-semibold backdrop-blur-sm transition-all"
               style={{ borderColor: `${BRAND_SAND}aa`, backgroundColor: "rgba(181,142,110,0.28)", color: "#fff6ea" }}
             >
-              Découvrir les destinations
+              {isEnglish ? "Discover destinations" : "Découvrir les destinations"}
             </button>
           </motion.div>
 
@@ -303,9 +334,9 @@ function Hero() {
           >
             {[
               { val: "17m", label: "Lagoon 570" },
-              { val: "8", label: "Passagers max" },
-              { val: "10+", label: "Ans d'expérience" },
-              { val: "3", label: "Univers de croisière" },
+              { val: "8", label: isEnglish ? "Max guests" : "Passagers max" },
+              { val: "10+", label: isEnglish ? "Years experience" : "Ans d'expérience" },
+              { val: "3", label: isEnglish ? "Cruise worlds" : "Univers de croisière" },
             ].map(s => (
               <div key={s.label} className="rounded-2xl border px-5 py-3 text-center backdrop-blur-sm" style={{ borderColor: `${BRAND_SAND}70`, backgroundColor: "rgba(0,56,74,0.42)" }}>
                 <div className="text-2xl font-extrabold" style={{ fontFamily: "Cormorant Garamond, Times New Roman, serif", color: "#f5e8d8" }}>{s.val}</div>
@@ -318,11 +349,11 @@ function Hero() {
 
       {/* Scroll indicator */}
       <motion.div
-        className="absolute bottom-24 right-8 text-white/40 flex flex-col items-center gap-1"
+        className="absolute bottom-20 right-4 sm:right-8 text-white/40 flex flex-col items-center gap-1"
         animate={{ y: [0, 8, 0] }}
         transition={{ duration: 2, repeat: Infinity }}
       >
-        <span className="text-xs tracking-widest uppercase" style={{ writingMode: "vertical-rl" }}>Défiler</span>
+        <span className="text-xs tracking-widest uppercase" style={{ writingMode: "vertical-rl" }}>{isEnglish ? "Scroll" : "Défiler"}</span>
         <ChevronDown className="w-4 h-4" />
       </motion.div>
     </section>
@@ -638,7 +669,7 @@ function SectionProgramme() {
     { icon: <Wind className="w-7 h-7" />, titre: "Navigation à la voile", desc: "Prenez la barre ou laissez-vous porter. Victor s'adapte à votre niveau et vos envies." },
     { icon: <Waves className="w-7 h-7" />, titre: "Paddle & Kayak", desc: "Explorez les criques et mouillages à votre rythme avec nos 2 SUP et notre kayak 2 places." },
     { icon: <Fish className="w-7 h-7" />, titre: "Snorkeling", desc: "Masques, palmes et tubas pour tous. Plongez dans des eaux cristallines et découvrez les fonds marins." },
-    { icon: <Sun className="w-7 h-7" />, titre: "Bronzette & Apéro", desc: "Trampolines avant, bains de soleil, cocktails au coucher du soleil — la dolce vita en mer." },
+    { icon: <Sun className="w-7 h-7" />, titre: "Bronzette, apéro et farniente", desc: "Trampolines avant, bains de soleil, cocktails au coucher du soleil — la dolce vita en mer." },
     { icon: <Compass className="w-7 h-7" />, titre: "Découverte culturelle", desc: "Villages, marchés locaux, restaurants de port — chaque escale est une nouvelle aventure." },
     { icon: <Sunset className="w-7 h-7" />, titre: "Couchers de soleil", desc: "Les plus beaux couchers de soleil de Méditerranée et des Caraïbes, depuis le cockpit avec un verre à la main." },
   ];
@@ -1213,16 +1244,16 @@ function Footer() {
   );
 }
 
-function MobileStickyCTA() {
+function MobileStickyCTA({ isEnglish = false }: { isEnglish?: boolean }) {
   return (
-    <div className="fixed bottom-0 left-0 right-0 z-50 border-t border-black/10 bg-white/95 px-3 py-2 backdrop-blur md:hidden">
+    <div className="fixed bottom-0 left-0 right-0 z-50 border-t border-black/10 bg-white/95 px-3 py-2 pb-[calc(env(safe-area-inset-bottom)+0.5rem)] backdrop-blur md:hidden">
       <div className="mx-auto flex max-w-7xl items-center gap-2">
         <button
           type="button"
           onClick={() => document.querySelector("#calendrier")?.scrollIntoView({ behavior: "smooth" })}
           className="flex-1 rounded-xl bg-[oklch(0.2_0.06_240)] px-4 py-3 text-sm font-bold text-white"
         >
-          Voir les disponibilités
+          {isEnglish ? "See availability" : "Voir les disponibilités"}
         </button>
         <a
           href="https://wa.me/33652004342"
@@ -1241,12 +1272,32 @@ function MobileStickyCTA() {
 
 // ── Page principale ───────────────────────────────────────────────────────────
 export default function Home() {
+  const path = typeof window !== "undefined" ? window.location.pathname : "/";
+  const isEnglish = path === "/en" || path.startsWith("/en/");
+
+  useEffect(() => {
+    const titleFr = "Croisieres Catamaran Mediterranee & Antilles | Sabine Sailing";
+    const titleEn = "Private Catamaran Charters Mediterranean & Caribbean | Sabine Sailing";
+    const descFr =
+      "Embarquez a bord de Sabine, Lagoon 570 avec equipage professionnel, pour une croisiere privee en Mediterranee, Corse ou Antilles.";
+    const descEn =
+      "Board Sabine, a Lagoon 570 with professional crew, for private charters in the Mediterranean and the Caribbean.";
+
+    document.documentElement.lang = isEnglish ? "en" : "fr";
+    document.title = isEnglish ? titleEn : titleFr;
+
+    const description = document.querySelector('meta[name="description"]');
+    if (description) {
+      description.setAttribute("content", isEnglish ? descEn : descFr);
+    }
+  }, [isEnglish]);
+
   useEffect(() => {
     const schema = {
       "@context": "https://schema.org",
       "@type": "LocalBusiness",
       name: "Sabine Sailing",
-      url: "https://sabine-sailing.com/home/",
+      url: "https://sabine-sailing.com/",
       telephone: "+33652004342",
       email: "contact@sabine-sailing.com",
       address: {
@@ -1271,20 +1322,20 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-white pb-20 md:pb-0">
-      <Navbar />
-      <Hero />
+      <Navbar isEnglish={isEnglish} />
+      <Hero isEnglish={isEnglish} />
       <SectionCatamaran />
       <SectionDestinations />
       <SectionProgramme />
       <SectionEquipage />
       <SectionCalendrier />
       <SectionGalerie />
-      <Suspense fallback={<div className="py-10 text-center text-sm text-[oklch(0.45_0.04_220)]">Chargement des avis...</div>}>
+      <Suspense fallback={<div className="py-10 text-center text-sm text-[oklch(0.45_0.04_220)]">{isEnglish ? "Loading reviews..." : "Chargement des avis..."}</div>}>
         <AvisGoogle />
       </Suspense>
       <SectionContact />
       <Footer />
-      <MobileStickyCTA />
+      <MobileStickyCTA isEnglish={isEnglish} />
     </div>
   );
 }
