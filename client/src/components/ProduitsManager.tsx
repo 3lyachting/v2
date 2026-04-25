@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Calendar, PhoneCall, Save, Trash2 } from "lucide-react";
 
-type ProductKey = "croisiere_mediterranee" | "transatlantique" | "croisiere_caraibes";
+type ProductKey = "croisiere_mediterranee" | "transatlantique" | "croisiere_caraibes" | "journee_privee";
 type Statut = "disponible" | "reserve" | "option" | "ferme";
 
 type Disponibilite = {
@@ -29,6 +29,7 @@ const PRODUCTS: Record<ProductKey, { label: string; destination: string; formule
   croisiere_mediterranee: { label: "Croisières Med", destination: "Méditerranée", formule: "croisiere_mediterranee" },
   transatlantique: { label: "Transatlantique", destination: "Traversée Atlantique", formule: "transatlantique" },
   croisiere_caraibes: { label: "Croisières Caraïbes", destination: "Grenadines", formule: "croisiere_caraibes" },
+  journee_privee: { label: "Journée privative", destination: "La Ciotat - Cassis (plage de l'Arène) - retour", formule: "journee_privee" },
 };
 
 function isoDay(d: string) {
@@ -39,6 +40,7 @@ function classifyProduct(dispo: Disponibilite): ProductKey | null {
   const dest = (dispo.destination || "").toLowerCase();
   const d = new Date(dispo.debut);
   const month = d.getUTCMonth() + 1;
+  if (dest.includes("cassis") || dest.includes("sortie journée") || dest.includes("sortie journee")) return "journee_privee";
   if (dest.includes("travers") || dest.includes("transat")) return "transatlantique";
   if (dest.includes("grenadine") || dest.includes("cara")) return "croisiere_caraibes";
   if (month >= 5 && month <= 9) return "croisiere_mediterranee";

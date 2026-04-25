@@ -512,7 +512,7 @@ function SectionDestinations({ isEnglish = false }: { isEnglish?: boolean }) {
     {
       id: "med",
       label: "Mediterranean",
-      saison: "Summer (June → October)",
+      saison: "Summer (June → August)",
       emoji: "🌊",
       color: "#00384A",
       colorLight: "#EBDACA",
@@ -552,7 +552,7 @@ function SectionDestinations({ isEnglish = false }: { isEnglish?: boolean }) {
     {
       id: "med",
       label: "Méditerranée",
-      saison: "Été (Juin → Octobre)",
+      saison: "Été (Juin → Août)",
       emoji: "🌊",
       color: "#00384A",
       colorLight: "#EBDACA",
@@ -795,14 +795,14 @@ function SectionProgramme({ isEnglish = false }: { isEnglish?: boolean }) {
             {[
               {
                 titre: "Semaine Méditerranée",
-                prix: "À partir de 1750€ /personne",
+              prix: "À partir de 14 000€ bateau entier",
                 desc: "Élégance méditerranéenne: cabine ou privatisation sur mesure",
                 color: "#0f4d62",
                 items: ["Départ le samedi", "Corse / Sardaigne", "Équipage professionnel", "Tarifs modulables selon période"],
               },
               {
                 titre: "Transatlantique",
-                prix: "À partir de 3000€ /personne",
+              prix: "À partir de 3 000€ / place",
                 desc: "Route Atlantique: La Ciotat → Guadeloupe via Gibraltar, Canaries et Cap-Vert",
                 color: "#00384A",
                 items: ["Traversées océan", "Cabine ou place", "Navigation hauturière", "Accompagnement équipage"],
@@ -810,10 +810,17 @@ function SectionProgramme({ isEnglish = false }: { isEnglish?: boolean }) {
               },
               {
                 titre: "Semaine Caraïbes",
-                prix: "À partir de 1750€ /personne",
+              prix: "À partir de 14 000€ bateau entier",
                 desc: "Évasion caribéenne: de 1 à 3 semaines entre îles iconiques",
                 color: "#2f6f82",
                 items: ["Départ samedi", "Grenadines", "Cabine ou privatisation", "Itinéraire sur mesure"],
+            },
+            {
+              titre: "Journée La Ciotat - Cassis",
+              prix: "1 000€ tout inclus · bateau entier",
+              desc: "Programme: La Ciotat → Cassis (plage de l'Arène) → retour",
+              color: "#1f5f70",
+              items: ["Périodes: avril, mai et septembre", "Voile", "Kayak", "Paddle"],
               },
             ].map(f => (
               <div
@@ -1205,6 +1212,7 @@ function SectionContact({ isEnglish = false }: { isEnglish?: boolean }) {
                       <option value="croisiere_mediterranee">Semaine Méditerranée</option>
                       <option value="transatlantique">Transatlantique</option>
                       <option value="croisiere_caraibes">Semaine Caraïbes</option>
+                      <option value="journee_privee">Journée privative La Ciotat - Cassis</option>
                     </select>
                   </div>
 

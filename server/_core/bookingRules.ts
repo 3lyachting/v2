@@ -132,34 +132,62 @@ export async function refreshDisponibiliteBookingState(db: BookingDb, disponibil
 
 export async function syncDisponibilitesFromReservations(db: BookingDb) {
   const allDispos = await db.select().from(disponibilites);
+  const daySlotByIso = new Map<string, any>(
+    allDispos
+      .filter((d: any) => toIsoDay(d.debut) === toIsoDay(d.fin))
+      .map((d: any) => [toIsoDay(d.debut), d])
+  );
   const existingDaySlots = new Set(
     allDispos
       .filter((d: any) => toIsoDay(d.debut) === toIsoDay(d.fin))
       .map((d: any) => toIsoDay(d.debut))
   );
-  for (let day = 1; day <= 61; day++) {
-    const date = new Date(Date.UTC(2026, 3, day));
-    const month = date.getUTCMonth();
-    if (month !== 3 && month !== 4) continue; // April / May only
-    const iso = date.toISOString().slice(0, 10);
-    if (existingDaySlots.has(iso)) continue;
-    const inserted = await db
-      .insert(disponibilites)
-      .values({
-        planningType: "charter",
-        debut: date,
-        fin: date,
-        statut: "disponible",
-        destination: "La Ciotat · Sortie journée",
-        tarifJourPriva: 900,
-        tarifJourPersonne: 130,
-        tarifCabine: 130,
-        notePublique: "Sortie journée: 900€ privatif ou 130€ / personne",
-        capaciteTotale: 4,
-      })
-      .returning({ id: disponibilites.id });
-    if (inserted[0]?.id) {
-      existingDaySlots.add(iso);
+  const dayTripPeriods = [
+    { start: "2026-04-01", end: "2026-05-31" },
+    { start: "2026-09-01", end: "2026-09-30" },
+  ];
+  for (const period of dayTripPeriods) {
+    let cursor = new Date(`${period.start}T00:00:00.000Z`);
+    const end = new Date(`${period.end}T00:00:00.000Z`);
+    while (cursor <= end) {
+      const iso = cursor.toISOString().slice(0, 10);
+      if (existingDaySlots.has(iso)) {
+        const existing = daySlotByIso.get(iso);
+        if (existing?.id) {
+          await db
+            .update(disponibilites)
+            .set({
+              destination: "La Ciotat - Cassis (plage de l'Arène) - retour",
+              tarifJourPriva: 1000,
+              tarifJourPersonne: null,
+              tarifCabine: null,
+              notePublique: "Journée privative tout inclus (1000€) : voile, kayak, paddle.",
+              updatedAt: new Date(),
+            })
+            .where(eq(disponibilites.id, existing.id));
+        }
+      } else {
+        const inserted = await db
+          .insert(disponibilites)
+          .values({
+            planningType: "charter",
+            debut: new Date(cursor),
+            fin: new Date(cursor),
+            statut: "disponible",
+            destination: "La Ciotat - Cassis (plage de l'Arène) - retour",
+            tarifJourPriva: 1000,
+            tarifJourPersonne: null,
+            tarifCabine: null,
+            notePublique: "Journée privative tout inclus (1000€) : voile, kayak, paddle.",
+            capaciteTotale: 4,
+          })
+          .returning({ id: disponibilites.id });
+        if (inserted[0]?.id) {
+          existingDaySlots.add(iso);
+          daySlotByIso.set(iso, { id: inserted[0].id });
+        }
+      }
+      cursor.setUTCDate(cursor.getUTCDate() + 1);
     }
   }
 

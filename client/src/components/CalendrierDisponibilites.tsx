@@ -58,7 +58,7 @@ interface Semaine {
   destination?: string;
   capaciteTotale?: number;
   cabinesReservees?: number;
-  produit?: "croisiere_mediterranee" | "transatlantique" | "croisiere_caraibes";
+  produit?: "croisiere_mediterranee" | "transatlantique" | "croisiere_caraibes" | "journee_privee";
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -87,6 +87,7 @@ function convertDisponibiliteToSemaine(d: Disponibilite): Semaine {
   const isMed = m >= 6 && m <= 9;
   const isCaraibes = d.destination.toLowerCase().includes("grenadine") || d.destination.toLowerCase().includes("cara");
   const isTransat = d.destination.toLowerCase().includes("travers") || d.destination.toLowerCase().includes("transat");
+  const isJournee = d.destination.toLowerCase().includes("sortie journée") || d.destination.toLowerCase().includes("cassis");
   return {
     debut: debutDate,
     fin: finDate,
@@ -107,7 +108,9 @@ function convertDisponibiliteToSemaine(d: Disponibilite): Semaine {
     destination: d.destination,
     capaciteTotale: d.capaciteTotale,
     cabinesReservees: d.cabinesReservees,
-    produit: isTransat
+    produit: isJournee
+        ? "journee_privee"
+        : isTransat
         ? "transatlantique"
         : isCaraibes
           ? "croisiere_caraibes"
@@ -263,7 +266,7 @@ function isIsoInRange(iso: string, start: string, end: string) {
 }
 
 function isLaCiotatDayTripSeason(isoDay: string) {
-  return isIsoInRange(isoDay, "2026-04-01", "2026-05-31");
+  return isIsoInRange(isoDay, "2026-04-01", "2026-05-31") || isIsoInRange(isoDay, "2026-09-01", "2026-09-30");
 }
 
 function getInclusiveDays(startIso: string, endIso: string) {
@@ -273,18 +276,21 @@ function getInclusiveDays(startIso: string, endIso: string) {
   return Math.max(1, diff + 1);
 }
 
-function isDayInProductWindow(isoDay: string, produit: "tous" | "croisiere_mediterranee" | "transatlantique" | "croisiere_caraibes") {
+function isDayInProductWindow(isoDay: string, produit: "tous" | "croisiere_mediterranee" | "transatlantique" | "croisiere_caraibes" | "journee_privee") {
   if (produit === "tous") return true;
   if (produit === "croisiere_mediterranee") {
     const d = parseDate(isoDay);
     const m = d.getUTCMonth() + 1;
-    return (m >= 6 && m <= 9) || isLaCiotatDayTripSeason(isoDay);
+    return m >= 6 && m <= 8;
   }
   if (produit === "transatlantique") {
     return isIsoInRange(isoDay, "2026-11-01", "2026-11-10") || isIsoInRange(isoDay, "2027-04-01", "2027-05-01");
   }
   if (produit === "croisiere_caraibes") {
     return isIsoInRange(isoDay, "2026-12-21", "2027-03-31");
+  }
+  if (produit === "journee_privee") {
+    return isLaCiotatDayTripSeason(isoDay);
   }
   return false;
 }
@@ -299,7 +305,7 @@ export default function CalendrierDisponibilites({ isEnglish = false }: { isEngl
   const [loading, setLoading] = useState(true);
   const [moisAffiche, setMoisAffiche] = useState(new Date());
   const [semaineSelectionnee, setSemaineSelectionnee] = useState<Semaine | null>(null);
-  const [produitFiltre, setProduitFiltre] = useState<"tous" | "croisiere_mediterranee" | "transatlantique" | "croisiere_caraibes">("tous");
+  const [produitFiltre, setProduitFiltre] = useState<"tous" | "croisiere_mediterranee" | "transatlantique" | "croisiere_caraibes" | "journee_privee">("tous");
   const [reservationMode, setReservationMode] = useState<"priva" | "cabine">("cabine");
 
   // Charger les disponibilités depuis l'API
@@ -345,8 +351,12 @@ export default function CalendrierDisponibilites({ isEnglish = false }: { isEngl
         return (
           (overlapsMainSeason || overlapsDayTripSeason) &&
           !String(s.destination || "").toLowerCase().includes("cara") &&
-          !String(s.destination || "").toLowerCase().includes("travers")
+          !String(s.destination || "").toLowerCase().includes("travers") &&
+          !String(s.destination || "").toLowerCase().includes("cassis")
         );
+      }
+      if (produitFiltre === "journee_privee") {
+        return isLaCiotatDayTripSeason(s.debut) && isLaCiotatDayTripSeason(s.fin);
       }
       return s.produit === produitFiltre;
     });
@@ -452,8 +462,9 @@ export default function CalendrierDisponibilites({ isEnglish = false }: { isEngl
     semaineSelectionnee &&
       isLaCiotatDayTripSeason(semaineSelectionnee.debut) &&
       isLaCiotatDayTripSeason(semaineSelectionnee.fin) &&
-      semaineSelectionnee.destination?.includes("Sortie journée")
+      (semaineSelectionnee.destination?.includes("Sortie journée") || semaineSelectionnee.destination?.includes("Cassis"))
   );
+  const isSelectedJourneeProduct = semaineSelectionnee?.produit === "journee_privee" || isSelectedDayTrip;
   const selectedDayCount = semaineSelectionnee ? getInclusiveDays(semaineSelectionnee.debut, semaineSelectionnee.fin) : 1;
   const selectedBaseAmount = semaineSelectionnee
     ? reservationMode === "priva"
@@ -474,7 +485,7 @@ export default function CalendrierDisponibilites({ isEnglish = false }: { isEngl
   );
   const canBookPrivate = selectedStatusIsBookable && selectedHasPrivaOffer && selectedReservedUnits === 0;
   const canBookCabine =
-    selectedStatusIsBookable && selectedHasCabineOffer && selectedReservedUnits < selectedTotalUnits;
+    !isSelectedJourneeProduct && selectedStatusIsBookable && selectedHasCabineOffer && selectedReservedUnits < selectedTotalUnits;
 
   useEffect(() => {
     if (!semaineSelectionnee) return;
@@ -497,6 +508,7 @@ export default function CalendrierDisponibilites({ isEnglish = false }: { isEngl
             { id: "croisiere_mediterranee", label: isEnglish ? "Mediterranean cruises" : "Croisières Méditerranée" },
             { id: "transatlantique", label: "Transatlantique" },
             { id: "croisiere_caraibes", label: isEnglish ? "Caribbean cruises" : "Croisières Caraïbes" },
+            { id: "journee_privee", label: isEnglish ? "Private day trip" : "Journée privative" },
           ].map(item => (
             <button
               key={item.id}
@@ -576,7 +588,7 @@ export default function CalendrierDisponibilites({ isEnglish = false }: { isEngl
                   const iso = day.toISOString().split("T")[0];
                   const semaine = getSemaineForDate(day, semainesFiltrees);
                   const inProductWindow = isDayInProductWindow(iso, produitFiltre);
-                  const isDayTrip = isLaCiotatDayTripSeason(iso) && (produitFiltre === "tous" || produitFiltre === "croisiere_mediterranee");
+                  const isDayTrip = isLaCiotatDayTripSeason(iso) && (produitFiltre === "tous" || produitFiltre === "journee_privee");
                   const resolved =
                     semaine ||
                     {
@@ -698,7 +710,7 @@ export default function CalendrierDisponibilites({ isEnglish = false }: { isEngl
                   {selectedStatusIsBookable && (
                     <div>
                       <p className="text-xs text-[oklch(0.45_0.04_220)] uppercase font-semibold mb-2">{isEnglish ? "Booking type" : "Type de réservation"}</p>
-                      <div className="grid grid-cols-2 gap-2 mb-3">
+                      <div className={`grid gap-2 mb-3 ${isSelectedJourneeProduct ? "grid-cols-1" : "grid-cols-2"}`}>
                         <button
                           onClick={() => setReservationMode("priva")}
                           disabled={!canBookPrivate}
@@ -711,18 +723,20 @@ export default function CalendrierDisponibilites({ isEnglish = false }: { isEngl
                         >
                           {isEnglish ? "Private charter" : "Privatif"}
                         </button>
-                        <button
-                          onClick={() => setReservationMode("cabine")}
-                          disabled={!canBookCabine}
-                          className={`px-3 py-2 rounded-lg text-xs font-semibold border ${
-                            reservationMode === "cabine"
-                              ? "text-white"
-                              : "bg-white"
-                          } ${canBookCabine ? "" : "opacity-40 cursor-not-allowed"}`}
-                          style={reservationMode === "cabine" ? { backgroundColor: BRAND_DEEP, borderColor: BRAND_DEEP } : { color: BRAND_DEEP, borderColor: "#d8c1a6" }}
-                        >
-                          {isSelectedDayTrip ? (isEnglish ? "Per person" : "Par personne") : (isEnglish ? "Cabin" : "Cabine")}
-                        </button>
+                        {!isSelectedJourneeProduct && (
+                          <button
+                            onClick={() => setReservationMode("cabine")}
+                            disabled={!canBookCabine}
+                            className={`px-3 py-2 rounded-lg text-xs font-semibold border ${
+                              reservationMode === "cabine"
+                                ? "text-white"
+                                : "bg-white"
+                            } ${canBookCabine ? "" : "opacity-40 cursor-not-allowed"}`}
+                            style={reservationMode === "cabine" ? { backgroundColor: BRAND_DEEP, borderColor: BRAND_DEEP } : { color: BRAND_DEEP, borderColor: "#d8c1a6" }}
+                          >
+                            {isEnglish ? "Cabin" : "Cabine"}
+                          </button>
+                        )}
                       </div>
                       <p className="text-xs text-[oklch(0.45_0.04_220)] uppercase font-semibold mb-1">{isEnglish ? "Price" : "Tarif"}</p>
                       <p className="text-2xl font-bold" style={{ color: BRAND_DEEP, fontFamily: "Cormorant Garamond, Times New Roman, serif" }}>
@@ -734,9 +748,7 @@ export default function CalendrierDisponibilites({ isEnglish = false }: { isEngl
                             ? isEnglish
                               ? `${selectedDayCount} day${selectedDayCount > 1 ? "s" : ""} · full boat`
                               : `${selectedDayCount} jour${selectedDayCount > 1 ? "s" : ""} · bateau entier`
-                            : isEnglish
-                              ? `${selectedDayCount} day${selectedDayCount > 1 ? "s" : ""} · per person`
-                              : `${selectedDayCount} jour${selectedDayCount > 1 ? "s" : ""} · par personne`
+                            : ""
                           : reservationMode === "priva"
                             ? isEnglish ? "private charter" : "bateau privatisé"
                             : isEnglish ? "per cabin / person" : "par cabine / personne"}

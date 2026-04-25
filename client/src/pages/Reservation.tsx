@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useLocation } from "wouter";
 import { Anchor, ArrowLeft, Calendar, Check, Send, Shield, Users } from "lucide-react";
 
-type FormuleKey = "croisiere_mediterranee" | "transatlantique" | "croisiere_caraibes";
+type FormuleKey = "croisiere_mediterranee" | "transatlantique" | "croisiere_caraibes" | "journee_privee";
 type TypeReservation = "bateau_entier" | "cabine" | "place";
 type Statut = "disponible" | "reserve" | "option" | "ferme";
 
@@ -32,6 +32,7 @@ const FORMULES: Record<FormuleKey, { label: string; maxPers: number; description
   croisiere_mediterranee: { label: "Croisières Méditerranée", maxPers: 8, description: "Croisières Med (jours flexibles + semaines été)", defaultDuration: 7 },
   transatlantique: { label: "Transatlantique", maxPers: 8, description: "Traversées océaniques", defaultDuration: 10 },
   croisiere_caraibes: { label: "Croisières Caraïbes", maxPers: 8, description: "Grenadines au départ de Fort-de-France", defaultDuration: 7 },
+  journee_privee: { label: "Journée privative", maxPers: 8, description: "La Ciotat - Cassis (plage de l'Arène) - retour", defaultDuration: 1 },
 };
 
 const toIsoDay = (d: Date) => d.toISOString().split("T")[0];
@@ -68,8 +69,10 @@ const isIsoInRange = (iso: string, start?: string, end?: string) => {
 };
 
 const BOOKING_RULES: BookingRule[] = [
+  { name: "journees-printemps", start: "2026-04-01", end: "2026-05-31", minDuration: 1, maxDuration: 1, fixedDuration: 1, forcedFormule: "journee_privee", forcedDestination: "La Ciotat - Cassis (plage de l'Arène) - retour" },
   { name: "med-juin-flex", start: "2026-06-01", end: "2026-06-26", minDuration: 1, maxDuration: 21, forcedFormule: "croisiere_mediterranee" },
   { name: "ete-ajaccio", start: "2026-06-27", end: "2026-08-29", minDuration: 8, maxDuration: 8, fixedDuration: 8, saturdayStartOnly: true, forcedFormule: "croisiere_mediterranee", forcedDestination: "Ajaccio / Maddalena Nord ou Sud" },
+  { name: "journees-septembre", start: "2026-09-01", end: "2026-09-30", minDuration: 1, maxDuration: 1, fixedDuration: 1, forcedFormule: "journee_privee", forcedDestination: "La Ciotat - Cassis (plage de l'Arène) - retour" },
   { name: "nov-transfert", start: "2026-11-01", end: "2026-11-10", minDuration: 10, maxDuration: 10, fixedDuration: 10, forcedFormule: "transatlantique", forcedDestination: "La Ciotat - Transat" },
   { name: "grenadines", start: "2026-12-21", end: "2027-03-31", minDuration: 7, maxDuration: 21, saturdayStartOnly: true, forcedFormule: "croisiere_caraibes", forcedDestination: "Grenadines (départ Fort-de-France)" },
   { name: "transat-printemps", start: "2027-04-01", end: "2027-05-01", minDuration: 30, maxDuration: 30, fixedDuration: 30, forcedFormule: "transatlantique", forcedDestination: "Transatique Avril-Mai (bateau entier)" },
@@ -107,6 +110,7 @@ export default function Reservation() {
 
   const formule = FORMULES[formuleKey];
   const isTransat = formuleKey === "transatlantique";
+  const isJournee = formuleKey === "journee_privee";
   const searchParams = useMemo(() => new URLSearchParams(window.location.search), []);
 
   useEffect(() => {
@@ -114,8 +118,11 @@ export default function Reservation() {
     if (isTransat) {
       setTypeReservation("place");
       setForm(prev => ({ ...prev, nbCabines: 1, nbPersonnes: 1 }));
+    } else if (isJournee) {
+      setTypeReservation("bateau_entier");
+      setForm(prev => ({ ...prev, nbCabines: 4 }));
     }
-  }, [formuleKey, isTransat]);
+  }, [formuleKey, isTransat, isJournee]);
 
   useEffect(() => {
     const dateDebut = searchParams.get("dateDebut");
@@ -274,6 +281,7 @@ export default function Reservation() {
   const urlMontant = Number(searchParams.get("montant") || "");
   const weeklyCabineEur = pricingDispo?.tarifCabine ?? 3900;
   const weeklyPrivaEur = pricingDispo?.tarif ?? 15000;
+  const dayTripPrivaEur = pricingDispo?.tarifJourPriva ?? 1000;
   const disponibiliteTotalUnits = pricingDispo?.capaciteTotale ?? 4;
   const disponibiliteReservedUnits = pricingDispo?.cabinesReservees ?? 0;
   const disponibiliteFreeUnits = Math.max(0, disponibiliteTotalUnits - disponibiliteReservedUnits);
@@ -288,6 +296,8 @@ export default function Reservation() {
   const selectedWeeklyPrice =
     Number.isFinite(urlMontant) && urlMontant > 0
       ? urlMontant
+      : isJournee
+        ? dayTripPrivaEur
       : typeReservation === "bateau_entier"
         ? weeklyPrivaEur
         : weeklyCabineEur;
@@ -412,9 +422,11 @@ export default function Reservation() {
                   <button onClick={() => setTypeReservation("bateau_entier")} className={`text-left rounded-xl border-2 p-4 ${typeReservation === "bateau_entier" ? "border-[oklch(0.82_0.1_85)]" : "border-white/20"}`}>
                     <p className="font-bold">Privatif</p>
                   </button>
-                  <button onClick={() => setTypeReservation(isTransat ? "place" : "cabine")} className={`text-left rounded-xl border-2 p-4 ${typeReservation !== "bateau_entier" ? "border-[oklch(0.82_0.1_85)]" : "border-white/20"}`}>
-                    <p className="font-bold">{isTransat ? "A la place" : "A la cabine / personne"}</p>
-                  </button>
+                  {!isJournee && (
+                    <button onClick={() => setTypeReservation(isTransat ? "place" : "cabine")} className={`text-left rounded-xl border-2 p-4 ${typeReservation !== "bateau_entier" ? "border-[oklch(0.82_0.1_85)]" : "border-white/20"}`}>
+                      <p className="font-bold">{isTransat ? "A la place" : "A la cabine / personne"}</p>
+                    </button>
+                  )}
                 </div>
 
                 <label className="text-sm text-white/70">
@@ -568,7 +580,9 @@ export default function Reservation() {
               <span className="text-[oklch(0.82_0.1_85)]">{(montantTotal / 100).toLocaleString("fr-FR")} EUR</span>
             </div>
             <p className="text-xs text-white/50 mt-2">
-              {typeReservation === "bateau_entier"
+              {isJournee
+                ? `${dayTripPrivaEur}€/journée tout inclus · bateau entier`
+                : typeReservation === "bateau_entier"
                 ? `${weeklyPrivaEur}€/semaine bateau entier`
                 : typeReservation === "cabine"
                   ? `${weeklyCabineEur}€/semaine cabine double × ${requiredCabins} cabine(s)`
