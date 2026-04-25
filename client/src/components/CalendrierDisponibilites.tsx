@@ -294,7 +294,7 @@ function overlapsIsoRange(startIso: string, endIso: string, rangeStartIso: strin
 }
 
 // ── Composant principal ───────────────────────────────────────────────────────
-export default function CalendrierDisponibilites() {
+export default function CalendrierDisponibilites({ isEnglish = false }: { isEnglish?: boolean }) {
   const [semaines, setSemaines] = useState<Semaine[]>([]);
   const [loading, setLoading] = useState(true);
   const [moisAffiche, setMoisAffiche] = useState(new Date());
@@ -436,13 +436,13 @@ export default function CalendrierDisponibilites() {
   const getStatutLabel = (statut: Statut) => {
     switch (statut) {
       case "disponible":
-        return "Disponible";
+        return isEnglish ? "Available" : "Disponible";
       case "reserve":
-        return "Réservé";
+        return isEnglish ? "Booked" : "Réservé";
       case "option":
         return "Option";
       case "ferme":
-        return "Fermé";
+        return isEnglish ? "Closed" : "Fermé";
       default:
         return statut;
     }
@@ -490,13 +490,13 @@ export default function CalendrierDisponibilites() {
   return (
     <div className="editorial-panel rounded-3xl border p-6 shadow-[0_24px_60px_-30px_rgba(15,23,42,0.35)] lg:p-10" style={{ borderColor: "#dcc6ae", background: "linear-gradient(180deg,#fbf3ea,#f2e3d1)" }}>
       <div className="mb-10">
-        <p className="editorial-kicker mb-4">Filtrer par produit</p>
+        <p className="editorial-kicker mb-4">{isEnglish ? "Filter by offer" : "Filtrer par produit"}</p>
         <div className="flex flex-wrap gap-2.5">
           {[
-            { id: "tous", label: "Tous" },
-            { id: "croisiere_mediterranee", label: "Croisières Méditerranée" },
+            { id: "tous", label: isEnglish ? "All" : "Tous" },
+            { id: "croisiere_mediterranee", label: isEnglish ? "Mediterranean cruises" : "Croisières Méditerranée" },
             { id: "transatlantique", label: "Transatlantique" },
-            { id: "croisiere_caraibes", label: "Croisières Caraïbes" },
+            { id: "croisiere_caraibes", label: isEnglish ? "Caribbean cruises" : "Croisières Caraïbes" },
           ].map(item => (
             <button
               key={item.id}
@@ -518,13 +518,13 @@ export default function CalendrierDisponibilites() {
         </div>
         <div className="mt-5 flex flex-wrap gap-2 text-xs">
           <span className="inline-flex items-center gap-1 rounded-full border px-3 py-1 font-semibold text-white shadow-sm" style={{ borderColor: BRAND_DEEP, backgroundColor: BRAND_DEEP }}>
-            Libre
+            {isEnglish ? "Available" : "Libre"}
           </span>
           <span className="inline-flex items-center gap-1 rounded-full border px-3 py-1 font-semibold shadow-sm" style={{ borderColor: BRAND_SAND, backgroundColor: BRAND_SAND, color: BRAND_DEEP }}>
-            Option / partiel
+            {isEnglish ? "Option / partial" : "Option / partiel"}
           </span>
           <span className="inline-flex items-center gap-1 rounded-full border px-3 py-1 font-semibold text-white shadow-sm" style={{ borderColor: "#8b3f3f", backgroundColor: "#a24d4d" }}>
-            Réservé / fermé
+            {isEnglish ? "Booked / closed" : "Réservé / fermé"}
           </span>
         </div>
       </div>
@@ -532,7 +532,7 @@ export default function CalendrierDisponibilites() {
       {loading ? (
         <div className="text-center py-12">
           <div className="inline-block animate-spin rounded-full h-10 w-10 border-b-2" style={{ borderColor: BRAND_DEEP }}></div>
-          <p className="text-[oklch(0.45_0.04_220)] mt-4">Chargement du calendrier...</p>
+          <p className="text-[oklch(0.45_0.04_220)] mt-4">{isEnglish ? "Loading calendar..." : "Chargement du calendrier..."}</p>
         </div>
       ) : (
         <div className="grid lg:grid-cols-3 gap-6 lg:gap-12">
@@ -648,27 +648,27 @@ export default function CalendrierDisponibilites() {
             {/* Détails de la semaine sélectionnée */}
             <div className="rounded-2xl border bg-white p-6 shadow-[0_18px_45px_-28px_rgba(15,23,42,0.45)] lg:p-7 h-fit" style={{ borderColor: "#dac2a7" }}>
               <h3 className="text-xl font-bold mb-5 tracking-[-0.01em]" style={{ fontFamily: "Cormorant Garamond, Times New Roman, serif", color: BRAND_DEEP }}>
-                Détails
+                {isEnglish ? "Details" : "Détails"}
               </h3>
 
               {semaineSelectionnee ? (
                 <div className="space-y-4">
                   <div>
-                    <p className="text-xs text-[oklch(0.45_0.04_220)] uppercase font-semibold mb-1">Période</p>
+                    <p className="text-xs text-[oklch(0.45_0.04_220)] uppercase font-semibold mb-1">{isEnglish ? "Period" : "Période"}</p>
                     <p className="text-sm font-medium text-[oklch(0.15_0.05_220)]">
                       {formatDate(parseDate(semaineSelectionnee.debut))} → {formatDate(parseDate(semaineSelectionnee.fin))}
                     </p>
                   </div>
 
                   <div>
-                    <p className="text-xs text-[oklch(0.45_0.04_220)] uppercase font-semibold mb-1">Destination</p>
+                    <p className="text-xs text-[oklch(0.45_0.04_220)] uppercase font-semibold mb-1">{isEnglish ? "Destination" : "Destination"}</p>
                     <p className="text-sm font-medium text-[oklch(0.15_0.05_220)]">
                       {semaineSelectionnee.destination}
                     </p>
                   </div>
 
                   <div>
-                    <p className="text-xs text-[oklch(0.45_0.04_220)] uppercase font-semibold mb-1">Offre disponible</p>
+                    <p className="text-xs text-[oklch(0.45_0.04_220)] uppercase font-semibold mb-1">{isEnglish ? "Available offer" : "Offre disponible"}</p>
                     <p className="text-sm font-medium text-[oklch(0.15_0.05_220)]">
                       {getOfferTypeLabel(semaineSelectionnee)}
                     </p>
@@ -676,7 +676,7 @@ export default function CalendrierDisponibilites() {
 
                   {typeof remainingPlaces(semaineSelectionnee) === "number" && (
                     <div>
-                      <p className="text-xs text-[oklch(0.45_0.04_220)] uppercase font-semibold mb-1">Places disponibles</p>
+                      <p className="text-xs text-[oklch(0.45_0.04_220)] uppercase font-semibold mb-1">{isEnglish ? "Seats available" : "Places disponibles"}</p>
                       <p className="text-sm font-medium text-[oklch(0.15_0.05_220)]">
                         {(() => {
                           const isTransat = semaineSelectionnee.produit === "transatlantique";
@@ -689,7 +689,7 @@ export default function CalendrierDisponibilites() {
                   )}
 
                   <div>
-                    <p className="text-xs text-[oklch(0.45_0.04_220)] uppercase font-semibold mb-1">Statut</p>
+                    <p className="text-xs text-[oklch(0.45_0.04_220)] uppercase font-semibold mb-1">{isEnglish ? "Status" : "Statut"}</p>
                     <span className={`inline-block px-3 py-1 rounded-full text-xs font-semibold border ${getCalendarColor(semaineSelectionnee, semaineSelectionnee.statut)}`}>
                       {getStatutLabel(semaineSelectionnee.statut)}
                     </span>
@@ -697,7 +697,7 @@ export default function CalendrierDisponibilites() {
 
                   {selectedStatusIsBookable && (
                     <div>
-                      <p className="text-xs text-[oklch(0.45_0.04_220)] uppercase font-semibold mb-2">Type de réservation</p>
+                      <p className="text-xs text-[oklch(0.45_0.04_220)] uppercase font-semibold mb-2">{isEnglish ? "Booking type" : "Type de réservation"}</p>
                       <div className="grid grid-cols-2 gap-2 mb-3">
                         <button
                           onClick={() => setReservationMode("priva")}
@@ -709,7 +709,7 @@ export default function CalendrierDisponibilites() {
                           } ${canBookPrivate ? "" : "opacity-40 cursor-not-allowed"}`}
                           style={reservationMode === "priva" ? { backgroundColor: BRAND_DEEP, borderColor: BRAND_DEEP } : { color: BRAND_DEEP, borderColor: "#d8c1a6" }}
                         >
-                          Privatif
+                          {isEnglish ? "Private charter" : "Privatif"}
                         </button>
                         <button
                           onClick={() => setReservationMode("cabine")}
@@ -721,21 +721,25 @@ export default function CalendrierDisponibilites() {
                           } ${canBookCabine ? "" : "opacity-40 cursor-not-allowed"}`}
                           style={reservationMode === "cabine" ? { backgroundColor: BRAND_DEEP, borderColor: BRAND_DEEP } : { color: BRAND_DEEP, borderColor: "#d8c1a6" }}
                         >
-                          {isSelectedDayTrip ? "Par personne" : "Cabine"}
+                          {isSelectedDayTrip ? (isEnglish ? "Per person" : "Par personne") : (isEnglish ? "Cabin" : "Cabine")}
                         </button>
                       </div>
-                      <p className="text-xs text-[oklch(0.45_0.04_220)] uppercase font-semibold mb-1">Tarif</p>
+                      <p className="text-xs text-[oklch(0.45_0.04_220)] uppercase font-semibold mb-1">{isEnglish ? "Price" : "Tarif"}</p>
                       <p className="text-2xl font-bold" style={{ color: BRAND_DEEP, fontFamily: "Cormorant Garamond, Times New Roman, serif" }}>
                         {selectedTotalAmount.toLocaleString("fr-FR")} €
                       </p>
                       <p className="text-xs text-[oklch(0.45_0.04_220)]">
                         {isSelectedDayTrip
                           ? reservationMode === "priva"
-                            ? `${selectedDayCount} jour${selectedDayCount > 1 ? "s" : ""} · bateau entier`
-                            : `${selectedDayCount} jour${selectedDayCount > 1 ? "s" : ""} · par personne`
+                            ? isEnglish
+                              ? `${selectedDayCount} day${selectedDayCount > 1 ? "s" : ""} · full boat`
+                              : `${selectedDayCount} jour${selectedDayCount > 1 ? "s" : ""} · bateau entier`
+                            : isEnglish
+                              ? `${selectedDayCount} day${selectedDayCount > 1 ? "s" : ""} · per person`
+                              : `${selectedDayCount} jour${selectedDayCount > 1 ? "s" : ""} · par personne`
                           : reservationMode === "priva"
-                            ? "bateau privatisé"
-                            : "par cabine / personne"}
+                            ? isEnglish ? "private charter" : "bateau privatisé"
+                            : isEnglish ? "per cabin / person" : "par cabine / personne"}
                       </p>
                     </div>
                   )}
@@ -752,7 +756,7 @@ export default function CalendrierDisponibilites() {
                       className="w-full mt-6 px-4 py-3.5 text-white rounded-xl font-bold transition-colors text-center block shadow-lg"
                       style={{ backgroundColor: BRAND_DEEP }}
                     >
-                      Réserver →
+                      {isEnglish ? "Book now →" : "Réserver →"}
                     </a>
                   )}
                 </div>
@@ -760,7 +764,7 @@ export default function CalendrierDisponibilites() {
                 <div className="text-center py-8">
                   <Info className="w-12 h-12 text-slate-300 mx-auto mb-2" />
                   <p className="text-sm text-[oklch(0.45_0.04_220)]">
-                    Cliquez sur une date pour voir les détails
+                    {isEnglish ? "Click a date to view details" : "Cliquez sur une date pour voir les détails"}
                   </p>
                 </div>
               )}

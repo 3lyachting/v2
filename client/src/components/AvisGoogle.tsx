@@ -17,7 +17,7 @@ type GoogleReviewsResponse = {
   reviews: GoogleReview[];
 };
 
-export default function AvisGoogle() {
+export default function AvisGoogle({ isEnglish = false }: { isEnglish?: boolean }) {
   const [data, setData] = useState<GoogleReviewsResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -29,7 +29,7 @@ export default function AvisGoogle() {
       .then(async response => {
         const body = (await response.json()) as GoogleReviewsResponse | { error: string };
         if (!response.ok) {
-          throw new Error((body as { error?: string }).error || "Impossible de charger les avis Google");
+          throw new Error((body as { error?: string }).error || (isEnglish ? "Unable to load Google reviews" : "Impossible de charger les avis Google"));
         }
         if (mounted) {
           setData(body as GoogleReviewsResponse);
@@ -71,12 +71,14 @@ export default function AvisGoogle() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Titre */}
         <div className="text-center mb-16 lg:mb-20">
-          <span className="editorial-kicker">Avis clients</span>
+          <span className="editorial-kicker">{isEnglish ? "Guest reviews" : "Avis clients"}</span>
           <h2 className="editorial-title editorial-title-centered mt-4 mb-4" style={{ fontFamily: "Cormorant Garamond, Times New Roman, serif" }}>
-            Ce que disent nos clients
+            {isEnglish ? "What our guests say" : "Ce que disent nos clients"}
           </h2>
           <p className="editorial-lead max-w-2xl">
-            Découvrez les témoignages de nos passagers et leur expérience à bord de Sabine
+            {isEnglish
+              ? "Read verified feedback from guests who sailed aboard Sabine."
+              : "Découvrez les témoignages de nos passagers et leur expérience à bord de Sabine"}
           </p>
         </div>
 
@@ -99,7 +101,7 @@ export default function AvisGoogle() {
               </div>
               <p className="text-[oklch(0.45_0.04_220)] text-sm mb-6">
                 {loading
-                  ? "Chargement des avis Google..."
+                  ? (isEnglish ? "Loading Google reviews..." : "Chargement des avis Google...")
                   : data
                     ? `basé sur ${data.userRatingsTotal} avis Google`
                     : "Connexion Google indisponible"}
@@ -111,7 +113,7 @@ export default function AvisGoogle() {
                 className="inline-block px-6 py-3 text-white rounded-full font-semibold text-sm transition-colors"
                 style={{ backgroundColor: "#00384A" }}
               >
-                Voir tous les avis Google
+                {isEnglish ? "See all Google reviews" : "Voir tous les avis Google"}
               </a>
             </div>
 
@@ -168,7 +170,7 @@ export default function AvisGoogle() {
                   </div>
                   <div>
                     <p className="text-sm font-semibold" style={{ color: "#00384A" }}>Google Reviews</p>
-                    <p className="text-xs text-slate-500">Avis vérifiés</p>
+                    <p className="text-xs text-slate-500">{isEnglish ? "Verified reviews" : "Avis vérifiés"}</p>
                   </div>
                 </div>
 
@@ -184,7 +186,7 @@ export default function AvisGoogle() {
                   )}
                   {!error && displayedReviews.length === 0 && !loading && (
                     <div className="pb-4 border-b border-slate-100">
-                      <p className="font-semibold text-slate-900 text-sm">Aucun avis à afficher</p>
+                      <p className="font-semibold text-slate-900 text-sm">{isEnglish ? "No reviews to display" : "Aucun avis à afficher"}</p>
                       <p className="text-sm text-slate-600 leading-relaxed mt-1">
                         Ouvrez la fiche Google pour consulter tous les avis Sabine Sailing.
                       </p>
@@ -216,7 +218,7 @@ export default function AvisGoogle() {
                     className="inline-flex items-center gap-2 text-sm font-semibold transition-colors"
                     style={{ color: "#00384A" }}
                   >
-                    Lire tous les avis sur Google →
+                    {isEnglish ? "Read all Google reviews →" : "Lire tous les avis sur Google →"}
                   </a>
                 </div>
               </div>
@@ -229,12 +231,14 @@ export default function AvisGoogle() {
           {[
             {
               icon: "✓",
-              titre: "Avis vérifiés",
-              desc: "Tous les avis proviennent de clients ayant réellement réservé avec nous",
+              titre: isEnglish ? "Verified reviews" : "Avis vérifiés",
+              desc: isEnglish
+                ? "Every review comes from real guests who booked with us."
+                : "Tous les avis proviennent de clients ayant réellement réservé avec nous",
             },
             {
               icon: "★",
-              titre: "Note excellente",
+              titre: isEnglish ? "Excellent rating" : "Note excellente",
               desc: data?.rating
                 ? `${data.rating.toFixed(1)} étoiles en moyenne : la satisfaction de nos passagers`
                 : "Des passagers satisfaits et des avis authentiques publiés sur Google",
@@ -242,7 +246,9 @@ export default function AvisGoogle() {
             {
               icon: "🔗",
               titre: "Transparent",
-              desc: "Retrouvez tous les détails sur notre fiche Google Business",
+              desc: isEnglish
+                ? "Find full details on our official Google Business profile."
+                : "Retrouvez tous les détails sur notre fiche Google Business",
             },
           ].map((item, i) => (
             <div key={i} className="editorial-panel rounded-2xl p-6">

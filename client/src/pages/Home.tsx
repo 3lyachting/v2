@@ -361,17 +361,28 @@ function Hero({ isEnglish = false }: { isEnglish?: boolean }) {
 }
 
 // ── Section Catamaran ─────────────────────────────────────────────────────────
-function SectionCatamaran() {
-  const specs = [
-    { label: "Longueur", val: "17,06 m" },
-    { label: "Largeur", val: "9,15 m" },
-    { label: "Tirant d'eau", val: "1,4 m" },
-    { label: "Déplacement", val: "18 tonnes" },
-    { label: "Voilure", val: "200 m²" },
-    { label: "Cabines", val: "4 doubles" },
-    { label: "Passagers", val: "8 (croisière)" },
-    { label: "Capacité max", val: "8 passagers" },
-  ];
+function SectionCatamaran({ isEnglish = false }: { isEnglish?: boolean }) {
+  const specs = isEnglish
+    ? [
+        { label: "Length", val: "17.06 m" },
+        { label: "Beam", val: "9.15 m" },
+        { label: "Draft", val: "1.4 m" },
+        { label: "Displacement", val: "18 tons" },
+        { label: "Sail area", val: "200 m²" },
+        { label: "Cabins", val: "4 double" },
+        { label: "Guests", val: "8 (cruise)" },
+        { label: "Max capacity", val: "8 guests" },
+      ]
+    : [
+        { label: "Longueur", val: "17,06 m" },
+        { label: "Largeur", val: "9,15 m" },
+        { label: "Tirant d'eau", val: "1,4 m" },
+        { label: "Déplacement", val: "18 tonnes" },
+        { label: "Voilure", val: "200 m²" },
+        { label: "Cabines", val: "4 doubles" },
+        { label: "Passagers", val: "8 (croisière)" },
+        { label: "Capacité max", val: "8 passagers" },
+      ];
 
   return (
     <section id="catamaran" className="bg-[linear-gradient(180deg,#fdfaf3,#f6efe2)] py-20 lg:py-28">
@@ -382,8 +393,9 @@ function SectionCatamaran() {
               Sabine
             </h2>
             <p className="mt-4 max-w-2xl mx-auto text-lg" style={{ color: "#315564" }}>
-              Catamaran de 57 pieds entierement modernise en 2025, concu et fabrique en France par le Chantier Naval Bordelais.
-              Nous accueillons volontairement 8 passagers pour privilegier l'espace, le confort et la qualite d'accompagnement.
+              {isEnglish
+                ? "A 57-foot catamaran fully modernized in 2025 and built in France. We intentionally welcome up to 8 guests to maximize comfort, space and service quality."
+                : "Catamaran de 57 pieds entierement modernise en 2025, concu et fabrique en France par le Chantier Naval Bordelais. Nous accueillons volontairement 8 passagers pour privilegier l'espace, le confort et la qualite d'accompagnement."}
             </p>
           </div>
         </Reveal>
@@ -401,7 +413,7 @@ function SectionCatamaran() {
               />
               <div className="absolute -bottom-4 -right-4 text-white rounded-2xl px-5 py-3 shadow-lg" style={{ backgroundColor: BRAND_DEEP }}>
                 <div className="text-2xl font-extrabold" style={{ fontFamily: "Cormorant Garamond, Times New Roman, serif" }}>Lagoon 570</div>
-                <div className="text-white/80 text-xs">Rénové 2025</div>
+                <div className="text-white/80 text-xs">{isEnglish ? "Refitted 2025" : "Rénové 2025"}</div>
               </div>
             </div>
           </Reveal>
@@ -410,7 +422,7 @@ function SectionCatamaran() {
           <Reveal delay={0.15}>
             <div>
               <h3 className="text-2xl font-bold mb-6" style={{ fontFamily: "Cormorant Garamond, Times New Roman, serif", color: BRAND_DEEP }}>
-                Caractéristiques techniques
+                {isEnglish ? "Technical specifications" : "Caractéristiques techniques"}
               </h3>
               <div className="grid grid-cols-2 gap-3">
                 {specs.map(s => (
@@ -493,10 +505,50 @@ function SectionCatamaran() {
 }
 
 // ── Section Destinations ──────────────────────────────────────────────────────
-function SectionDestinations() {
+function SectionDestinations({ isEnglish = false }: { isEnglish?: boolean }) {
   const [active, setActive] = useState(0);
 
-  const destinations = [
+  const destinations = isEnglish ? [
+    {
+      id: "med",
+      label: "Mediterranean",
+      saison: "Summer (June → October)",
+      emoji: "🌊",
+      color: "#00384A",
+      colorLight: "#EBDACA",
+      img: "/photos%20site/dji_fly_20260313_105718_116_1773396190675_photo_optimized.jpg",
+      titre: "Corsica & Sardinia",
+      depart: "La Ciotat / Ajaccio",
+      description: "Sail between Corsica and Sardinia from La Ciotat or Ajaccio: turquoise coves, wild anchorages and characterful stopovers.",
+      points: ["Piana coves", "Bonifacio cliffs", "La Maddalena archipelago", "Gulf of Porto", "Palombaggia beaches"],
+    },
+    {
+      id: "traversee",
+      label: "Atlantic crossing",
+      saison: "October / November",
+      emoji: "⚓",
+      color: "#0f4d62",
+      colorLight: "#e8d7c5",
+      img: "/photos%20site/dji_fly_20260314_085156_141_1773474731452_photo_optimized.jpg",
+      titre: "The Great Crossing",
+      depart: "La Ciotat → Fort-de-France",
+      description: "An oceanic route to the Caribbean with a professional crew: watches, weather, offshore sailing and life at sea.",
+      points: ["La Ciotat → Gibraltar → Cape Verde", "Cape Verde → Fort-de-France", "Day & night offshore sailing", "Whales and seabirds", "Arrival under sail"],
+    },
+    {
+      id: "antilles",
+      label: "Caribbean",
+      saison: "Winter (November → April)",
+      emoji: "🌴",
+      color: "#B58E6E",
+      colorLight: "#f2e4d5",
+      img: "/photos%20site/IMG_4449.jpeg",
+      titre: "Martinique & Grenadines",
+      depart: "Fort-de-France / Pointe-à-Pitre",
+      description: "From Martinique or Guadeloupe to iconic Grenadine anchorages: turquoise waters, Caribbean vibes and custom itineraries.",
+      points: ["Les Saintes & Marie-Galante", "Tobago Cays", "Bequia & Mustique", "Carriacou", "Saint Vincent & Grenadines"],
+    },
+  ] : [
     {
       id: "med",
       label: "Méditerranée",
@@ -564,7 +616,7 @@ function SectionDestinations() {
         <Reveal>
           <div className="text-center mb-12">
             <h2 className="text-4xl lg:text-5xl font-extrabold" style={{ fontFamily: "Cormorant Garamond, Times New Roman, serif", color: BRAND_DEEP }}>
-              Destinations
+              {isEnglish ? "Destinations" : "Destinations"}
             </h2>
           </div>
         </Reveal>
@@ -621,7 +673,7 @@ function SectionDestinations() {
               style={{ backgroundColor: dest.colorLight, color: dest.color }}
             >
               <MapPin className="w-4 h-4" />
-              Départ : {dest.depart}
+              {isEnglish ? "Departure:" : "Départ :"} {dest.depart}
             </div>
             <h3 className="text-3xl font-extrabold mb-4" style={{ fontFamily: "Cormorant Garamond, Times New Roman, serif", color: BRAND_DEEP }}>
               {dest.titre}
@@ -645,7 +697,7 @@ function SectionDestinations() {
               className="mt-6 flex items-center gap-2 text-sm font-bold transition-colors"
               style={{ color: dest.color }}
             >
-              Voir les disponibilités <ArrowRight className="w-4 h-4" />
+              {isEnglish ? "See availability" : "Voir les disponibilités"} <ArrowRight className="w-4 h-4" />
             </button>
           </div>
         </motion.div>
@@ -655,7 +707,7 @@ function SectionDestinations() {
 }
 
 // ── Section Programme ─────────────────────────────────────────────────────────
-function SectionProgramme() {
+function SectionProgramme({ isEnglish = false }: { isEnglish?: boolean }) {
   const [showVideo, setShowVideo] = useState(false);
 
   useEffect(() => {
@@ -665,14 +717,23 @@ function SectionProgramme() {
   }, []);
 
   const programmeVideoSrc = "/photos%20site/dji_fly_20260311_123045_0_1773228645468_video_low_quality.mp4";
-  const activites = [
-    { icon: <Wind className="w-7 h-7" />, titre: "Navigation à la voile", desc: "Prenez la barre ou laissez-vous porter. Victor s'adapte à votre niveau et vos envies." },
-    { icon: <Waves className="w-7 h-7" />, titre: "Paddle & Kayak", desc: "Explorez les criques et mouillages à votre rythme avec nos 2 SUP et notre kayak 2 places." },
-    { icon: <Fish className="w-7 h-7" />, titre: "Snorkeling", desc: "Masques, palmes et tubas pour tous. Plongez dans des eaux cristallines et découvrez les fonds marins." },
-    { icon: <Sun className="w-7 h-7" />, titre: "Bronzette, apéro et farniente", desc: "Trampolines avant, bains de soleil, cocktails au coucher du soleil — la dolce vita en mer." },
-    { icon: <Compass className="w-7 h-7" />, titre: "Découverte culturelle", desc: "Villages, marchés locaux, restaurants de port — chaque escale est une nouvelle aventure." },
-    { icon: <Sunset className="w-7 h-7" />, titre: "Couchers de soleil", desc: "Les plus beaux couchers de soleil de Méditerranée et des Caraïbes, depuis le cockpit avec un verre à la main." },
-  ];
+  const activites = isEnglish
+    ? [
+        { icon: <Wind className="w-7 h-7" />, titre: "Sailing", desc: "Take the helm or simply relax. Victor adapts to your level and your pace." },
+        { icon: <Waves className="w-7 h-7" />, titre: "Paddle & Kayak", desc: "Explore coves and anchorages with 2 SUP boards and a 2-seat rigid kayak." },
+        { icon: <Fish className="w-7 h-7" />, titre: "Snorkeling", desc: "Masks, fins and snorkels on board. Discover crystal-clear waters and marine life." },
+        { icon: <Sun className="w-7 h-7" />, titre: "Sun, drinks and chill", desc: "Front trampolines, sunbeds and sunset cocktails for true sea-side relaxation." },
+        { icon: <Compass className="w-7 h-7" />, titre: "Cultural discovery", desc: "Villages, local markets and harbor restaurants at every stop." },
+        { icon: <Sunset className="w-7 h-7" />, titre: "Sunsets", desc: "Mediterranean and Caribbean sunsets from the cockpit, glass in hand." },
+      ]
+    : [
+        { icon: <Wind className="w-7 h-7" />, titre: "Navigation à la voile", desc: "Prenez la barre ou laissez-vous porter. Victor s'adapte à votre niveau et vos envies." },
+        { icon: <Waves className="w-7 h-7" />, titre: "Paddle & Kayak", desc: "Explorez les criques et mouillages à votre rythme avec nos 2 SUP et notre kayak 2 places." },
+        { icon: <Fish className="w-7 h-7" />, titre: "Snorkeling", desc: "Masques, palmes et tubas pour tous. Plongez dans des eaux cristallines et découvrez les fonds marins." },
+        { icon: <Sun className="w-7 h-7" />, titre: "Bronzette, apéro et farniente", desc: "Trampolines avant, bains de soleil, cocktails au coucher du soleil — la dolce vita en mer." },
+        { icon: <Compass className="w-7 h-7" />, titre: "Découverte culturelle", desc: "Villages, marchés locaux, restaurants de port — chaque escale est une nouvelle aventure." },
+        { icon: <Sunset className="w-7 h-7" />, titre: "Couchers de soleil", desc: "Les plus beaux couchers de soleil de Méditerranée et des Caraïbes, depuis le cockpit avec un verre à la main." },
+      ];
 
   return (
     <section id="programme" className="relative py-20 lg:py-28 overflow-hidden">
@@ -702,12 +763,14 @@ function SectionProgramme() {
       <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <Reveal>
           <div className="text-center mb-16">
-            <span className="inline-block text-sm font-bold tracking-widest uppercase mb-3" style={{ color: BRAND_DEEP }}>Au programme</span>
+            <span className="inline-block text-sm font-bold tracking-widest uppercase mb-3" style={{ color: BRAND_DEEP }}>{isEnglish ? "Onboard experience" : "Au programme"}</span>
             <h2 className="text-4xl lg:text-5xl font-extrabold" style={{ fontFamily: "Cormorant Garamond, Times New Roman, serif", color: BRAND_DEEP }}>
-              Votre semaine à bord
+              {isEnglish ? "Your week on board" : "Votre semaine à bord"}
             </h2>
             <p className="mt-4 text-[oklch(0.45_0.04_220)] max-w-xl mx-auto">
-              Pas de programme imposé — on navigue au gré du vent et de vos envies. Voici ce qui vous attend.
+              {isEnglish
+                ? "No rigid schedule: we sail with the wind and your wishes. Here is what awaits you."
+                : "Pas de programme imposé — on navigue au gré du vent et de vos envies. Voici ce qui vous attend."}
             </p>
           </div>
         </Reveal>
@@ -802,7 +865,7 @@ function SectionProgramme() {
                   onMouseEnter={e => { if (!f.featured) (e.currentTarget as HTMLButtonElement).style.backgroundColor = f.color; }}
                   onMouseLeave={e => { if (!f.featured) (e.currentTarget as HTMLButtonElement).style.backgroundColor = "transparent"; }}
                 >
-                  Nous contacter
+                  {isEnglish ? "Contact us" : "Nous contacter"}
                 </button>
               </div>
             ))}
@@ -814,18 +877,20 @@ function SectionProgramme() {
 }
 
 // ── Section Équipage ──────────────────────────────────────────────────────────
-function SectionEquipage() {
+function SectionEquipage({ isEnglish = false }: { isEnglish?: boolean }) {
   return (
     <section id="equipage" className="py-20 lg:py-28" style={{ backgroundColor: BRAND_DEEP }}>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <Reveal>
           <div className="text-center mb-16">
-            <span className="inline-block text-sm font-bold tracking-widest uppercase mb-3" style={{ color: BRAND_SAND }}>L'Équipage</span>
+            <span className="inline-block text-sm font-bold tracking-widest uppercase mb-3" style={{ color: BRAND_SAND }}>{isEnglish ? "Crew" : "L'Équipage"}</span>
               <h2 className="text-4xl lg:text-5xl font-extrabold text-white" style={{ fontFamily: "Cormorant Garamond, Times New Roman, serif" }}>
               Victor
             </h2>
             <p className="mt-4 text-white/60 max-w-xl mx-auto">
-              Deux marins professionnels, brevets capitaine 500 UMS et capitaine 200 voile, avec plus de 10 ans d'experience en Mediterranee, Atlantique et Caraibes.
+              {isEnglish
+                ? "Professional skipper profile with over 10 years of experience across the Mediterranean, Atlantic and Caribbean."
+                : "Deux marins professionnels, brevets capitaine 500 UMS et capitaine 200 voile, avec plus de 10 ans d'experience en Mediterranee, Atlantique et Caraibes."}
             </p>
           </div>
         </Reveal>
@@ -834,9 +899,11 @@ function SectionEquipage() {
           {[
             {
               nom: "Victor",
-              age: "34 ans",
+              age: isEnglish ? "34 years old" : "34 ans",
               titre: "Capitaine 500",
-              desc: "Victor a grandi à La Ciotat, avec la mer comme horizon depuis toujours. À 34 ans, il partage sa vie entre les Antilles l'hiver et la Méditerranée l'été, un rythme qu'il suit depuis 8 ans. Après 3 transatlantiques et des navigations sur monocoques, catamarans, trimarans et vieux gréements, il aime surtout transmettre une mer simple, vraie et accessible à bord de Sabine.",
+              desc: isEnglish
+                ? "Victor grew up in La Ciotat with the sea as his natural horizon. For the last 8 years he has alternated between the Caribbean in winter and the Mediterranean in summer. After 3 Atlantic crossings and extensive experience on monohulls, catamarans, trimarans and classic rigs, he focuses on safe, authentic and accessible sailing experiences."
+                : "Victor a grandi à La Ciotat, avec la mer comme horizon depuis toujours. À 34 ans, il partage sa vie entre les Antilles l'hiver et la Méditerranée l'été, un rythme qu'il suit depuis 8 ans. Après 3 transatlantiques et des navigations sur monocoques, catamarans, trimarans et vieux gréements, il aime surtout transmettre une mer simple, vraie et accessible à bord de Sabine.",
               color: "oklch(0.72_0.11_85)",
               img: "/photos%20site/victor-portrait.png",
             },
@@ -870,9 +937,9 @@ function SectionEquipage() {
         <Reveal delay={0.2}>
           <div className="grid sm:grid-cols-3 gap-4">
             {[
-              { icon: <Star className="w-5 h-5" />, titre: "Expérience", desc: "10+ ans de navigation professionnelle en Méditerranée, Atlantique et Caraïbes" },
-              { icon: <Anchor className="w-5 h-5" />, titre: "Sécurité", desc: "Brevets professionnels, équipements de sécurité homologués, navire sous pavillon français" },
-              { icon: <Wind className="w-5 h-5" />, titre: "Passion", desc: "Une équipe familiale indépendante qui partage son amour de la mer avec authenticité" },
+              { icon: <Star className="w-5 h-5" />, titre: isEnglish ? "Experience" : "Expérience", desc: isEnglish ? "10+ years of professional sailing in the Mediterranean, Atlantic and Caribbean" : "10+ ans de navigation professionnelle en Méditerranée, Atlantique et Caraïbes" },
+              { icon: <Anchor className="w-5 h-5" />, titre: isEnglish ? "Safety" : "Sécurité", desc: isEnglish ? "Certified professional skipper, compliant safety equipment, French flag commercial operation" : "Brevets professionnels, équipements de sécurité homologués, navire sous pavillon français" },
+              { icon: <Wind className="w-5 h-5" />, titre: isEnglish ? "Passion" : "Passion", desc: isEnglish ? "An independent family-run crew sharing a genuine love for the sea" : "Une équipe familiale indépendante qui partage son amour de la mer avec authenticité" },
             ].map(v => (
               <div key={v.titre} className="bg-white/5 rounded-2xl p-5 border border-white/10">
                 <div className="w-10 h-10 rounded-xl bg-[oklch(0.28_0.08_240)]/20 flex items-center justify-center text-[oklch(0.75_0.1_220)] mb-3">
@@ -890,26 +957,28 @@ function SectionEquipage() {
 }
 
 // ── Section Calendrier ────────────────────────────────────────────────────────
-function SectionCalendrier() {
+function SectionCalendrier({ isEnglish = false }: { isEnglish?: boolean }) {
   return (
     <section id="calendrier" className="editorial-section bg-[oklch(0.985_0.004_95)]">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <Reveal>
           <div className="text-center mb-14">
-            <span className="editorial-kicker">Disponibilités & Tarifs</span>
+            <span className="editorial-kicker">{isEnglish ? "Availability & Rates" : "Disponibilités & Tarifs"}</span>
             <h2 className="editorial-title editorial-title-centered mt-4" style={{ fontFamily: "Cormorant Garamond, Times New Roman, serif" }}>
-              Calendrier 2025-2026
+              {isEnglish ? "Calendar 2025-2026" : "Calendrier 2025-2026"}
             </h2>
             <p className="editorial-lead max-w-2xl">
-              Consultez les disponibilités et tarifs semaine par semaine. Cliquez sur une semaine pour voir les détails.
+              {isEnglish
+                ? "Check weekly availability and rates. Click a week to view full details."
+                : "Consultez les disponibilités et tarifs semaine par semaine. Cliquez sur une semaine pour voir les détails."}
             </p>
           </div>
         </Reveal>
 
         <Reveal delay={0.1}>
           <div className="max-w-6xl mx-auto">
-            <Suspense fallback={<div className="text-center text-sm text-[oklch(0.45_0.04_220)] py-10">Chargement du calendrier...</div>}>
-              <CalendrierDisponibilites />
+            <Suspense fallback={<div className="text-center text-sm text-[oklch(0.45_0.04_220)] py-10">{isEnglish ? "Loading calendar..." : "Chargement du calendrier..."}</div>}>
+              <CalendrierDisponibilites isEnglish={isEnglish} />
             </Suspense>
           </div>
         </Reveal>
@@ -919,7 +988,7 @@ function SectionCalendrier() {
 }
 
 // ── Section Galerie ───────────────────────────────────────────────────────────
-function SectionGalerie() {
+function SectionGalerie({ isEnglish = false }: { isEnglish?: boolean }) {
   const photos = [
     { src: "/photos%20site/dji_fly_20260313_144422_130_1773409482024_photo_optimized.jpg", alt: "Sabine en navigation" },
     { src: "/photos%20site/dji_fly_20260314_171456_155_1773505004694_photo_optimized.jpg", alt: "Mouillage et navigation" },
@@ -934,9 +1003,9 @@ function SectionGalerie() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <Reveal>
           <div className="text-center mb-12">
-            <span className="inline-block text-sm font-bold tracking-widest uppercase mb-3" style={{ color: BRAND_DEEP }}>Galerie</span>
+            <span className="inline-block text-sm font-bold tracking-widest uppercase mb-3" style={{ color: BRAND_DEEP }}>{isEnglish ? "Gallery" : "Galerie"}</span>
             <h2 className="text-4xl lg:text-5xl font-extrabold" style={{ fontFamily: "Cormorant Garamond, Times New Roman, serif", color: BRAND_DEEP }}>
-              À bord de Sabine
+              {isEnglish ? "Life aboard Sabine" : "À bord de Sabine"}
             </h2>
           </div>
         </Reveal>
@@ -962,7 +1031,7 @@ function SectionGalerie() {
 }
 
 // ── Section Contact ───────────────────────────────────────────────────────────
-function SectionContact() {
+function SectionContact({ isEnglish = false }: { isEnglish?: boolean }) {
   const [form, setForm] = useState({ nom: "", email: "", tel: "", message: "", formule: "semaine" });
   const [sent, setSent] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -980,12 +1049,12 @@ function SectionContact() {
       });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) {
-        throw new Error(payload?.error || "Impossible d'envoyer le message.");
+        throw new Error(payload?.error || (isEnglish ? "Unable to send the message." : "Impossible d'envoyer le message."));
       }
       setSent(true);
       setForm({ nom: "", email: "", tel: "", message: "", formule: "semaine" });
     } catch (error: any) {
-      setSubmitError(error?.message || "Erreur lors de l'envoi du message.");
+      setSubmitError(error?.message || (isEnglish ? "Error while sending the message." : "Erreur lors de l'envoi du message."));
     } finally {
       setSubmitting(false);
     }
@@ -998,16 +1067,17 @@ function SectionContact() {
           {/* Info */}
           <Reveal>
             <div>
-              <span className="editorial-kicker">Contact</span>
+              <span className="editorial-kicker">{isEnglish ? "Contact" : "Contact"}</span>
               <h2 className="editorial-title mt-4 mb-6" style={{ fontFamily: "Cormorant Garamond, Times New Roman, serif" }}>
-                Organisons votre voyage
+                {isEnglish ? "Let's plan your trip" : "Organisons votre voyage"}
               </h2>
               <p className="text-[oklch(0.4_0.03_240)] text-lg leading-relaxed mb-10">
-                Vous avez un projet de croisière ? Une question sur les disponibilités ou les tarifs ? 
-                Victor vous répond personnellement dans les 24h.
+                {isEnglish
+                  ? "Planning a cruise? Need details about availability or rates? Victor replies personally within 24 hours."
+                  : "Vous avez un projet de croisière ? Une question sur les disponibilités ou les tarifs ? Victor vous répond personnellement dans les 24h."}
               </p>
               <div className="mb-6 rounded-xl border border-[oklch(0.88_0.02_220)] bg-white px-4 py-3 text-sm text-[oklch(0.35_0.03_240)]">
-                Pour toute demande, merci d'utiliser le formulaire ci-contre.
+                {isEnglish ? "For all requests, please use the booking form." : "Pour toute demande, merci d'utiliser le formulaire ci-contre."}
               </div>
               <div className="mb-8">
                 <div className="mb-2 text-xs uppercase tracking-[0.08em] text-[oklch(0.48_0.03_240)]">Ports de depart</div>
@@ -1176,7 +1246,7 @@ function SectionContact() {
 }
 
 // ── Footer ──────────────────────────────────────────────────────────────────────
-function Footer() {
+function Footer({ isEnglish = false }: { isEnglish?: boolean }) {
   return (
     <footer className="bg-[oklch(0.98_0.004_95)] border-t border-[oklch(0.9_0.02_220)] py-14">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -1201,7 +1271,7 @@ function Footer() {
         </div>
         <div className="mt-10 pt-7 border-t border-[oklch(0.9_0.02_220)]">
           <div className="text-center mb-3 text-[oklch(0.4_0.03_240)] text-xs uppercase tracking-[0.14em]">
-            Position du bateau en direct (AIS)
+            {isEnglish ? "Live vessel position (AIS)" : "Position du bateau en direct (AIS)"}
           </div>
           <div className="rounded-2xl overflow-hidden border border-[oklch(0.9_0.02_220)] bg-white">
             <iframe
@@ -1218,7 +1288,7 @@ function Footer() {
               rel="noopener noreferrer"
               className="text-[oklch(0.45_0.03_240)] hover:text-[oklch(0.2_0.06_240)] text-xs underline"
             >
-              Ouvrir MarineTraffic (MMSI 228090960)
+              {isEnglish ? "Open MarineTraffic (MMSI 228090960)" : "Ouvrir MarineTraffic (MMSI 228090960)"}
             </a>
           </div>
         </div>
@@ -1229,13 +1299,13 @@ function Footer() {
               href={withBasePath("/espace-client")}
               className="text-[oklch(0.55_0.03_240)] hover:text-[oklch(0.2_0.06_240)] text-[10px] uppercase tracking-[0.2em] transition-colors"
             >
-              Espace client
+              {isEnglish ? "Client area" : "Espace client"}
             </a>
             <a
               href={withBasePath("/admin/login")}
               className="text-[oklch(0.55_0.03_240)] hover:text-[oklch(0.2_0.06_240)] text-[10px] uppercase tracking-[0.2em] transition-colors"
             >
-              Espace administrateur
+              {isEnglish ? "Admin area" : "Espace administrateur"}
             </a>
           </div>
         </div>
@@ -1324,17 +1394,17 @@ export default function Home() {
     <div className="min-h-screen bg-white pb-20 md:pb-0">
       <Navbar isEnglish={isEnglish} />
       <Hero isEnglish={isEnglish} />
-      <SectionCatamaran />
-      <SectionDestinations />
-      <SectionProgramme />
-      <SectionEquipage />
-      <SectionCalendrier />
-      <SectionGalerie />
+      <SectionCatamaran isEnglish={isEnglish} />
+      <SectionDestinations isEnglish={isEnglish} />
+      <SectionProgramme isEnglish={isEnglish} />
+      <SectionEquipage isEnglish={isEnglish} />
+      <SectionCalendrier isEnglish={isEnglish} />
+      <SectionGalerie isEnglish={isEnglish} />
       <Suspense fallback={<div className="py-10 text-center text-sm text-[oklch(0.45_0.04_220)]">{isEnglish ? "Loading reviews..." : "Chargement des avis..."}</div>}>
-        <AvisGoogle />
+        <AvisGoogle isEnglish={isEnglish} />
       </Suspense>
-      <SectionContact />
-      <Footer />
+      <SectionContact isEnglish={isEnglish} />
+      <Footer isEnglish={isEnglish} />
       <MobileStickyCTA isEnglish={isEnglish} />
     </div>
   );

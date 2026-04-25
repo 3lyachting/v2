@@ -18,6 +18,21 @@ const BLOCKING_WORKFLOW_STATUSES = [
   ...CONFIRMED_WORKFLOW_STATUSES,
 ] as const;
 
+function toIsoDay(value: any) {
+  return new Date(value).toISOString().slice(0, 10);
+}
+
+function overlapsIsoDayRange(aStart: string, aEnd: string, bStart: string, bEnd: string) {
+  return aStart <= bEnd && aEnd >= bStart;
+}
+
+function getInclusiveReservationIsoRange(r: any) {
+  const start = toIsoDay(r.dateDebut);
+  const endRaw = toIsoDay(r.dateFin);
+  const end = endRaw < start ? start : endRaw;
+  return { start, end };
+}
+
 function isActiveOptionReservation(r: any) {
   const ws = String(r?.workflowStatut || "");
   const requestValidated = String(r?.requestStatus || "") === "validee";
@@ -34,20 +49,17 @@ function isActiveOptionReservation(r: any) {
 export async function resolveDisponibiliteIdForReservation(db: BookingDb, r: any): Promise<number | null> {
   if (r.disponibiliteId) return r.disponibiliteId;
   const rows = await db.select().from(disponibilites);
-  const reservationStart = new Date(r.dateDebut).toISOString().slice(0, 10);
-  const reservationEnd = new Date(r.dateFin).toISOString().slice(0, 10);
+  const { start: reservationStart, end: reservationEnd } = getInclusiveReservationIsoRange(r);
   let match = rows.find((d: any) => {
-    const dStart = new Date(d.debut).toISOString().slice(0, 10);
-    const dEnd = new Date(d.fin).toISOString().slice(0, 10);
+    const dStart = toIsoDay(d.debut);
+    const dEnd = toIsoDay(d.fin);
     return dStart === reservationStart && dEnd === reservationEnd;
   });
   if (!match) {
-    const rStartMs = new Date(r.dateDebut).getTime();
-    const rEndMs = new Date(r.dateFin).getTime();
     match = rows.find((d: any) => {
-      const dStartMs = new Date(d.debut).getTime();
-      const dEndMs = new Date(d.fin).getTime();
-      return rStartMs < dEndMs && rEndMs > dStartMs;
+      const dStart = toIsoDay(d.debut);
+      const dEnd = toIsoDay(d.fin);
+      return overlapsIsoDayRange(reservationStart, reservationEnd, dStart, dEnd);
     });
   }
   return match?.id || null;
@@ -120,6 +132,38 @@ export async function refreshDisponibiliteBookingState(db: BookingDb, disponibil
 
 export async function syncDisponibilitesFromReservations(db: BookingDb) {
   const allDispos = await db.select().from(disponibilites);
+  const existingDaySlots = new Set(
+    allDispos
+      .filter((d: any) => toIsoDay(d.debut) === toIsoDay(d.fin))
+      .map((d: any) => toIsoDay(d.debut))
+  );
+  for (let day = 1; day <= 61; day++) {
+    const date = new Date(Date.UTC(2026, 3, day));
+    const month = date.getUTCMonth();
+    if (month !== 3 && month !== 4) continue; // April / May only
+    const iso = date.toISOString().slice(0, 10);
+    if (existingDaySlots.has(iso)) continue;
+    const inserted = await db
+      .insert(disponibilites)
+      .values({
+        planningType: "charter",
+        debut: date,
+        fin: date,
+        statut: "disponible",
+        destination: "La Ciotat · Sortie journée",
+        tarifJourPriva: 900,
+        tarifJourPersonne: 130,
+        tarifCabine: 130,
+        notePublique: "Sortie journée: 900€ privatif ou 130€ / personne",
+        capaciteTotale: 4,
+      })
+      .returning({ id: disponibilites.id });
+    if (inserted[0]?.id) {
+      existingDaySlots.add(iso);
+    }
+  }
+
+  const allDisposAfterSeed = await db.select().from(disponibilites);
   const allReservations = await db.select().from(reservations);
   const createdDispoIds: number[] = [];
 
@@ -136,7 +180,7 @@ export async function syncDisponibilitesFromReservations(db: BookingDb) {
           planningType: "charter",
           debut: new Date(r.dateDebut),
           fin: new Date(r.dateFin),
-          statut: "option",
+          statut: CONFIRMED_WORKFLOW_STATUSES.includes(String(r.workflowStatut || "") as any) ? "reserve" : "option",
           destination: r.destination || "La Ciotat",
           notePublique: "Créneau créé automatiquement depuis réservation",
           capaciteTotale: 4,
@@ -156,7 +200,7 @@ export async function syncDisponibilitesFromReservations(db: BookingDb) {
     }
   }
 
-  const idsToRefresh = [...new Set([...allDispos.map((d: any) => d.id), ...createdDispoIds])];
+  const idsToRefresh = [...new Set([...allDisposAfterSeed.map((d: any) => d.id), ...createdDispoIds])];
   for (const dispoId of idsToRefresh) {
     if (!dispoId) continue;
     await refreshDisponibiliteBookingState(db, dispoId);
