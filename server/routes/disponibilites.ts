@@ -3,7 +3,7 @@ import { getDb } from "../db";
 import { disponibilites } from "../../drizzle/schema";
 import { eq, and, gte, lte } from "drizzle-orm";
 import { requireAdmin } from "../_core/authz";
-import { syncDisponibilitesFromReservations } from "../_core/bookingRules";
+import { runBookingConsistencyAudit, syncDisponibilitesFromReservations } from "../_core/bookingRules";
 
 const router = Router();
 
@@ -58,6 +58,18 @@ router.get("/range", async (req, res) => {
     res.json(result);
   } catch (error) {
     res.status(500).json({ error: "Erreur lors de la récupération des disponibilités" });
+  }
+});
+
+router.get("/audit", requireAdmin, async (_req, res) => {
+  try {
+    const db = await getDb();
+    if (!db) return res.status(500).json({ error: "Base de données non disponible" });
+    await syncDisponibilitesFromReservations(db);
+    const audit = await runBookingConsistencyAudit(db);
+    return res.json(audit);
+  } catch (error: any) {
+    return res.status(500).json({ error: error?.message || "Erreur audit calendrier" });
   }
 });
 

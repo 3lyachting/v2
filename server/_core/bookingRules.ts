@@ -18,6 +18,21 @@ const BLOCKING_WORKFLOW_STATUSES = [
   ...CONFIRMED_WORKFLOW_STATUSES,
 ] as const;
 
+const AUTO_NOTE_MARKER = "[AUTO_SEASON_SLOT]";
+
+type SeasonTemplate = {
+  startIso: string;
+  endIso: string;
+  planningType: "charter" | "technical_stop";
+  destination: string;
+  notePublique: string | null;
+  tarif: number | null;
+  tarifCabine: number | null;
+  tarifJourPersonne: number | null;
+  tarifJourPriva: number | null;
+  capaciteTotale: number;
+};
+
 function toIsoDay(value: any) {
   const d = new Date(value);
   if (Number.isNaN(d.getTime())) return null;
@@ -127,6 +142,13 @@ export async function getConfirmedBookingUsage(db: BookingDb, disponibiliteId: n
 
 export async function refreshDisponibiliteBookingState(db: BookingDb, disponibiliteId: number) {
   const usage = await getConfirmedBookingUsage(db, disponibiliteId);
+  console.info("[BookingRules] refreshDisponibiliteBookingState", {
+    disponibiliteId,
+    status: usage.status,
+    reservedUnits: usage.reservedUnits,
+    totalUnits: usage.totalUnits,
+    hasPrivate: usage.hasPrivate,
+  });
   await db
     .update(disponibilites)
     .set({
@@ -137,63 +159,266 @@ export async function refreshDisponibiliteBookingState(db: BookingDb, disponibil
     .where(eq(disponibilites.id, disponibiliteId));
 }
 
-export async function syncDisponibilitesFromReservations(db: BookingDb) {
-  const allDispos = await db.select().from(disponibilites);
-  const daySlotByIso = new Map<string, any>(
-    allDispos
-      .filter((d: any) => {
-        const start = toIsoDay(d.debut);
-        const end = toIsoDay(d.fin);
-        return Boolean(start && end && start === end);
-      })
-      .map((d: any) => [toIsoDay(d.debut) as string, d])
+function isoDate(year: number, month: number, day: number) {
+  return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+}
+
+function addDaysIso(iso: string, days: number) {
+  const dt = new Date(`${iso}T00:00:00.000Z`);
+  dt.setUTCDate(dt.getUTCDate() + days);
+  return dt.toISOString().slice(0, 10);
+}
+
+function dayOfWeekIso(iso: string) {
+  return new Date(`${iso}T00:00:00.000Z`).getUTCDay();
+}
+
+function nextSaturdayOnOrAfter(iso: string) {
+  let cursor = iso;
+  while (dayOfWeekIso(cursor) !== 6) {
+    cursor = addDaysIso(cursor, 1);
+  }
+  return cursor;
+}
+
+function generateDailySlots(startIso: string, endIso: string, template: Omit<SeasonTemplate, "startIso" | "endIso">) {
+  const out: SeasonTemplate[] = [];
+  let cursor = startIso;
+  while (cursor <= endIso) {
+    out.push({
+      ...template,
+      startIso: cursor,
+      endIso: cursor,
+    });
+    cursor = addDaysIso(cursor, 1);
+  }
+  return out;
+}
+
+function generateSaturdayWeeks(startIso: string, endIso: string, template: Omit<SeasonTemplate, "startIso" | "endIso">) {
+  const out: SeasonTemplate[] = [];
+  let start = nextSaturdayOnOrAfter(startIso);
+  while (start < endIso) {
+    const end = addDaysIso(start, 7);
+    if (end > endIso) break;
+    out.push({
+      ...template,
+      startIso: start,
+      endIso: end,
+    });
+    start = end;
+  }
+  return out;
+}
+
+function getSeasonTemplatesForYear(year: number): SeasonTemplate[] {
+  const mayDayTrips = year === 2026;
+  const templates: SeasonTemplate[] = [];
+
+  // Juin -> Août: semaines Corse/Sardaigne.
+  templates.push(
+    ...generateSaturdayWeeks(isoDate(year, 6, 1), isoDate(year, 9, 1), {
+      planningType: "charter",
+      destination: "Corse & Sardaigne — départ Ajaccio",
+      notePublique: "Semaine de croisière en Corse et Sardaigne (samedi à samedi).",
+      tarif: null,
+      tarifCabine: 1750,
+      tarifJourPersonne: null,
+      tarifJourPriva: null,
+      capaciteTotale: 4,
+    })
   );
-  const existingDaySlots = new Set(
-    allDispos
-      .filter((d: any) => {
-        const start = toIsoDay(d.debut);
-        const end = toIsoDay(d.fin);
-        return Boolean(start && end && start === end);
-      })
-      .map((d: any) => toIsoDay(d.debut))
-      .filter(Boolean) as string[]
+
+  // Septembre (1ère quinzaine): journées La Ciotat (conservées après 2026).
+  templates.push(
+    ...generateDailySlots(isoDate(year, 9, 1), isoDate(year, 9, 15), {
+      planningType: "charter",
+      destination: "La Ciotat - Cassis (plage de l'Arène) - retour",
+      notePublique: "Journée privative (La Ciotat): navigation, baignade, paddle, apéro.",
+      tarif: null,
+      tarifCabine: null,
+      tarifJourPersonne: 130,
+      tarifJourPriva: 900,
+      capaciteTotale: 6,
+    })
   );
-  const dayTripPeriods = [
-    { start: "2026-04-01", end: "2026-05-31" },
-    { start: "2026-09-01", end: "2026-09-30" },
-  ];
-  for (const period of dayTripPeriods) {
-    let cursor = new Date(`${period.start}T00:00:00.000Z`);
-    const end = new Date(`${period.end}T00:00:00.000Z`);
-    while (cursor <= end) {
-      const iso = cursor.toISOString().slice(0, 10);
-      if (!existingDaySlots.has(iso)) {
-        const inserted = await db
-          .insert(disponibilites)
-          .values({
-            planningType: "charter",
-            debut: new Date(cursor),
-            fin: new Date(cursor),
-            statut: "disponible",
-            destination: "La Ciotat - Cassis (plage de l'Arène) - retour",
-            tarifJourPriva: 1000,
-            tarifJourPersonne: null,
-            tarifCabine: null,
-            notePublique: "Journée privative tout inclus (1000€) : voile, kayak, paddle.",
-            capaciteTotale: 6,
-          })
-          .returning({ id: disponibilites.id });
-        if (inserted[0]?.id) {
-          existingDaySlots.add(iso);
-          daySlotByIso.set(iso, { id: inserted[0].id });
-        }
-      }
-      cursor.setUTCDate(cursor.getUTCDate() + 1);
-    }
+
+  // Octobre: arrêt technique.
+  templates.push(
+    ...generateDailySlots(isoDate(year, 10, 1), isoDate(year, 10, 31), {
+      planningType: "technical_stop",
+      destination: "Arrêt technique — Port-Saint-Louis",
+      notePublique: "Arrêt technique (non réservable).",
+      tarif: null,
+      tarifCabine: null,
+      tarifJourPersonne: null,
+      tarifJourPriva: null,
+      capaciteTotale: 4,
+    })
+  );
+
+  // 1 Nov -> 15 Dec: transat.
+  templates.push(
+    ...generateSaturdayWeeks(isoDate(year, 11, 1), isoDate(year, 12, 16), {
+      planningType: "charter",
+      destination: "Transatlantique",
+      notePublique: "Traversée transatlantique (équipage professionnel).",
+      tarif: 3000,
+      tarifCabine: null,
+      tarifJourPersonne: null,
+      tarifJourPriva: null,
+      capaciteTotale: 8,
+    })
+  );
+
+  // 2e quinzaine Dec -> 1 Apr (année suivante): Caraïbes, samedi -> samedi.
+  templates.push(
+    ...generateSaturdayWeeks(isoDate(year, 12, 16), isoDate(year + 1, 4, 1), {
+      planningType: "charter",
+      destination: "Caraïbes",
+      notePublique: "Croisière Caraïbes (samedi à samedi).",
+      tarif: null,
+      tarifCabine: 1750,
+      tarifJourPersonne: null,
+      tarifJourPriva: null,
+      capaciteTotale: 4,
+    })
+  );
+
+  // 15 Apr -> 15 May: transat (sauf 2026 exceptionnel).
+  if (!mayDayTrips) {
+    templates.push(
+      ...generateSaturdayWeeks(isoDate(year, 4, 15), isoDate(year, 5, 16), {
+        planningType: "charter",
+        destination: "Transatlantique",
+        notePublique: "Traversée transatlantique (retour de saison).",
+        tarif: 3000,
+        tarifCabine: null,
+        tarifJourPersonne: null,
+        tarifJourPriva: null,
+        capaciteTotale: 8,
+      })
+    );
   }
 
-  const allDisposAfterSeed = await db.select().from(disponibilites);
+  // Mai (2026 uniquement): journées La Ciotat.
+  if (mayDayTrips) {
+    templates.push(
+      ...generateDailySlots(isoDate(year, 5, 1), isoDate(year, 5, 31), {
+        planningType: "charter",
+        destination: "La Ciotat - Cassis (plage de l'Arène) - retour",
+        notePublique: "Journée privative (La Ciotat): navigation, baignade, paddle, apéro.",
+        tarif: null,
+        tarifCabine: null,
+        tarifJourPersonne: 130,
+        tarifJourPriva: 900,
+        capaciteTotale: 6,
+      })
+    );
+  }
+
+  // 15 May -> 1 Jun: arrêt technique.
+  templates.push(
+    ...generateDailySlots(isoDate(year, 5, 15), isoDate(year, 6, 1), {
+      planningType: "technical_stop",
+      destination: "Arrêt technique — Port-Saint-Louis",
+      notePublique: "Arrêt technique (non réservable).",
+      tarif: null,
+      tarifCabine: null,
+      tarifJourPersonne: null,
+      tarifJourPriva: null,
+      capaciteTotale: 4,
+    })
+  );
+
+  return templates;
+}
+
+async function ensureSeasonAvailabilitySlots(db: BookingDb, years: number[]) {
+  const normalizedYears = Array.from(new Set(years)).sort((a, b) => a - b);
+  const allDispos = await db.select().from(disponibilites);
+  const existingByRange = new Map<string, any>();
+  for (const d of allDispos) {
+    const start = toIsoDay(d.debut);
+    const end = toIsoDay(d.fin);
+    if (!start || !end) continue;
+    existingByRange.set(`${start}|${end}`, d);
+  }
+
+  for (const year of normalizedYears) {
+    const templates = getSeasonTemplatesForYear(year);
+    for (const t of templates) {
+      const key = `${t.startIso}|${t.endIso}`;
+      if (existingByRange.has(key)) continue;
+      const inserted = await db
+        .insert(disponibilites)
+        .values({
+          planningType: t.planningType,
+          debut: new Date(`${t.startIso}T00:00:00.000Z`),
+          fin: new Date(`${t.endIso}T00:00:00.000Z`),
+          statut: t.planningType === "technical_stop" ? "ferme" : "disponible",
+          destination: t.destination,
+          tarif: t.tarif,
+          tarifCabine: t.tarifCabine,
+          tarifJourPersonne: t.tarifJourPersonne,
+          tarifJourPriva: t.tarifJourPriva,
+          capaciteTotale: t.capaciteTotale,
+          note: AUTO_NOTE_MARKER,
+          notePublique: t.notePublique,
+        })
+        .returning({ id: disponibilites.id, debut: disponibilites.debut, fin: disponibilites.fin });
+      const start = toIsoDay(inserted[0]?.debut);
+      const end = toIsoDay(inserted[0]?.fin);
+      if (start && end) {
+        existingByRange.set(`${start}|${end}`, inserted[0]);
+      }
+    }
+  }
+}
+
+export async function runBookingConsistencyAudit(db: BookingDb) {
+  const allDispos = await db.select().from(disponibilites);
   const allReservations = await db.select().from(reservations);
+  const dispoIds = new Set(allDispos.map((d: any) => d.id));
+
+  const reservationsWithoutSlot = allReservations
+    .filter((r: any) => r.disponibiliteId && !dispoIds.has(r.disponibiliteId))
+    .map((r: any) => r.id);
+
+  const rangeDuplicates: Record<string, number[]> = {};
+  for (const d of allDispos) {
+    const start = toIsoDay(d.debut);
+    const end = toIsoDay(d.fin);
+    if (!start || !end) continue;
+    const key = `${start}|${end}`;
+    if (!rangeDuplicates[key]) rangeDuplicates[key] = [];
+    rangeDuplicates[key].push(d.id);
+  }
+  const duplicateRanges = Object.entries(rangeDuplicates)
+    .filter(([, ids]) => ids.length > 1)
+    .map(([range, ids]) => ({ range, ids }));
+
+  return {
+    summary: {
+      totalDispos: allDispos.length,
+      totalReservations: allReservations.length,
+      reservationsWithoutSlot: reservationsWithoutSlot.length,
+      duplicateRanges: duplicateRanges.length,
+    },
+    reservationsWithoutSlot,
+    duplicateRanges,
+  };
+}
+
+export async function syncDisponibilitesFromReservations(db: BookingDb) {
+  const allReservations = await db.select().from(reservations);
+  const reservationYears = allReservations
+    .map((r: any) => new Date(r.dateDebut).getUTCFullYear())
+    .filter((y: any) => Number.isFinite(y)) as number[];
+  const currentYear = new Date().getUTCFullYear();
+  await ensureSeasonAvailabilitySlots(db, [currentYear - 1, currentYear, currentYear + 1, ...reservationYears]);
+
+  const allDisposAfterSeed = await db.select().from(disponibilites);
   const createdDispoIds: number[] = [];
   const linkedDispoIds = new Set<number>();
 
@@ -239,6 +464,11 @@ export async function syncDisponibilitesFromReservations(db: BookingDb) {
     .map((d: any) => d.id);
 
   const idsToRefresh = Array.from(new Set([...Array.from(linkedDispoIds), ...createdDispoIds, ...staleDispoIds]));
+  console.info("[BookingRules] syncDisponibilitesFromReservations", {
+    totalReservations: allReservations.length,
+    totalDispos: allDisposAfterSeed.length,
+    refreshCount: idsToRefresh.length,
+  });
   for (const dispoId of idsToRefresh) {
     if (!dispoId) continue;
     await refreshDisponibiliteBookingState(db, dispoId);

@@ -17,9 +17,12 @@ import {
 
 const router = Router();
 const CUSTOMER_COOKIE = "customer_session_id";
+const CAPACITY_BLOCKING_WORKFLOW = ["validee_owner", "contrat_envoye", "contrat_signe", "acompte_confirme", "solde_confirme"];
 
 function isActiveReservationForCapacity(r: any) {
   const requestStatus = String(r?.requestStatus || "nouvelle");
+  const workflow = String(r?.workflowStatut || "");
+  if (CAPACITY_BLOCKING_WORKFLOW.includes(workflow)) return true;
   return requestStatus !== "refusee" && requestStatus !== "archivee";
 }
 
@@ -64,9 +67,6 @@ router.post("/request", async (req, res) => {
 
     const normalizedEmail = String(emailClient).trim().toLowerCase();
     const parsedNbPersonnes = Math.max(1, parseInt(nbPersonnes) || 1);
-    if (parsedNbPersonnes > 8) {
-      return res.status(400).json({ error: "Maximum 8 personnes par semaine." });
-    }
     const normalizedTypeReservation: "bateau_entier" | "cabine" | "place" =
       typeReservation === "cabine" || typeReservation === "place" ? typeReservation : "bateau_entier";
     const computedNbCabines =
@@ -132,15 +132,19 @@ router.post("/request", async (req, res) => {
 
     if (parsedDisponibiliteId) {
       const { totalUnits } = await getConfirmedBookingUsage(db, parsedDisponibiliteId);
+      const selectedDispo = await db.select().from(disponibilites).where(eq(disponibilites.id, parsedDisponibiliteId)).limit(1);
+      const isDayTrip = Boolean(selectedDispo[0] && new Date(selectedDispo[0].debut).toISOString().slice(0, 10) === new Date(selectedDispo[0].fin).toISOString().slice(0, 10));
+      const maxPeople = isDayTrip ? 12 : 8;
+      if (parsedNbPersonnes > maxPeople) {
+        return res.status(400).json({ error: `Maximum ${maxPeople} personnes sur ce créneau.` });
+      }
       const sameSlotReservations = await db
         .select()
         .from(reservations)
         .where(eq(reservations.disponibiliteId, parsedDisponibiliteId));
       const activeReservations = isAdminRequester
         ? sameSlotReservations.filter((r: any) => isActiveReservationForCapacity(r))
-        : sameSlotReservations.filter((r: any) =>
-            ["validee_owner", "contrat_envoye", "contrat_signe", "acompte_confirme", "solde_confirme"].includes(String(r.workflowStatut || ""))
-          );
+        : sameSlotReservations.filter((r: any) => CAPACITY_BLOCKING_WORKFLOW.includes(String(r.workflowStatut || "")));
       const hasPrivate = activeReservations.some((r: any) => r.typeReservation === "bateau_entier");
       const reservedUnits = hasPrivate
         ? totalUnits
@@ -191,6 +195,9 @@ router.post("/request", async (req, res) => {
     }).returning({ id: reservations.id });
 
     const reservationId = inserted[0]?.id;
+    if (parsedDisponibiliteId) {
+      await refreshDisponibiliteBookingState(db, parsedDisponibiliteId);
+    }
 
     // Ne pas incrémenter cabinesReservees ici:
     // une "demande" ne doit pas bloquer le planning tant qu'elle n'est pas confirmée.
@@ -326,9 +333,6 @@ router.put("/:id", requireAdmin, async (req, res) => {
 
     // Mettre à jour la réservation
     const parsedNbPersonnes = nbPersonnes !== undefined ? Math.max(1, parseInt(nbPersonnes)) : existing[0].nbPersonnes;
-    if (parsedNbPersonnes > 8) {
-      return res.status(400).json({ error: "Maximum 8 personnes par semaine." });
-    }
 
     const resolvedDisponibiliteId = await resolveDisponibiliteIdForReservation(db, {
       disponibiliteId:
@@ -349,6 +353,12 @@ router.put("/:id", requireAdmin, async (req, res) => {
 
     if (resolvedDisponibiliteId) {
       const { totalUnits } = await getConfirmedBookingUsage(db, resolvedDisponibiliteId);
+      const selectedDispo = await db.select().from(disponibilites).where(eq(disponibilites.id, resolvedDisponibiliteId)).limit(1);
+      const isDayTrip = Boolean(selectedDispo[0] && new Date(selectedDispo[0].debut).toISOString().slice(0, 10) === new Date(selectedDispo[0].fin).toISOString().slice(0, 10));
+      const maxPeople = isDayTrip ? 12 : 8;
+      if (parsedNbPersonnes > maxPeople) {
+        return res.status(400).json({ error: `Maximum ${maxPeople} personnes sur ce créneau.` });
+      }
       const sameSlotReservations = await db
         .select()
         .from(reservations)

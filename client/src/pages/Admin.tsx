@@ -108,6 +108,12 @@ export default function Admin() {
   const [showReservationForm, setShowReservationForm] = useState(false);
   const [reservationActionLoadingId, setReservationActionLoadingId] = useState<number | null>(null);
   const [reservationActionMessage, setReservationActionMessage] = useState("");
+  const [calendarAudit, setCalendarAudit] = useState<{
+    summary?: { reservationsWithoutSlot?: number; duplicateRanges?: number };
+    reservationsWithoutSlot?: number[];
+    duplicateRanges?: { range: string; ids: number[] }[];
+  } | null>(null);
+  const [auditLoading, setAuditLoading] = useState(false);
   const [reservationDocsMap, setReservationDocsMap] = useState<
     Record<number, { quoteUrl: string | null; contractUrl: string | null }>
   >({});
@@ -330,6 +336,21 @@ export default function Admin() {
       console.error("Erreur:", error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const runCalendarAudit = async () => {
+    try {
+      setAuditLoading(true);
+      const response = await fetch("/api/disponibilites/audit");
+      if (!response.ok) throw new Error("Audit indisponible");
+      const payload = await response.json();
+      setCalendarAudit(payload);
+    } catch (error) {
+      console.error(error);
+      setCalendarAudit(null);
+    } finally {
+      setAuditLoading(false);
     }
   };
 
@@ -1352,7 +1373,22 @@ export default function Admin() {
             >
               Vue calendrier
             </button>
+            <button
+              type="button"
+              onClick={runCalendarAudit}
+              disabled={auditLoading}
+              className="px-3 py-2 rounded-lg text-sm font-semibold border bg-white text-slate-700 border-slate-300 hover:bg-slate-50 disabled:opacity-60"
+            >
+              {auditLoading ? "Audit..." : "Audit cohérence"}
+            </button>
           </div>
+          {calendarAudit && (
+            <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700">
+              <span className="font-semibold">Audit:</span>{" "}
+              {calendarAudit.summary?.reservationsWithoutSlot || 0} résa(s) sans créneau,{" "}
+              {calendarAudit.summary?.duplicateRanges || 0} plage(s) en doublon.
+            </div>
+          )}
         </div>
 
         {/* Formulaire */}

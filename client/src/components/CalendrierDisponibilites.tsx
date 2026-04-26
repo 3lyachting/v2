@@ -1,22 +1,13 @@
-/*
- * DESIGN: Expressionnisme Tropical
- * Calendrier de disponibilités et tarifs — Sabine Sailing
- * Couleurs: Teal (disponible) + Coral (réservé) + Sand (fond)
- * Données: Chargées depuis l'API en temps réel
- */
-
-import { useState, useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ChevronLeft, ChevronRight, Info } from "lucide-react";
 
-const BRAND_SAND = "#B58E6E";
-const BRAND_DEEP = "#00384A";
-
-// ── Types ─────────────────────────────────────────────────────────────────────
 type Statut = "disponible" | "reserve" | "option" | "ferme";
+type Produit = "all" | "med" | "transat" | "caraibes" | "journee";
+type ReservationMode = "priva" | "cabine";
 
-interface Disponibilite {
+type Disponibilite = {
   id: number;
-  debut: string; // ISO timestamp
+  debut: string;
   fin: string;
   statut: Statut;
   planningType?: "charter" | "technical_stop" | "maintenance" | "blocked";
@@ -24,763 +15,261 @@ interface Disponibilite {
   tarifCabine?: number | null;
   tarifJourPersonne?: number | null;
   tarifJourPriva?: number | null;
-  note: string | null;
+  destination: string;
   notePublique?: string | null;
-  destination: string;
   capaciteTotale?: number;
   cabinesReservees?: number;
-  createdAt: string;
-  updatedAt: string;
+};
+
+const BRAND_DEEP = "#00384A";
+const MONTHS_FR = ["Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"];
+
+function toIsoDay(input: string | Date) {
+  return new Date(input).toISOString().slice(0, 10);
 }
 
-interface IcalEvent {
-  uid: string;
-  titre: string;
-  description: string;
-  debut: string;
-  fin: string;
-  destination: string;
-  statut: Statut;
-  tarif: number | null;
-  source: string;
-}
-
-interface Semaine {
-  id?: number;
-  debut: string; // "YYYY-MM-DD"
-  fin: string;
-  statut: Statut;
-  tarif?: number;
-  tarifCabine?: number;
-  tarifJourPersonne?: number;
-  tarifJourPriva?: number;
-  note?: string;
-  destination?: string;
-  capaciteTotale?: number;
-  cabinesReservees?: number;
-  produit?: "croisiere_mediterranee" | "transatlantique" | "croisiere_caraibes" | "journee_privee";
-}
-
-// ── Helpers ───────────────────────────────────────────────────────────────────
-const MOIS_NOMS = ["Jan", "Fév", "Mar", "Avr", "Mai", "Juin", "Juil", "Août", "Sep", "Oct", "Nov", "Déc"];
-const MOIS_COMPLETS = ["Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"];
-
-function parseDate(s: string) {
-  // Créer une date UTC stricte à partir de "YYYY-MM-DD"
-  const [y, m, d] = s.split("-").map(Number);
+function parseIsoDay(iso: string) {
+  const [y, m, d] = iso.split("-").map(Number);
   return new Date(Date.UTC(y, m - 1, d, 0, 0, 0, 0));
 }
 
-function formatDate(d: Date) {
-  const day = d.getUTCDate().toString().padStart(2, "0");
-  const month = (d.getUTCMonth() + 1).toString().padStart(2, "0");
-  return `${day}/${month}`;
+function getProduct(dispo: Disponibilite): Produit {
+  const destination = String(dispo.destination || "").toLowerCase();
+  const isDay = toIsoDay(dispo.debut) === toIsoDay(dispo.fin);
+  if (isDay && destination.includes("la ciotat")) return "journee";
+  if (destination.includes("transat")) return "transat";
+  if (destination.includes("cara")) return "caraibes";
+  return "med";
 }
 
-function convertDisponibiliteToSemaine(d: Disponibilite): Semaine {
-  const debut = new Date(d.debut);
-  const fin = new Date(d.fin);
-  // Utiliser UTC pour extraire la date
-  const debutDate = debut.toISOString().split("T")[0];
-  const finDate = fin.toISOString().split("T")[0];
-  const m = debut.getUTCMonth() + 1;
-  const isMed = m >= 6 && m <= 9;
-  const isCaraibes = d.destination.toLowerCase().includes("grenadine") || d.destination.toLowerCase().includes("cara");
-  const isTransat = d.destination.toLowerCase().includes("travers") || d.destination.toLowerCase().includes("transat");
-  const isJournee = d.destination.toLowerCase().includes("sortie journée") || d.destination.toLowerCase().includes("cassis");
-  return {
-    debut: debutDate,
-    fin: finDate,
-    statut:
-      d.planningType === "technical_stop" || d.planningType === "maintenance" || d.planningType === "blocked"
-        ? "ferme"
-        : d.statut,
-    tarif: d.tarif || undefined,
-    tarifCabine: d.tarifCabine || undefined,
-    tarifJourPersonne: d.tarifJourPersonne || undefined,
-    tarifJourPriva: d.tarifJourPriva || undefined,
-    note:
-      d.planningType === "technical_stop"
-        ? "Arrêt technique"
-        : d.planningType === "maintenance"
-          ? "Maintenance"
-          : d.notePublique || undefined,
-    destination: d.destination,
-    capaciteTotale: d.capaciteTotale,
-    cabinesReservees: d.cabinesReservees,
-    produit: isJournee
-        ? "journee_privee"
-        : isTransat
-        ? "transatlantique"
-        : isCaraibes
-          ? "croisiere_caraibes"
-          : isMed
-            ? "croisiere_mediterranee"
-            : undefined,
-  };
+function isBookable(dispo?: Disponibilite | null) {
+  if (!dispo) return false;
+  if (dispo.planningType && dispo.planningType !== "charter") return false;
+  return dispo.statut === "disponible" || dispo.statut === "option";
 }
 
-function convertIcalEventToSemaine(ev: IcalEvent): Semaine {
-  const debut = new Date(ev.debut);
-  const fin = new Date(ev.fin);
-
-  // Sur iCal, beaucoup d'événements "all-day" ont une date de fin exclusive à 00:00.
-  // Sans ce correctif, on bloque un jour de trop (ex: le 26 juin).
-  if (
-    fin.getUTCHours() === 0 &&
-    fin.getUTCMinutes() === 0 &&
-    fin.getUTCSeconds() === 0 &&
-    fin.getUTCMilliseconds() === 0 &&
-    fin.getTime() > debut.getTime()
-  ) {
-    fin.setUTCDate(fin.getUTCDate() - 1);
-  }
-
-  const debutDate = debut.toISOString().split("T")[0];
-  const finDate = fin.toISOString().split("T")[0];
-  return {
-    debut: debutDate,
-    fin: finDate,
-    statut: ev.statut,
-    tarif: ev.tarif || undefined,
-    // Ne pas exposer le contenu des événements iCal en public.
-    note: undefined,
-    destination: ev.destination || "Méditerranée",
-    produit: (ev.destination || "").toLowerCase().includes("travers") || (ev.destination || "").toLowerCase().includes("transat")
-      ? "transatlantique"
-      : undefined,
-  };
+function getTotalUnits(dispo?: Disponibilite | null) {
+  if (!dispo?.capaciteTotale) return 0;
+  return dispo.capaciteTotale;
 }
 
-function getStatutPriority(statut: Statut): number {
-  switch (statut) {
-    case "reserve":
-      return 4;
-    case "option":
-      return 3;
-    case "ferme":
-      return 2;
-    case "disponible":
-    default:
-      return 1;
-  }
+function getReservedUnits(dispo?: Disponibilite | null) {
+  return Math.max(0, dispo?.cabinesReservees || 0);
 }
 
-function getSemaineForDate(date: Date, semaines: Semaine[]): Semaine | null {
-  const matching = semaines.filter(s => {
-    const debut = parseDate(s.debut);
-    const fin = parseDate(s.fin);
-    return date >= debut && date <= fin;
-  });
-  if (matching.length === 0) return null;
-  matching.sort((a, b) => {
-    const byStatut = getStatutPriority(b.statut) - getStatutPriority(a.statut);
-    if (byStatut !== 0) return byStatut;
-    // Si même statut, prioriser le créneau le plus rempli pour éviter un samedi "vert"
-    // quand un autre créneau concurrent est déjà complet.
-    const aRemaining = remainingPlaces(a);
-    const bRemaining = remainingPlaces(b);
-    if (typeof aRemaining === "number" && typeof bRemaining === "number") {
-      return aRemaining - bRemaining;
-    }
-    return 0;
-  });
-  return matching[0];
+function getBadgeClass(dispo: Disponibilite) {
+  if (dispo.planningType && dispo.planningType !== "charter") return "bg-slate-300 text-slate-700 border-slate-400";
+  if (dispo.statut === "reserve" || dispo.statut === "ferme") return "bg-red-500 text-white border-red-600";
+  if (dispo.statut === "option") return "bg-orange-400 text-white border-orange-500";
+  return "bg-emerald-500 text-white border-emerald-600";
 }
 
-function isTurnoverSaturday(date: Date, semaines: Semaine[]) {
-  // Rotation hebdo: débarquement le samedi matin, embarquement le samedi après-midi.
-  if (date.getUTCDay() !== 6) return false;
-  const iso = date.toISOString().split("T")[0];
-  const hasDeparture = semaines.some((s) => s.fin === iso);
-  const hasEmbark = semaines.some((s) => s.debut === iso);
-  return hasDeparture && hasEmbark;
+function getDateLabel(iso: string) {
+  const d = parseIsoDay(iso);
+  return `${String(d.getUTCDate()).padStart(2, "0")}/${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
 }
 
-function getWeekForBoundary(iso: string, semaines: Semaine[], boundary: "debut" | "fin") {
-  const matches = semaines.filter((s) => s[boundary] === iso);
-  if (matches.length === 0) return null;
-  matches.sort((a, b) => {
-    const byStatut = getStatutPriority(b.statut) - getStatutPriority(a.statut);
-    if (byStatut !== 0) return byStatut;
-    const aRemaining = remainingPlaces(a);
-    const bRemaining = remainingPlaces(b);
-    if (typeof aRemaining === "number" && typeof bRemaining === "number") {
-      return aRemaining - bRemaining;
-    }
-    return 0;
-  });
-  return matches[0];
-}
-
-function remainingPlaces(semaine?: Semaine | null) {
-  if (!semaine) return null;
-  if (typeof semaine.capaciteTotale !== "number") return null;
-  // En Med/Caraibes on stocke la capacité en cabines (4), mais l'affichage client est en places (8).
-  // En transat, la capacité est déjà gérée en places.
-  const isTransat = semaine.produit === "transatlantique";
-  const multiplier = isTransat ? 1 : 2;
-  const totalPlaces = semaine.capaciteTotale * multiplier;
-  const reservedUnits = typeof semaine.cabinesReservees === "number" ? semaine.cabinesReservees : 0;
-  const reservedPlaces = reservedUnits * multiplier;
-  return Math.max(0, totalPlaces - reservedPlaces);
-}
-
-function getTotalUnits(semaine?: Semaine | null) {
-  if (!semaine) return 0;
-  if (typeof semaine.capaciteTotale === "number" && semaine.capaciteTotale > 0) return semaine.capaciteTotale;
-  return 4;
-}
-
-function getReservedUnits(semaine?: Semaine | null) {
-  if (!semaine) return 0;
-  return Math.max(0, typeof semaine.cabinesReservees === "number" ? semaine.cabinesReservees : 0);
-}
-
-function formatCompactPrice(value?: number) {
-  if (!value) return "";
-  return `${value.toLocaleString("fr-FR")} €`;
-}
-
-function isVirtualNoSlotWeek(week?: Semaine | null) {
-  return Boolean(
-    week &&
-      week.statut === "ferme" &&
-      !week.note &&
-      (week.destination === "Aucun créneau" || week.destination === "Hors produit")
-  );
-}
-
-function getOfferTypeLabel(semaine?: Semaine | null) {
-  if (!semaine) return "Aucune offre";
-  const hasPriva = typeof semaine.tarifJourPriva === "number" || typeof semaine.tarif === "number";
-  const hasCabine = typeof semaine.tarifCabine === "number" || typeof semaine.tarifJourPersonne === "number";
-  if (hasPriva && hasCabine) return "Privatisation + cabine";
-  if (hasPriva) return "Privatisation";
-  if (hasCabine) return "Cabine";
-  return "À confirmer";
-}
-
-function isIsoInRange(iso: string, start: string, end: string) {
-  return iso >= start && iso <= end;
-}
-
-function isLaCiotatDayTripSeason(isoDay: string) {
-  return isIsoInRange(isoDay, "2026-04-01", "2026-05-31") || isIsoInRange(isoDay, "2026-09-01", "2026-09-30");
-}
-
-function getInclusiveDays(startIso: string, endIso: string) {
-  const start = parseDate(startIso).getTime();
-  const end = parseDate(endIso).getTime();
-  const diff = Math.round((end - start) / (1000 * 60 * 60 * 24));
-  return Math.max(1, diff + 1);
-}
-
-function isDayInProductWindow(isoDay: string, produit: "tous" | "croisiere_mediterranee" | "transatlantique" | "croisiere_caraibes" | "journee_privee") {
-  if (produit === "tous") return true;
-  if (produit === "croisiere_mediterranee") {
-    const d = parseDate(isoDay);
-    const m = d.getUTCMonth() + 1;
-    return m >= 6 && m <= 8;
-  }
-  if (produit === "transatlantique") {
-    return isIsoInRange(isoDay, "2026-11-01", "2026-11-10") || isIsoInRange(isoDay, "2027-04-01", "2027-05-01");
-  }
-  if (produit === "croisiere_caraibes") {
-    return isIsoInRange(isoDay, "2026-12-21", "2027-03-31");
-  }
-  if (produit === "journee_privee") {
-    return isLaCiotatDayTripSeason(isoDay);
-  }
-  return false;
-}
-
-function overlapsIsoRange(startIso: string, endIso: string, rangeStartIso: string, rangeEndIso: string) {
-  return startIso <= rangeEndIso && endIso >= rangeStartIso;
-}
-
-// ── Composant principal ───────────────────────────────────────────────────────
 export default function CalendrierDisponibilites({ isEnglish = false }: { isEnglish?: boolean }) {
-  const [semaines, setSemaines] = useState<Semaine[]>([]);
+  const [dispos, setDispos] = useState<Disponibilite[]>([]);
   const [loading, setLoading] = useState(true);
-  const [moisAffiche, setMoisAffiche] = useState(new Date());
-  const [semaineSelectionnee, setSemaineSelectionnee] = useState<Semaine | null>(null);
-  const [produitFiltre, setProduitFiltre] = useState<"tous" | "croisiere_mediterranee" | "transatlantique" | "croisiere_caraibes" | "journee_privee">("tous");
-  const [reservationMode, setReservationMode] = useState<"priva" | "cabine">("cabine");
+  const [month, setMonth] = useState(new Date());
+  const [selected, setSelected] = useState<Disponibilite | null>(null);
+  const [filter, setFilter] = useState<Produit>("all");
+  const [reservationMode, setReservationMode] = useState<ReservationMode>("cabine");
 
-  // Charger les disponibilités depuis l'API
   useEffect(() => {
-    const fetchDisponibilites = async () => {
+    const run = async () => {
       try {
         setLoading(true);
-        const cacheBust = `t=${Date.now()}`;
-        const [disposRes, icalRes] = await Promise.all([
-          fetch(`/api/disponibilites?${cacheBust}`, { cache: "no-store" }),
-          fetch(`/api/ical/events?${cacheBust}`, { cache: "no-store" }),
-        ]);
-        if (!disposRes.ok) throw new Error("Erreur lors du chargement des disponibilités");
-
-        const data: Disponibilite[] = await disposRes.json();
-        const icalEvents: IcalEvent[] = icalRes.ok ? await icalRes.json() : [];
-
-        // Fusionner les disponibilités manuelles et les événements iCal synchronisés
-        const semainesDisponibilites = data.map(convertDisponibiliteToSemaine);
-        const semainesIcal = Array.isArray(icalEvents) ? icalEvents.map(convertIcalEventToSemaine) : [];
-        const semainesConverties = [...semainesDisponibilites, ...semainesIcal];
-        setSemaines(semainesConverties);
-        
-      } catch (error) {
-        console.error("Erreur lors du chargement des disponibilités:", error);
-        setSemaines([]);
+        const res = await fetch(`/api/disponibilites?t=${Date.now()}`, { cache: "no-store" });
+        if (!res.ok) throw new Error("Failed to fetch disponibilites");
+        const rows: Disponibilite[] = await res.json();
+        const sorted = rows.slice().sort((a, b) => new Date(a.debut).getTime() - new Date(b.debut).getTime());
+        setDispos(sorted);
+        const first = sorted.find((d) => isBookable(d));
+        if (first) {
+          const start = new Date(first.debut);
+          setMonth(new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth(), 1)));
+          setSelected(first);
+        }
+      } catch {
+        setDispos([]);
       } finally {
         setLoading(false);
       }
-    }
-
-    fetchDisponibilites();
+    };
+    void run();
   }, []);
 
-  const semainesFiltrees = useMemo(() => {
-    return semaines.filter((s) => {
-      if (produitFiltre === "tous") return true;
-      if (produitFiltre === "croisiere_mediterranee") {
-        const startIso = s.debut;
-        const endIso = s.fin;
-        const overlapsMainSeason = overlapsIsoRange(startIso, endIso, "2026-06-01", "2026-09-30");
-        const overlapsDayTripSeason = overlapsIsoRange(startIso, endIso, "2026-04-01", "2026-05-31");
-        return (
-          (overlapsMainSeason || overlapsDayTripSeason) &&
-          !String(s.destination || "").toLowerCase().includes("cara") &&
-          !String(s.destination || "").toLowerCase().includes("travers") &&
-          !String(s.destination || "").toLowerCase().includes("cassis")
-        );
+  const filtered = useMemo(() => dispos.filter((d) => (filter === "all" ? true : getProduct(d) === filter)), [dispos, filter]);
+  const byDay = useMemo(() => {
+    const map = new Map<string, Disponibilite[]>();
+    for (const d of filtered) {
+      const start = toIsoDay(d.debut);
+      const end = toIsoDay(d.fin);
+      let cursor = start;
+      while (cursor <= end) {
+        const current = map.get(cursor) || [];
+        current.push(d);
+        map.set(cursor, current);
+        const next = parseIsoDay(cursor);
+        next.setUTCDate(next.getUTCDate() + 1);
+        cursor = next.toISOString().slice(0, 10);
       }
-      if (produitFiltre === "journee_privee") {
-        return isLaCiotatDayTripSeason(s.debut) && isLaCiotatDayTripSeason(s.fin);
-      }
-      return s.produit === produitFiltre;
-    });
-  }, [semaines, produitFiltre]);
+    }
+    return map;
+  }, [filtered]);
+
+  const bestForDay = (iso: string) => {
+    const rows = byDay.get(iso) || [];
+    if (!rows.length) return null;
+    return rows
+      .slice()
+      .sort((a, b) => {
+        const p = (v: Disponibilite) => (v.statut === "reserve" ? 4 : v.statut === "option" ? 3 : v.statut === "ferme" ? 2 : 1);
+        return p(b) - p(a);
+      })[0];
+  };
+
+  const year = month.getUTCFullYear();
+  const monthIdx = month.getUTCMonth();
+  const first = new Date(Date.UTC(year, monthIdx, 1));
+  const last = new Date(Date.UTC(year, monthIdx + 1, 0));
+  const startOffset = (first.getUTCDay() + 6) % 7;
+  const days: (Date | null)[] = [];
+  for (let i = 0; i < startOffset; i++) days.push(null);
+  for (let d = 1; d <= last.getUTCDate(); d++) days.push(new Date(Date.UTC(year, monthIdx, d)));
+
+  const selectedProduct = selected ? getProduct(selected) : "med";
+  const isDayTrip = selectedProduct === "journee";
+  const totalUnits = getTotalUnits(selected);
+  const reservedUnits = getReservedUnits(selected);
+  const hasPriva = Boolean(selected && (selected.tarifJourPriva || selected.tarif));
+  const hasCabine = Boolean(selected && (selected.tarifCabine || selected.tarifJourPersonne));
+  const canBookPrivate = Boolean(selected && isBookable(selected) && hasPriva && reservedUnits === 0);
+  const canBookCabine = Boolean(selected && isBookable(selected) && !isDayTrip && hasCabine && reservedUnits < totalUnits);
+  const price =
+    reservationMode === "priva"
+      ? selected?.tarifJourPriva ?? selected?.tarif ?? 0
+      : selected?.tarifCabine ?? selected?.tarifJourPersonne ?? selected?.tarif ?? 0;
 
   useEffect(() => {
-    const firstMatch = semainesFiltrees.find((s) => s.statut === "disponible");
-    if (!firstMatch) return;
-    const debut = parseDate(firstMatch.debut);
-    setMoisAffiche(new Date(Date.UTC(debut.getUTCFullYear(), debut.getUTCMonth(), 1)));
-    setSemaineSelectionnee(firstMatch);
-  }, [produitFiltre, semainesFiltrees]);
-
-  const handlePrevMonth = () => {
-    const prev = new Date(moisAffiche);
-    prev.setUTCMonth(prev.getUTCMonth() - 1);
-    setMoisAffiche(prev);
-  };
-
-  const handleNextMonth = () => {
-    const next = new Date(moisAffiche);
-    next.setUTCMonth(next.getUTCMonth() + 1);
-    setMoisAffiche(next);
-  };
-
-  const handleDateClick = (date: Date) => {
-    const semaine = getSemaineForDate(date, semainesFiltrees);
-    if (semaine) {
-      setSemaineSelectionnee(semaine);
-      return;
-    }
-    setSemaineSelectionnee(null);
-  };
-
-  // Générer les jours du mois en UTC
-  const year = moisAffiche.getUTCFullYear();
-  const month = moisAffiche.getUTCMonth();
-  
-  const firstDay = new Date();
-  firstDay.setUTCFullYear(year);
-  firstDay.setUTCMonth(month);
-  firstDay.setUTCDate(1);
-  firstDay.setUTCHours(0, 0, 0, 0);
-  
-  const lastDay = new Date();
-  lastDay.setUTCFullYear(year);
-  lastDay.setUTCMonth(month + 1);
-  lastDay.setUTCDate(0);
-  lastDay.setUTCHours(0, 0, 0, 0);
-  
-  const daysInMonth = lastDay.getUTCDate();
-  // getUTCDay: 0 = dimanche ... 6 = samedi
-  // Le calendrier affiché démarre le lundi: 0 = lundi ... 6 = dimanche
-  const startingDayOfWeek = (firstDay.getUTCDay() + 6) % 7;
-
-  const days = [];
-  for (let i = 0; i < startingDayOfWeek; i++) {
-    days.push(null);
-  }
-  for (let i = 1; i <= daysInMonth; i++) {
-    const d = new Date();
-    d.setUTCFullYear(year);
-    d.setUTCMonth(month);
-    d.setUTCDate(i);
-    d.setUTCHours(0, 0, 0, 0);
-    days.push(d);
-  }
-
-  const getCalendarColor = (week: Semaine | null | undefined, fallback: Statut) => {
-    if (isVirtualNoSlotWeek(week)) {
-      return "bg-slate-300 text-slate-700 border-slate-400";
-    }
-    const rem = remainingPlaces(week);
-    if (fallback === "reserve" || fallback === "ferme") return "bg-red-500/90 text-white border-red-600";
-    if (typeof rem === "number") {
-      const isTransat = week?.produit === "transatlantique";
-      const multiplier = isTransat ? 1 : 2;
-      const totalPlaces = (week?.capaciteTotale || 0) * multiplier;
-      if (rem <= 0) return "bg-red-500/90 text-white border-red-600";
-      if (totalPlaces > 0 && rem < totalPlaces) return "bg-orange-400 text-white border-orange-500";
-      return "bg-emerald-500 text-white border-emerald-600";
-    }
-    if (fallback === "option") return "bg-orange-400 text-white border-orange-500";
-    return "bg-emerald-500 text-white border-emerald-600";
-  };
-
-  const getStatutLabel = (statut: Statut) => {
-    switch (statut) {
-      case "disponible":
-        return isEnglish ? "Available" : "Disponible";
-      case "reserve":
-        return isEnglish ? "Booked" : "Réservé";
-      case "option":
-        return "Option";
-      case "ferme":
-        return isEnglish ? "Closed" : "Fermé";
-      default:
-        return statut;
-    }
-  };
-
-  const isSelectedDayTrip = Boolean(
-    semaineSelectionnee &&
-      isLaCiotatDayTripSeason(semaineSelectionnee.debut) &&
-      isLaCiotatDayTripSeason(semaineSelectionnee.fin) &&
-      (semaineSelectionnee.destination?.includes("Sortie journée") || semaineSelectionnee.destination?.includes("Cassis"))
-  );
-  const isSelectedJourneeProduct = semaineSelectionnee?.produit === "journee_privee" || isSelectedDayTrip;
-  const selectedDayCount = semaineSelectionnee ? getInclusiveDays(semaineSelectionnee.debut, semaineSelectionnee.fin) : 1;
-  const selectedBaseAmount = semaineSelectionnee
-    ? reservationMode === "priva"
-      ? semaineSelectionnee.tarifJourPriva ?? semaineSelectionnee.tarif ?? 0
-      : semaineSelectionnee.tarifCabine ?? semaineSelectionnee.tarifJourPersonne ?? semaineSelectionnee.tarif ?? 0
-    : 0;
-  const selectedTotalAmount = isSelectedDayTrip ? selectedBaseAmount * selectedDayCount : selectedBaseAmount;
-  const selectedTotalUnits = getTotalUnits(semaineSelectionnee);
-  const selectedReservedUnits = getReservedUnits(semaineSelectionnee);
-  const selectedHasPrivaOffer =
-    Boolean(semaineSelectionnee) &&
-    (typeof semaineSelectionnee?.tarif === "number" || typeof semaineSelectionnee?.tarifJourPriva === "number");
-  const selectedHasCabineOffer =
-    Boolean(semaineSelectionnee) &&
-    (typeof semaineSelectionnee?.tarifCabine === "number" || typeof semaineSelectionnee?.tarifJourPersonne === "number");
-  const selectedStatusIsBookable = Boolean(
-    semaineSelectionnee && (semaineSelectionnee.statut === "disponible" || semaineSelectionnee.statut === "option")
-  );
-  const canBookPrivate = selectedStatusIsBookable && selectedHasPrivaOffer && selectedReservedUnits === 0;
-  const canBookCabine =
-    !isSelectedJourneeProduct && selectedStatusIsBookable && selectedHasCabineOffer && selectedReservedUnits < selectedTotalUnits;
-
-  useEffect(() => {
-    if (!semaineSelectionnee) return;
-    if (reservationMode === "priva" && !canBookPrivate && canBookCabine) {
-      setReservationMode("cabine");
-      return;
-    }
-    if (reservationMode === "cabine" && !canBookCabine && canBookPrivate) {
-      setReservationMode("priva");
-    }
-  }, [reservationMode, canBookPrivate, canBookCabine, semaineSelectionnee]);
+    if (reservationMode === "priva" && !canBookPrivate && canBookCabine) setReservationMode("cabine");
+    if (reservationMode === "cabine" && !canBookCabine && canBookPrivate) setReservationMode("priva");
+  }, [reservationMode, canBookPrivate, canBookCabine]);
 
   return (
-    <div className="editorial-panel rounded-3xl border p-6 shadow-[0_24px_60px_-30px_rgba(15,23,42,0.35)] lg:p-10" style={{ borderColor: "#dcc6ae", background: "linear-gradient(180deg,#fbf3ea,#f2e3d1)" }}>
-      <div className="mb-10">
-        <p className="editorial-kicker mb-4">{isEnglish ? "Filter by offer" : "Filtrer par produit"}</p>
-        <div className="flex flex-wrap gap-2.5">
-          {[
-            { id: "tous", label: isEnglish ? "All" : "Tous" },
-            { id: "croisiere_mediterranee", label: isEnglish ? "Mediterranean cruises" : "Croisières Méditerranée" },
-            { id: "transatlantique", label: "Transatlantique" },
-            { id: "croisiere_caraibes", label: isEnglish ? "Caribbean cruises" : "Croisières Caraïbes" },
-            { id: "journee_privee", label: isEnglish ? "Private day trip" : "Journée privative" },
-          ].map(item => (
-            <button
-              key={item.id}
-              onClick={() => setProduitFiltre(item.id as any)}
-              className={`px-4 py-2 rounded-full text-sm font-semibold transition-all duration-200 ${
-                produitFiltre === item.id
-                  ? "text-white shadow-[0_10px_25px_-14px_rgba(0,56,74,0.9)]"
-                  : "bg-white border hover:text-white"
-              }`}
-              style={
-                produitFiltre === item.id
-                  ? { backgroundColor: BRAND_DEEP, borderColor: BRAND_DEEP }
-                  : { color: BRAND_DEEP, borderColor: "#dbc4aa" }
-              }
-            >
-              {item.label}
-            </button>
-          ))}
-        </div>
-        <div className="mt-5 flex flex-wrap gap-2 text-xs">
-          <span className="inline-flex items-center gap-1 rounded-full border px-3 py-1 font-semibold text-white shadow-sm" style={{ borderColor: BRAND_DEEP, backgroundColor: BRAND_DEEP }}>
-            {isEnglish ? "Available" : "Libre"}
-          </span>
-          <span className="inline-flex items-center gap-1 rounded-full border px-3 py-1 font-semibold shadow-sm" style={{ borderColor: BRAND_SAND, backgroundColor: BRAND_SAND, color: BRAND_DEEP }}>
-            {isEnglish ? "Option / partial" : "Option / partiel"}
-          </span>
-          <span className="inline-flex items-center gap-1 rounded-full border px-3 py-1 font-semibold text-white shadow-sm" style={{ borderColor: "#8b3f3f", backgroundColor: "#a24d4d" }}>
-            {isEnglish ? "Booked / closed" : "Réservé / fermé"}
-          </span>
-        </div>
+    <div className="rounded-3xl border p-6 lg:p-10 shadow-[0_24px_60px_-30px_rgba(15,23,42,0.35)]" style={{ borderColor: "#dcc6ae", background: "linear-gradient(180deg,#fbf3ea,#f2e3d1)" }}>
+      <div className="mb-6 flex flex-wrap gap-2">
+        {[
+          { id: "all", label: isEnglish ? "All" : "Tous" },
+          { id: "med", label: isEnglish ? "Med / Corsica" : "Méditerranée / Corse" },
+          { id: "transat", label: "Transat" },
+          { id: "caraibes", label: isEnglish ? "Caribbean" : "Caraïbes" },
+          { id: "journee", label: isEnglish ? "Day trips" : "Journées La Ciotat" },
+        ].map((item) => (
+          <button
+            key={item.id}
+            onClick={() => setFilter(item.id as Produit)}
+            className={`rounded-full px-4 py-2 text-sm font-semibold border ${filter === item.id ? "text-white" : "bg-white"}`}
+            style={filter === item.id ? { backgroundColor: BRAND_DEEP, borderColor: BRAND_DEEP } : { color: BRAND_DEEP, borderColor: "#dbc4aa" }}
+          >
+            {item.label}
+          </button>
+        ))}
       </div>
 
       {loading ? (
-        <div className="text-center py-12">
-          <div className="inline-block animate-spin rounded-full h-10 w-10 border-b-2" style={{ borderColor: BRAND_DEEP }}></div>
-          <p className="text-[oklch(0.45_0.04_220)] mt-4">{isEnglish ? "Loading calendar..." : "Chargement du calendrier..."}</p>
-        </div>
+        <div className="py-10 text-center">{isEnglish ? "Loading..." : "Chargement..."}</div>
       ) : (
-        <div className="grid lg:grid-cols-3 gap-6 lg:gap-12">
-            {/* Calendrier */}
-            <div className="lg:col-span-2 rounded-2xl border bg-white p-3 sm:p-5 lg:p-8 shadow-[0_18px_45px_-28px_rgba(15,23,42,0.45)]" style={{ borderColor: "#dac2a7" }}>
-              {/* Navigation mois */}
-              <div className="flex items-center justify-between mb-4 sm:mb-6">
-                <button
-                  onClick={handlePrevMonth}
-                  className="p-2 sm:p-2.5 hover:bg-slate-100 rounded-xl transition-colors"
-                >
-                  <ChevronLeft className="w-5 h-5" style={{ color: BRAND_DEEP }} />
-                </button>
-                <h3 className="text-base sm:text-xl lg:text-2xl font-bold tracking-[-0.01em] text-center px-2" style={{ fontFamily: "Cormorant Garamond, Times New Roman, serif", color: BRAND_DEEP }}>
-                  {MOIS_COMPLETS[moisAffiche.getUTCMonth()]} {moisAffiche.getUTCFullYear()}
-                </h3>
-                <button
-                  onClick={handleNextMonth}
-                  className="p-2 sm:p-2.5 hover:bg-slate-100 rounded-xl transition-colors"
-                >
-                  <ChevronRight className="w-5 h-5" style={{ color: BRAND_DEEP }} />
-                </button>
-              </div>
-
-              {/* Jours de la semaine */}
-              <div className="grid grid-cols-7 gap-1.5 sm:gap-3 mb-3 sm:mb-5 rounded-xl bg-[oklch(0.985_0.008_240)] px-2 sm:px-3 py-2">
-                {["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"].map(day => (
-                  <div key={day} className="text-center text-[11px] sm:text-sm font-semibold text-[oklch(0.45_0.04_220)]">
-                    {day}
-                  </div>
-                ))}
-              </div>
-
-              {/* Jours du mois */}
-              <div className="grid grid-cols-7 gap-1.5 sm:gap-3">
-                {days.map((day, i) => {
-                  if (!day) {
-                    return <div key={`empty-${i}`} className="aspect-square min-h-[46px] sm:min-h-[86px]" />;
-                  }
-
-                  const iso = day.toISOString().split("T")[0];
-                  const semaine = getSemaineForDate(day, semainesFiltrees);
-                  const inProductWindow = isDayInProductWindow(iso, produitFiltre);
-                  const isDayTrip = isLaCiotatDayTripSeason(iso) && (produitFiltre === "tous" || produitFiltre === "journee_privee");
-                  const resolved =
-                    semaine ||
-                    {
-                      debut: iso,
-                      fin: iso,
-                      // Sans créneau réel en base/API, ne pas afficher "disponible" en vert.
-                      statut: "ferme" as Statut,
-                      destination: inProductWindow ? "Aucun créneau" : "Hors produit",
-                    };
-                  const visibleInFilter = Boolean(semaine) || inProductWindow || isDayTrip;
-                  const turnoverSaturday = isTurnoverSaturday(day, semainesFiltrees);
-                  const displayStatut: Statut = turnoverSaturday ? "option" : resolved.statut;
-                  const endingWeek = turnoverSaturday ? getWeekForBoundary(iso, semainesFiltrees, "fin") : null;
-                  const startingWeek = turnoverSaturday ? getWeekForBoundary(iso, semainesFiltrees, "debut") : null;
-                  const endingColor = getCalendarColor(endingWeek, endingWeek?.statut || "option");
-                  const startingColor = getCalendarColor(startingWeek, startingWeek?.statut || "option");
-                  const isSelected = semaineSelectionnee && 
-                    parseDate(semaineSelectionnee.debut) <= day && 
-                    day <= parseDate(semaineSelectionnee.fin) &&
-                    (produitFiltre === "tous" || semaineSelectionnee.produit === produitFiltre);
-
-                  const placesLeft = remainingPlaces(semaine);
-                  const cardPrice =
-                    reservationMode === "priva"
-                      ? semaine?.tarifJourPriva ?? semaine?.tarif
-                      : semaine?.tarifCabine ?? semaine?.tarifJourPersonne ?? semaine?.tarif;
-                  const isBookableWeek = resolved.statut === "disponible" || resolved.statut === "option";
-                  const priceLabel = isBookableWeek ? formatCompactPrice(cardPrice) : "";
-                  const priceSuffix = isDayTrip
-                    ? reservationMode === "cabine"
-                      ? " /pers"
-                      : " privatif"
-                    : reservationMode === "cabine"
-                      ? " cabine"
-                      : "";
-                  return (
-                    <button
-                      key={day.toISOString()}
-                      onClick={() => handleDateClick(day)}
-                      disabled={!visibleInFilter}
-                      className={`aspect-square min-h-[46px] sm:min-h-[86px] rounded-lg sm:rounded-xl text-[11px] sm:text-sm font-semibold transition-all duration-200 flex flex-col items-center justify-center leading-tight relative overflow-hidden ${
-                        `${turnoverSaturday ? "bg-transparent text-white" : getCalendarColor(resolved, displayStatut)} ${
-                          visibleInFilter ? "cursor-pointer hover:scale-[1.02] hover:shadow-lg" : "opacity-25 cursor-not-allowed"
-                        } border ${
-                          isSelected ? "ring-2 ring-offset-2" : ""
-                        }`
-                      }`}
-                      style={isSelected ? { ["--tw-ring-color" as any]: BRAND_DEEP } : undefined}
-                    >
-                      {turnoverSaturday && (
-                        <>
-                          <span className={`absolute inset-y-0 left-0 w-1/2 ${endingColor}`} />
-                          <span className={`absolute inset-y-0 right-0 w-1/2 ${startingColor}`} />
-                          <span className="absolute inset-y-0 left-1/2 w-px bg-white/70" />
-                        </>
-                      )}
-                      <span className="font-bold text-xs sm:text-sm">{day.getUTCDate()}</span>
-                      {turnoverSaturday && <span className="hidden sm:inline text-[9px] opacity-80">09/15</span>}
-                      {priceLabel && <span className="hidden sm:inline text-[10px] opacity-90">{`${priceLabel}${priceSuffix}`}</span>}
-                      {typeof placesLeft === "number" && (
-                        <span className="hidden sm:inline text-[10px] opacity-80">{placesLeft} pl.</span>
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
+        <div className="grid lg:grid-cols-3 gap-6">
+          <div className="lg:col-span-2 rounded-2xl border bg-white p-4 sm:p-6" style={{ borderColor: "#dac2a7" }}>
+            <div className="mb-4 flex items-center justify-between">
+              <button onClick={() => setMonth(new Date(Date.UTC(year, monthIdx - 1, 1)))} className="rounded-lg p-2 hover:bg-slate-100">
+                <ChevronLeft className="h-5 w-5" style={{ color: BRAND_DEEP }} />
+              </button>
+              <h3 className="text-xl font-bold" style={{ color: BRAND_DEEP }}>{MONTHS_FR[monthIdx]} {year}</h3>
+              <button onClick={() => setMonth(new Date(Date.UTC(year, monthIdx + 1, 1)))} className="rounded-lg p-2 hover:bg-slate-100">
+                <ChevronRight className="h-5 w-5" style={{ color: BRAND_DEEP }} />
+              </button>
             </div>
+            <div className="mb-2 grid grid-cols-7 gap-2 text-center text-xs font-semibold text-slate-500">
+              {["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"].map((d) => <div key={d}>{d}</div>)}
+            </div>
+            <div className="grid grid-cols-7 gap-2">
+              {days.map((d, idx) => {
+                if (!d) return <div key={`empty-${idx}`} className="aspect-square min-h-[48px]" />;
+                const iso = d.toISOString().slice(0, 10);
+                const slot = bestForDay(iso);
+                const selectedRange =
+                  selected &&
+                  parseIsoDay(toIsoDay(selected.debut)).getTime() <= d.getTime() &&
+                  d.getTime() <= parseIsoDay(toIsoDay(selected.fin)).getTime();
+                return (
+                  <button
+                    key={iso}
+                    onClick={() => slot && setSelected(slot)}
+                    className={`aspect-square min-h-[48px] rounded-lg border text-xs font-semibold ${slot ? getBadgeClass(slot) : "bg-slate-100 text-slate-400 border-slate-200"} ${selectedRange ? "ring-2 ring-offset-2" : ""}`}
+                    style={selectedRange ? { ["--tw-ring-color" as any]: BRAND_DEEP } : undefined}
+                  >
+                    <span>{d.getUTCDate()}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
 
-            {/* Détails de la semaine sélectionnée */}
-            <div className="rounded-2xl border bg-white p-6 shadow-[0_18px_45px_-28px_rgba(15,23,42,0.45)] lg:p-7 h-fit" style={{ borderColor: "#dac2a7" }}>
-              <h3 className="text-xl font-bold mb-5 tracking-[-0.01em]" style={{ fontFamily: "Cormorant Garamond, Times New Roman, serif", color: BRAND_DEEP }}>
-                {isEnglish ? "Details" : "Détails"}
-              </h3>
-
-              {semaineSelectionnee ? (
-                <div className="space-y-4">
-                  <div>
-                    <p className="text-xs text-[oklch(0.45_0.04_220)] uppercase font-semibold mb-1">{isEnglish ? "Period" : "Période"}</p>
-                    <p className="text-sm font-medium text-[oklch(0.15_0.05_220)]">
-                      {formatDate(parseDate(semaineSelectionnee.debut))} → {formatDate(parseDate(semaineSelectionnee.fin))}
-                    </p>
-                  </div>
-
-                  <div>
-                    <p className="text-xs text-[oklch(0.45_0.04_220)] uppercase font-semibold mb-1">{isEnglish ? "Destination" : "Destination"}</p>
-                    <p className="text-sm font-medium text-[oklch(0.15_0.05_220)]">
-                      {semaineSelectionnee.destination}
-                    </p>
-                  </div>
-
-                  <div>
-                    <p className="text-xs text-[oklch(0.45_0.04_220)] uppercase font-semibold mb-1">{isEnglish ? "Available offer" : "Offre disponible"}</p>
-                    <p className="text-sm font-medium text-[oklch(0.15_0.05_220)]">
-                      {getOfferTypeLabel(semaineSelectionnee)}
-                    </p>
-                  </div>
-
-                  {typeof remainingPlaces(semaineSelectionnee) === "number" && (
-                    <div>
-                      <p className="text-xs text-[oklch(0.45_0.04_220)] uppercase font-semibold mb-1">{isEnglish ? "Seats available" : "Places disponibles"}</p>
-                      <p className="text-sm font-medium text-[oklch(0.15_0.05_220)]">
-                        {(() => {
-                          const isTransat = semaineSelectionnee.produit === "transatlantique";
-                          const multiplier = isTransat ? 1 : 2;
-                          const totalPlaces = (semaineSelectionnee.capaciteTotale || 0) * multiplier;
-                          return `${remainingPlaces(semaineSelectionnee)} / ${totalPlaces || "?"}`;
-                        })()}
-                      </p>
-                    </div>
-                  )}
-
-                  <div>
-                    <p className="text-xs text-[oklch(0.45_0.04_220)] uppercase font-semibold mb-1">{isEnglish ? "Status" : "Statut"}</p>
-                    <span className={`inline-block px-3 py-1 rounded-full text-xs font-semibold border ${getCalendarColor(semaineSelectionnee, semaineSelectionnee.statut)}`}>
-                      {getStatutLabel(semaineSelectionnee.statut)}
-                    </span>
-                  </div>
-
-                  {selectedStatusIsBookable && (
-                    <div>
-                      <p className="text-xs text-[oklch(0.45_0.04_220)] uppercase font-semibold mb-2">{isEnglish ? "Booking type" : "Type de réservation"}</p>
-                      <div className={`grid gap-2 mb-3 ${isSelectedJourneeProduct ? "grid-cols-1" : "grid-cols-2"}`}>
+          <div className="rounded-2xl border bg-white p-6" style={{ borderColor: "#dac2a7" }}>
+            <h3 className="mb-4 text-xl font-bold" style={{ color: BRAND_DEEP }}>{isEnglish ? "Details" : "Détails"}</h3>
+            {!selected ? (
+              <div className="py-6 text-center text-slate-500">
+                <Info className="mx-auto mb-2 h-10 w-10 text-slate-300" />
+                {isEnglish ? "Select a date to see availability." : "Sélectionnez une date pour voir la disponibilité."}
+              </div>
+            ) : (
+              <div className="space-y-3 text-sm">
+                <p><span className="font-semibold">{isEnglish ? "Period:" : "Période:"}</span> {getDateLabel(toIsoDay(selected.debut))} - {getDateLabel(toIsoDay(selected.fin))}</p>
+                <p><span className="font-semibold">{isEnglish ? "Destination:" : "Destination:"}</span> {selected.destination}</p>
+                <p><span className="font-semibold">{isEnglish ? "Status:" : "Statut:"}</span> {selected.statut}</p>
+                <p><span className="font-semibold">{isEnglish ? "Remaining units:" : "Unités restantes:"}</span> {Math.max(0, totalUnits - reservedUnits)} / {totalUnits || "?"}</p>
+                {!!selected.notePublique && <p className="rounded-lg bg-slate-50 p-2 text-xs text-slate-600">{selected.notePublique}</p>}
+                {isBookable(selected) && (
+                  <>
+                    <div className={`grid gap-2 ${isDayTrip ? "grid-cols-1" : "grid-cols-2"}`}>
+                      <button
+                        onClick={() => setReservationMode("priva")}
+                        disabled={!canBookPrivate}
+                        className={`rounded-lg border px-3 py-2 text-xs font-semibold ${reservationMode === "priva" ? "text-white" : ""} ${canBookPrivate ? "" : "opacity-40 cursor-not-allowed"}`}
+                        style={reservationMode === "priva" ? { backgroundColor: BRAND_DEEP, borderColor: BRAND_DEEP } : { color: BRAND_DEEP, borderColor: "#d8c1a6" }}
+                      >
+                        {isEnglish ? "Private" : "Privatif"}
+                      </button>
+                      {!isDayTrip && (
                         <button
-                          onClick={() => setReservationMode("priva")}
-                          disabled={!canBookPrivate}
-                          className={`px-3 py-2 rounded-lg text-xs font-semibold border ${
-                            reservationMode === "priva"
-                              ? "text-white"
-                              : "bg-white"
-                          } ${canBookPrivate ? "" : "opacity-40 cursor-not-allowed"}`}
-                          style={reservationMode === "priva" ? { backgroundColor: BRAND_DEEP, borderColor: BRAND_DEEP } : { color: BRAND_DEEP, borderColor: "#d8c1a6" }}
+                          onClick={() => setReservationMode("cabine")}
+                          disabled={!canBookCabine}
+                          className={`rounded-lg border px-3 py-2 text-xs font-semibold ${reservationMode === "cabine" ? "text-white" : ""} ${canBookCabine ? "" : "opacity-40 cursor-not-allowed"}`}
+                          style={reservationMode === "cabine" ? { backgroundColor: BRAND_DEEP, borderColor: BRAND_DEEP } : { color: BRAND_DEEP, borderColor: "#d8c1a6" }}
                         >
-                          {isEnglish ? "Private charter" : "Privatif"}
+                          {isEnglish ? "Cabin/seat" : "Cabine/place"}
                         </button>
-                        {!isSelectedJourneeProduct && (
-                          <button
-                            onClick={() => setReservationMode("cabine")}
-                            disabled={!canBookCabine}
-                            className={`px-3 py-2 rounded-lg text-xs font-semibold border ${
-                              reservationMode === "cabine"
-                                ? "text-white"
-                                : "bg-white"
-                            } ${canBookCabine ? "" : "opacity-40 cursor-not-allowed"}`}
-                            style={reservationMode === "cabine" ? { backgroundColor: BRAND_DEEP, borderColor: BRAND_DEEP } : { color: BRAND_DEEP, borderColor: "#d8c1a6" }}
-                          >
-                            {isEnglish ? "Cabin" : "Cabine"}
-                          </button>
-                        )}
-                      </div>
-                      <p className="text-xs text-[oklch(0.45_0.04_220)] uppercase font-semibold mb-1">{isEnglish ? "Price" : "Tarif"}</p>
-                      <p className="text-2xl font-bold" style={{ color: BRAND_DEEP, fontFamily: "Cormorant Garamond, Times New Roman, serif" }}>
-                        {selectedTotalAmount.toLocaleString("fr-FR")} €
-                      </p>
-                      <p className="text-xs text-[oklch(0.45_0.04_220)]">
-                        {isSelectedDayTrip
-                          ? reservationMode === "priva"
-                            ? isEnglish
-                              ? `${selectedDayCount} day${selectedDayCount > 1 ? "s" : ""} · full boat`
-                              : `${selectedDayCount} jour${selectedDayCount > 1 ? "s" : ""} · bateau entier`
-                            : ""
-                          : reservationMode === "priva"
-                            ? isEnglish ? "private charter" : "bateau privatisé"
-                            : isEnglish ? "per cabin / person" : "par cabine / personne"}
-                      </p>
+                      )}
                     </div>
-                  )}
-
-                  {semaineSelectionnee.note && (
-                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-                      <p className="text-xs text-blue-900 font-medium">{semaineSelectionnee.note}</p>
-                    </div>
-                  )}
-
-                  {(canBookPrivate || canBookCabine) && (
-                    <a
-                      href={`/reservation?id=${semaineSelectionnee.id}&destination=${encodeURIComponent(semaineSelectionnee.destination || "")}&formule=semaine&typeReservation=${reservationMode === "priva" ? "bateau_entier" : "cabine"}&montant=${selectedTotalAmount}&dateDebut=${encodeURIComponent(semaineSelectionnee.debut || "")}&dateFin=${encodeURIComponent(semaineSelectionnee.fin || "")}`}
-                      className="w-full mt-6 px-4 py-3.5 text-white rounded-xl font-bold transition-colors text-center block shadow-lg"
-                      style={{ backgroundColor: BRAND_DEEP }}
-                    >
-                      {isEnglish ? "Book now →" : "Réserver →"}
-                    </a>
-                  )}
-                </div>
-              ) : (
-                <div className="text-center py-8">
-                  <Info className="w-12 h-12 text-slate-300 mx-auto mb-2" />
-                  <p className="text-sm text-[oklch(0.45_0.04_220)]">
-                    {isEnglish ? "Click a date to view details" : "Cliquez sur une date pour voir les détails"}
-                  </p>
-                </div>
-              )}
-            </div>
+                    <p className="text-2xl font-bold" style={{ color: BRAND_DEEP }}>{price.toLocaleString("fr-FR")} €</p>
+                    {(canBookPrivate || canBookCabine) && (
+                      <a
+                        href={`/reservation?id=${selected.id}&destination=${encodeURIComponent(selected.destination || "")}&formule=${isDayTrip ? "journee" : "semaine"}&typeReservation=${reservationMode === "priva" ? "bateau_entier" : "cabine"}&montant=${price}&dateDebut=${encodeURIComponent(toIsoDay(selected.debut))}&dateFin=${encodeURIComponent(toIsoDay(selected.fin))}`}
+                        className="block rounded-xl px-4 py-3 text-center font-bold text-white"
+                        style={{ backgroundColor: BRAND_DEEP }}
+                      >
+                        {isEnglish ? "Book now" : "Réserver"}
+                      </a>
+                    )}
+                  </>
+                )}
+              </div>
+            )}
+          </div>
         </div>
       )}
     </div>
