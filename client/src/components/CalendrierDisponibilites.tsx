@@ -24,18 +24,25 @@ type Disponibilite = {
 const BRAND_DEEP = "#00384A";
 const MONTHS_FR = ["Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"];
 
-function toIsoDay(input: string | Date) {
-  return new Date(input).toISOString().slice(0, 10);
+function safeToIsoDay(input: string | Date | null | undefined) {
+  if (!input) return null;
+  const d = new Date(input);
+  if (Number.isNaN(d.getTime())) return null;
+  return d.toISOString().slice(0, 10);
 }
 
 function parseIsoDay(iso: string) {
   const [y, m, d] = iso.split("-").map(Number);
-  return new Date(Date.UTC(y, m - 1, d, 0, 0, 0, 0));
+  const parsed = new Date(Date.UTC(y, m - 1, d, 0, 0, 0, 0));
+  if (Number.isNaN(parsed.getTime())) return null;
+  return parsed;
 }
 
 function getProduct(dispo: Disponibilite): Produit {
   const destination = String(dispo.destination || "").toLowerCase();
-  const isDay = toIsoDay(dispo.debut) === toIsoDay(dispo.fin);
+  const start = safeToIsoDay(dispo.debut);
+  const end = safeToIsoDay(dispo.fin);
+  const isDay = Boolean(start && end && start === end);
   if (isDay && destination.includes("la ciotat")) return "journee";
   if (destination.includes("transat")) return "transat";
   if (destination.includes("cara")) return "caraibes";
@@ -66,6 +73,7 @@ function getBadgeClass(dispo: Disponibilite) {
 
 function getDateLabel(iso: string) {
   const d = parseIsoDay(iso);
+  if (!d) return "--/--";
   return `${String(d.getUTCDate()).padStart(2, "0")}/${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
 }
 
@@ -84,7 +92,8 @@ export default function CalendrierDisponibilites({ isEnglish = false }: { isEngl
         const res = await fetch(`/api/disponibilites?t=${Date.now()}`, { cache: "no-store" });
         if (!res.ok) throw new Error("Failed to fetch disponibilites");
         const rows: Disponibilite[] = await res.json();
-        const sorted = rows.slice().sort((a, b) => new Date(a.debut).getTime() - new Date(b.debut).getTime());
+        const normalized = rows.filter((r) => Boolean(safeToIsoDay(r.debut) && safeToIsoDay(r.fin)));
+        const sorted = normalized.slice().sort((a, b) => new Date(a.debut).getTime() - new Date(b.debut).getTime());
         setDispos(sorted);
         const first = sorted.find((d) => isBookable(d));
         if (first) {
@@ -105,14 +114,16 @@ export default function CalendrierDisponibilites({ isEnglish = false }: { isEngl
   const byDay = useMemo(() => {
     const map = new Map<string, Disponibilite[]>();
     for (const d of filtered) {
-      const start = toIsoDay(d.debut);
-      const end = toIsoDay(d.fin);
+      const start = safeToIsoDay(d.debut);
+      const end = safeToIsoDay(d.fin);
+      if (!start || !end) continue;
       let cursor = start;
       while (cursor <= end) {
         const current = map.get(cursor) || [];
         current.push(d);
         map.set(cursor, current);
         const next = parseIsoDay(cursor);
+        if (!next) break;
         next.setUTCDate(next.getUTCDate() + 1);
         cursor = next.toISOString().slice(0, 10);
       }
@@ -203,8 +214,15 @@ export default function CalendrierDisponibilites({ isEnglish = false }: { isEngl
                 const slot = bestForDay(iso);
                 const selectedRange =
                   selected &&
-                  parseIsoDay(toIsoDay(selected.debut)).getTime() <= d.getTime() &&
-                  d.getTime() <= parseIsoDay(toIsoDay(selected.fin)).getTime();
+                  (() => {
+                    const s = safeToIsoDay(selected.debut);
+                    const e = safeToIsoDay(selected.fin);
+                    if (!s || !e) return false;
+                    const sDate = parseIsoDay(s);
+                    const eDate = parseIsoDay(e);
+                    if (!sDate || !eDate) return false;
+                    return sDate.getTime() <= d.getTime() && d.getTime() <= eDate.getTime();
+                  })();
                 return (
                   <button
                     key={iso}
@@ -228,7 +246,10 @@ export default function CalendrierDisponibilites({ isEnglish = false }: { isEngl
               </div>
             ) : (
               <div className="space-y-3 text-sm">
-                <p><span className="font-semibold">{isEnglish ? "Period:" : "Période:"}</span> {getDateLabel(toIsoDay(selected.debut))} - {getDateLabel(toIsoDay(selected.fin))}</p>
+                <p>
+                  <span className="font-semibold">{isEnglish ? "Period:" : "Période:"}</span>{" "}
+                  {getDateLabel(safeToIsoDay(selected.debut) || "")} - {getDateLabel(safeToIsoDay(selected.fin) || "")}
+                </p>
                 <p><span className="font-semibold">{isEnglish ? "Destination:" : "Destination:"}</span> {selected.destination}</p>
                 <p><span className="font-semibold">{isEnglish ? "Status:" : "Statut:"}</span> {selected.statut}</p>
                 <p><span className="font-semibold">{isEnglish ? "Remaining units:" : "Unités restantes:"}</span> {Math.max(0, totalUnits - reservedUnits)} / {totalUnits || "?"}</p>
@@ -258,7 +279,7 @@ export default function CalendrierDisponibilites({ isEnglish = false }: { isEngl
                     <p className="text-2xl font-bold" style={{ color: BRAND_DEEP }}>{price.toLocaleString("fr-FR")} €</p>
                     {(canBookPrivate || canBookCabine) && (
                       <a
-                        href={`/reservation?id=${selected.id}&destination=${encodeURIComponent(selected.destination || "")}&formule=${isDayTrip ? "journee" : "semaine"}&typeReservation=${reservationMode === "priva" ? "bateau_entier" : "cabine"}&montant=${price}&dateDebut=${encodeURIComponent(toIsoDay(selected.debut))}&dateFin=${encodeURIComponent(toIsoDay(selected.fin))}`}
+                        href={`/reservation?id=${selected.id}&destination=${encodeURIComponent(selected.destination || "")}&formule=${isDayTrip ? "journee" : "semaine"}&typeReservation=${reservationMode === "priva" ? "bateau_entier" : "cabine"}&montant=${price}&dateDebut=${encodeURIComponent(safeToIsoDay(selected.debut) || "")}&dateFin=${encodeURIComponent(safeToIsoDay(selected.fin) || "")}`}
                         className="block rounded-xl px-4 py-3 text-center font-bold text-white"
                         style={{ backgroundColor: BRAND_DEEP }}
                       >
