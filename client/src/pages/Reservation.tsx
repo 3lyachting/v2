@@ -69,7 +69,7 @@ const isIsoInRange = (iso: string, start?: string, end?: string) => {
 };
 
 const BOOKING_RULES: BookingRule[] = [
-  { name: "journees-printemps", start: "2026-04-01", end: "2026-05-31", minDuration: 1, maxDuration: 1, fixedDuration: 1, forcedFormule: "journee_privee", forcedDestination: "La Ciotat - Cassis (plage de l'Arène) - retour" },
+  { name: "printemps-flex", start: "2026-04-01", end: "2026-05-31", minDuration: 1, maxDuration: 21, forcedDestination: "La Ciotat - Cassis (plage de l'Arène) - retour" },
   { name: "med-juin-flex", start: "2026-06-01", end: "2026-06-26", minDuration: 1, maxDuration: 21, forcedFormule: "croisiere_mediterranee" },
   { name: "ete-ajaccio", start: "2026-06-27", end: "2026-08-29", minDuration: 8, maxDuration: 8, fixedDuration: 8, saturdayStartOnly: true, forcedFormule: "croisiere_mediterranee", forcedDestination: "Ajaccio / Maddalena Nord ou Sud" },
   { name: "journees-septembre", start: "2026-09-01", end: "2026-09-30", minDuration: 1, maxDuration: 1, fixedDuration: 1, forcedFormule: "journee_privee", forcedDestination: "La Ciotat - Cassis (plage de l'Arène) - retour" },

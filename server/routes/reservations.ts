@@ -13,6 +13,7 @@ import {
   getConfirmedBookingUsage,
   refreshDisponibiliteBookingState,
   resolveDisponibiliteIdForReservation,
+  validateSaturdayToSaturdayOrThrow,
 } from "../_core/bookingRules";
 
 const router = Router();
@@ -121,6 +122,10 @@ router.post("/request", async (req, res) => {
       dateDebut,
       dateFin,
     });
+    const calendarRuleError = validateSaturdayToSaturdayOrThrow({ dateDebut, dateFin, formule });
+    if (calendarRuleError) {
+      return res.status(400).json({ error: calendarRuleError });
+    }
 
     let isAdminRequester = false;
     try {
@@ -344,6 +349,14 @@ router.put("/:id", requireAdmin, async (req, res) => {
       dateDebut: dateDebut ? String(dateDebut) : new Date(existing[0].dateDebut).toISOString(),
       dateFin: dateFin ? String(dateFin) : new Date(existing[0].dateFin).toISOString(),
     });
+    const calendarRuleError = validateSaturdayToSaturdayOrThrow({
+      dateDebut: dateDebut ? String(dateDebut) : existing[0].dateDebut,
+      dateFin: dateFin ? String(dateFin) : existing[0].dateFin,
+      formule: formule || existing[0].formule,
+    });
+    if (calendarRuleError) {
+      return res.status(400).json({ error: calendarRuleError });
+    }
 
     const selectedTypeReservation: "bateau_entier" | "cabine" | "place" =
       typeReservation === "cabine" || typeReservation === "place" || typeReservation === "bateau_entier"

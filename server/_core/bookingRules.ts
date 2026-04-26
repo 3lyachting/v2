@@ -19,6 +19,8 @@ const BLOCKING_WORKFLOW_STATUSES = [
 ] as const;
 
 const AUTO_NOTE_MARKER = "[AUTO_SEASON_SLOT]";
+const TRANSAT_ALLER_DESTINATION = "Transat aller — La Ciotat -> Pointe-à-Pitre via Canaries et Cap-Vert";
+const TRANSAT_RETOUR_DESTINATION = "Transat retour — Pointe-à-Pitre -> La Ciotat";
 
 type SeasonTemplate = {
   startIso: string;
@@ -173,6 +175,12 @@ function dayOfWeekIso(iso: string) {
   return new Date(`${iso}T00:00:00.000Z`).getUTCDay();
 }
 
+function daysBetweenIso(startIso: string, endIso: string) {
+  const start = new Date(`${startIso}T00:00:00.000Z`).getTime();
+  const end = new Date(`${endIso}T00:00:00.000Z`).getTime();
+  return Math.round((end - start) / (24 * 60 * 60 * 1000));
+}
+
 function nextSaturdayOnOrAfter(iso: string) {
   let cursor = iso;
   while (dayOfWeekIso(cursor) !== 6) {
@@ -211,30 +219,101 @@ function generateSaturdayWeeks(startIso: string, endIso: string, template: Omit<
   return out;
 }
 
+function toMonthIso(iso: string) {
+  return Number(iso.slice(5, 7));
+}
+
+function inIsoRange(value: string, startIso: string, endIso: string) {
+  return value >= startIso && value <= endIso;
+}
+
+export function isTransatAllerWindow(startIso: string, endIso: string) {
+  const year = Number(startIso.slice(0, 4));
+  return inIsoRange(startIso, isoDate(year, 4, 5), isoDate(year, 12, 15)) && endIso <= isoDate(year, 12, 15);
+}
+
+export function isTransatRetourWindow(startIso: string, endIso: string, nowYear = new Date().getUTCFullYear()) {
+  const year = Number(startIso.slice(0, 4));
+  if (year === nowYear) return false;
+  return inIsoRange(startIso, isoDate(year, 4, 5), isoDate(year, 5, 15)) && endIso <= isoDate(year, 5, 15);
+}
+
+export function isSaturdayToSaturdayRequired(input: { dateDebut: string | Date; dateFin: string | Date; formule?: string | null }) {
+  const startIso = toIsoDay(input.dateDebut);
+  const endIso = toIsoDay(input.dateFin);
+  if (!startIso || !endIso || endIso <= startIso) return false;
+  if (isTransatAllerWindow(startIso, endIso) || isTransatRetourWindow(startIso, endIso)) return false;
+  if (toMonthIso(startIso) === 5 || toMonthIso(startIso) === 6) return false;
+  const isWeeklyFormula = String(input.formule || "").toLowerCase() === "semaine";
+  const isSevenDays = daysBetweenIso(startIso, endIso) === 7;
+  return isWeeklyFormula || isSevenDays;
+}
+
+export function validateSaturdayToSaturdayOrThrow(input: { dateDebut: string | Date; dateFin: string | Date; formule?: string | null }) {
+  if (!isSaturdayToSaturdayRequired(input)) return null;
+  const startIso = toIsoDay(input.dateDebut);
+  const endIso = toIsoDay(input.dateFin);
+  if (!startIso || !endIso) return "Dates invalides.";
+  if (dayOfWeekIso(startIso) !== 6 || dayOfWeekIso(endIso) !== 6 || daysBetweenIso(startIso, endIso) !== 7) {
+    return "Les réservations hebdomadaires doivent être du samedi au samedi (hors mai/juin et transats dédiées).";
+  }
+  return null;
+}
+
 function getSeasonTemplatesForYear(year: number): SeasonTemplate[] {
-  const mayDayTrips = year === 2026;
+  const currentYear = new Date().getUTCFullYear();
   const templates: SeasonTemplate[] = [];
 
-  // Juin -> Août: semaines Corse/Sardaigne.
+  // Fenêtre dédiée transat aller (hors contrainte samedi->samedi).
   templates.push(
-    ...generateSaturdayWeeks(isoDate(year, 6, 1), isoDate(year, 9, 1), {
+    {
       planningType: "charter",
-      destination: "Corse & Sardaigne — départ Ajaccio",
-      notePublique: "Semaine de croisière en Corse et Sardaigne (samedi à samedi).",
-      tarif: null,
-      tarifCabine: 1750,
+      startIso: isoDate(year, 4, 5),
+      endIso: isoDate(year, 12, 15),
+      destination: TRANSAT_ALLER_DESTINATION,
+      notePublique: "Traversée dédiée La Ciotat -> Pointe-à-Pitre via Canaries et Cap-Vert.",
+      tarif: 3000,
+      tarifCabine: null,
       tarifJourPersonne: null,
       tarifJourPriva: null,
-      capaciteTotale: 4,
-    })
+      capaciteTotale: 8,
+    }
   );
 
-  // Septembre (1ère quinzaine): journées La Ciotat (conservées après 2026).
+  // Fenêtre dédiée transat retour (hors contrainte samedi->samedi), sauf année courante.
+  if (year !== currentYear) {
+    templates.push({
+      planningType: "charter",
+      startIso: isoDate(year, 4, 5),
+      endIso: isoDate(year, 5, 15),
+      destination: TRANSAT_RETOUR_DESTINATION,
+      notePublique: "Traversée retour dédiée (hors année courante).",
+      tarif: 3000,
+      tarifCabine: null,
+      tarifJourPersonne: null,
+      tarifJourPriva: null,
+      capaciteTotale: 8,
+    });
+  }
+
+  // Mai/Juin: créneaux journaliers flexibles (pas de contrainte samedi->samedi).
   templates.push(
-    ...generateDailySlots(isoDate(year, 9, 1), isoDate(year, 9, 15), {
+    ...generateDailySlots(isoDate(year, 4, 1), isoDate(year, 4, 30), {
       planningType: "charter",
       destination: "La Ciotat - Cassis (plage de l'Arène) - retour",
-      notePublique: "Journée privative (La Ciotat): navigation, baignade, paddle, apéro.",
+      notePublique: "Créneau flexible sans contrainte samedi->samedi (avril).",
+      tarif: null,
+      tarifCabine: null,
+      tarifJourPersonne: 130,
+      tarifJourPriva: 900,
+      capaciteTotale: 6,
+    })
+  );
+  templates.push(
+    ...generateDailySlots(isoDate(year, 5, 1), isoDate(year, 6, 30), {
+      planningType: "charter",
+      destination: "La Ciotat - Cassis (plage de l'Arène) - retour",
+      notePublique: "Créneau flexible sans contrainte samedi->samedi (mai/juin).",
       tarif: null,
       tarifCabine: null,
       tarifJourPersonne: 130,
@@ -243,40 +322,12 @@ function getSeasonTemplatesForYear(year: number): SeasonTemplate[] {
     })
   );
 
-  // Octobre: arrêt technique.
+  // Semaines standards samedi->samedi hors mai/juin et hors fenêtre transat aller dédiée.
   templates.push(
-    ...generateDailySlots(isoDate(year, 10, 1), isoDate(year, 10, 31), {
-      planningType: "technical_stop",
-      destination: "Arrêt technique — Port-Saint-Louis",
-      notePublique: "Arrêt technique (non réservable).",
-      tarif: null,
-      tarifCabine: null,
-      tarifJourPersonne: null,
-      tarifJourPriva: null,
-      capaciteTotale: 4,
-    })
-  );
-
-  // 1 Nov -> 15 Dec: transat.
-  templates.push(
-    ...generateSaturdayWeeks(isoDate(year, 11, 1), isoDate(year, 12, 16), {
-      planningType: "charter",
-      destination: "Transatlantique",
-      notePublique: "Traversée transatlantique (équipage professionnel).",
-      tarif: 3000,
-      tarifCabine: null,
-      tarifJourPersonne: null,
-      tarifJourPriva: null,
-      capaciteTotale: 8,
-    })
-  );
-
-  // 2e quinzaine Dec -> 1 Apr (année suivante): Caraïbes, samedi -> samedi.
-  templates.push(
-    ...generateSaturdayWeeks(isoDate(year, 12, 16), isoDate(year + 1, 4, 1), {
+    ...generateSaturdayWeeks(isoDate(year, 1, 1), isoDate(year, 4, 5), {
       planningType: "charter",
       destination: "Caraïbes",
-      notePublique: "Croisière Caraïbes (samedi à samedi).",
+      notePublique: "Semaine standard (samedi à samedi).",
       tarif: null,
       tarifCabine: 1750,
       tarifJourPersonne: null,
@@ -284,47 +335,25 @@ function getSeasonTemplatesForYear(year: number): SeasonTemplate[] {
       capaciteTotale: 4,
     })
   );
-
-  // 15 Apr -> 15 May: transat (sauf 2026 exceptionnel).
-  if (!mayDayTrips) {
-    templates.push(
-      ...generateSaturdayWeeks(isoDate(year, 4, 15), isoDate(year, 5, 16), {
-        planningType: "charter",
-        destination: "Transatlantique",
-        notePublique: "Traversée transatlantique (retour de saison).",
-        tarif: 3000,
-        tarifCabine: null,
-        tarifJourPersonne: null,
-        tarifJourPriva: null,
-        capaciteTotale: 8,
-      })
-    );
-  }
-
-  // Mai (2026 uniquement): journées La Ciotat.
-  if (mayDayTrips) {
-    templates.push(
-      ...generateDailySlots(isoDate(year, 5, 1), isoDate(year, 5, 31), {
-        planningType: "charter",
-        destination: "La Ciotat - Cassis (plage de l'Arène) - retour",
-        notePublique: "Journée privative (La Ciotat): navigation, baignade, paddle, apéro.",
-        tarif: null,
-        tarifCabine: null,
-        tarifJourPersonne: 130,
-        tarifJourPriva: 900,
-        capaciteTotale: 6,
-      })
-    );
-  }
-
-  // 15 May -> 1 Jun: arrêt technique.
   templates.push(
-    ...generateDailySlots(isoDate(year, 5, 15), isoDate(year, 6, 1), {
-      planningType: "technical_stop",
-      destination: "Arrêt technique — Port-Saint-Louis",
-      notePublique: "Arrêt technique (non réservable).",
+    ...generateSaturdayWeeks(isoDate(year, 7, 1), isoDate(year, 11, 1), {
+      planningType: "charter",
+      destination: "Corse & Sardaigne — départ Ajaccio",
+      notePublique: "Semaine standard (samedi à samedi).",
+      tarif: 15000,
+      tarifCabine: 1750,
+      tarifJourPersonne: null,
+      tarifJourPriva: null,
+      capaciteTotale: 4,
+    })
+  );
+  templates.push(
+    ...generateSaturdayWeeks(isoDate(year, 12, 16), isoDate(year + 1, 1, 1), {
+      planningType: "charter",
+      destination: "Caraïbes",
+      notePublique: "Semaine standard (samedi à samedi).",
       tarif: null,
-      tarifCabine: null,
+      tarifCabine: 1750,
       tarifJourPersonne: null,
       tarifJourPriva: null,
       capaciteTotale: 4,
@@ -334,7 +363,7 @@ function getSeasonTemplatesForYear(year: number): SeasonTemplate[] {
   return templates;
 }
 
-async function ensureSeasonAvailabilitySlots(db: BookingDb, years: number[]) {
+export async function seedDefaultAvailabilitySlots(db: BookingDb, years: number[]) {
   const normalizedYears = Array.from(new Set(years)).sort((a, b) => a - b);
   const allDispos = await db.select().from(disponibilites);
   const existingByRange = new Map<string, any>();
@@ -416,7 +445,7 @@ export async function syncDisponibilitesFromReservations(db: BookingDb) {
     .map((r: any) => new Date(r.dateDebut).getUTCFullYear())
     .filter((y: any) => Number.isFinite(y)) as number[];
   const currentYear = new Date().getUTCFullYear();
-  await ensureSeasonAvailabilitySlots(db, [currentYear - 1, currentYear, currentYear + 1, ...reservationYears]);
+  await seedDefaultAvailabilitySlots(db, [currentYear - 1, currentYear, currentYear + 1, ...reservationYears]);
 
   const allDisposAfterSeed = await db.select().from(disponibilites);
   const createdDispoIds: number[] = [];
