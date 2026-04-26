@@ -438,7 +438,41 @@ function SectionCatamaran({ isEnglish = false }: { isEnglish?: boolean }) {
 
         {/* Intérieur / Extérieur / Équipements */}
           <div className="grid md:grid-cols-3 gap-6">
-          {[
+          {(isEnglish ? [
+            {
+              title: "Interior",
+              icon: <Ship className="w-6 h-6" />,
+              img: "/photos%20site/cabine ar bb.jpeg",
+              items: [
+                "4 air-conditioned double cabins with private bathroom and WC",
+                "Bright panoramic saloon, Smart TV and Hi-Fi sound system",
+                "Fully equipped galley: ice maker, 160L/h watermaker, freezer",
+                "Storage, 220V/USB outlets and plenty of portholes in each cabin",
+              ],
+            },
+            {
+              title: "Exterior",
+              icon: <Sun className="w-6 h-6" />,
+              img: "/photos%20site/dji_fly_20260313_143914_122_1773409216418_photo_optimized.jpg",
+              items: [
+                "2 front trampolines to sunbathe and watch dolphins or whales",
+                "Large sun deck on the bimini with open views",
+                "Comfortable shaded aft cockpit for meals onboard",
+                "Teak aft platforms, swim ladders and deck showers",
+              ],
+            },
+            {
+              title: "Water toys",
+              icon: <Waves className="w-6 h-6" />,
+              img: "/photos%20site/dji_fly_20260313_182138_138_1773422563093_photo_optimized.jpg",
+              items: [
+                "2 stand-up paddle boards (10.6 ft)",
+                "1 rigid 2-person kayak",
+                "Fins, masks and snorkels",
+                "4.5 m semi-rigid tender with 25 hp outboard",
+              ],
+            },
+          ] : [
             {
               title: "Intérieur",
               icon: <Ship className="w-6 h-6" />,
@@ -472,7 +506,7 @@ function SectionCatamaran({ isEnglish = false }: { isEnglish?: boolean }) {
                 "Annexe semi-rigide 4,5 m avec hors-bord 25 cv",
               ],
             },
-          ].map((card, i) => (
+          ]).map((card, i) => (
             <Reveal key={card.title} delay={i * 0.12}>
               <div className="overflow-hidden rounded-3xl border border-[#d8bf91]/55 bg-[#fffdf7] shadow-[0_14px_30px_rgba(39,28,14,0.11)] transition-shadow duration-300 hover:shadow-[0_18px_36px_rgba(39,28,14,0.16)]">
                 <div className="relative h-44 overflow-hidden">
@@ -792,37 +826,69 @@ function SectionProgramme({ isEnglish = false }: { isEnglish?: boolean }) {
         {/* Formules */}
         <Reveal delay={0.2}>
           <div className="mt-16 grid md:grid-cols-3 gap-6">
-            {[
-              {
-                titre: "Semaine Méditerranée",
-              prix: "À partir de 14 000€ bateau entier",
-                desc: "Élégance méditerranéenne: cabine ou privatisation sur mesure",
-                color: "#0f4d62",
-                items: ["Départ le samedi", "Corse / Sardaigne", "Équipage professionnel", "Tarifs modulables selon période"],
-              },
-              {
-                titre: "Transatlantique",
-              prix: "À partir de 3 000€ / place",
-                desc: "Route Atlantique: La Ciotat → Guadeloupe via Gibraltar, Canaries et Cap-Vert",
-                color: "#00384A",
-                items: ["Traversées océan", "Cabine ou place", "Navigation hauturière", "Accompagnement équipage"],
-                featured: true,
-              },
-              {
-                titre: "Semaine Caraïbes",
-              prix: "À partir de 14 000€ bateau entier",
-                desc: "Évasion caribéenne: de 1 à 3 semaines entre îles iconiques",
-                color: "#2f6f82",
-                items: ["Départ samedi", "Grenadines", "Cabine ou privatisation", "Itinéraire sur mesure"],
-            },
-            {
-              titre: "Journée La Ciotat - Cassis",
-              prix: "1 000€ tout inclus · bateau entier",
-              desc: "Programme: La Ciotat → Cassis (plage de l'Arène) → retour",
-              color: "#1f5f70",
-              items: ["Périodes: avril, mai et septembre", "Voile", "Kayak", "Paddle"],
-              },
-            ].map(f => (
+            {(isEnglish
+              ? [
+                  {
+                    titre: "Mediterranean Week",
+                    prix: "From €14,000 full boat",
+                    desc: "Mediterranean elegance: cabin booking or private charter tailored to your trip.",
+                    color: "#0f4d62",
+                    items: ["Saturday departures", "Corsica / Sardinia", "Professional crew", "Flexible pricing by season"],
+                  },
+                  {
+                    titre: "Atlantic Crossing",
+                    prix: "From €3,000 / berth",
+                    desc: "Atlantic route: La Ciotat → Guadeloupe via Gibraltar, Canary Islands and Cape Verde.",
+                    color: "#00384A",
+                    items: ["Ocean passages", "Cabin or berth", "Offshore navigation", "Crew supervision"],
+                    featured: true,
+                  },
+                  {
+                    titre: "Caribbean Week",
+                    prix: "From €14,000 full boat",
+                    desc: "Caribbean escape: 1 to 3 weeks across iconic islands at your own pace.",
+                    color: "#2f6f82",
+                    items: ["Saturday departures", "Grenadines", "Cabin or private charter", "Tailor-made itinerary"],
+                  },
+                  {
+                    titre: "La Ciotat - Cassis Day Trip",
+                    prix: "€1,000 all-inclusive · full boat",
+                    desc: "Route: La Ciotat → Cassis (Arène beach) → return.",
+                    color: "#1f5f70",
+                    items: ["Periods: April, May and September", "Sailing", "Kayak", "Paddle"],
+                  },
+                ]
+              : [
+                  {
+                    titre: "Semaine Méditerranée",
+                    prix: "À partir de 14 000€ bateau entier",
+                    desc: "Élégance méditerranéenne: cabine ou privatisation sur mesure",
+                    color: "#0f4d62",
+                    items: ["Départ le samedi", "Corse / Sardaigne", "Équipage professionnel", "Tarifs modulables selon période"],
+                  },
+                  {
+                    titre: "Transatlantique",
+                    prix: "À partir de 3 000€ / place",
+                    desc: "Route Atlantique: La Ciotat → Guadeloupe via Gibraltar, Canaries et Cap-Vert",
+                    color: "#00384A",
+                    items: ["Traversées océan", "Cabine ou place", "Navigation hauturière", "Accompagnement équipage"],
+                    featured: true,
+                  },
+                  {
+                    titre: "Semaine Caraïbes",
+                    prix: "À partir de 14 000€ bateau entier",
+                    desc: "Évasion caribéenne: de 1 à 3 semaines entre îles iconiques",
+                    color: "#2f6f82",
+                    items: ["Départ samedi", "Grenadines", "Cabine ou privatisation", "Itinéraire sur mesure"],
+                  },
+                  {
+                    titre: "Journée La Ciotat - Cassis",
+                    prix: "1 000€ tout inclus · bateau entier",
+                    desc: "Programme: La Ciotat → Cassis (plage de l'Arène) → retour",
+                    color: "#1f5f70",
+                    items: ["Périodes: avril, mai et septembre", "Voile", "Kayak", "Paddle"],
+                  },
+                ]).map(f => (
               <div
                 key={f.titre}
                 className={`relative p-6 rounded-3xl ${f.featured ? "shadow-2xl scale-105" : "border-2 border-[oklch(0.92_0.04_220)]"}`}
@@ -830,7 +896,7 @@ function SectionProgramme({ isEnglish = false }: { isEnglish?: boolean }) {
               >
                 {f.featured && (
                   <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-[oklch(0.84_0.05_80)] text-[oklch(0.15_0.05_240)] text-xs font-bold px-4 py-1 rounded-full">
-                    ⭐ Transatlantique
+                    ⭐ {isEnglish ? "Atlantic crossing" : "Transatlantique"}
                   </div>
                 )}
                 <div className={`text-sm font-bold tracking-widest uppercase mb-2 ${f.featured ? "text-white/70" : ""}`}
