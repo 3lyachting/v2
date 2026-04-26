@@ -14,6 +14,7 @@ import {
   refreshDisponibiliteBookingState,
   resolveDisponibiliteIdForReservation,
 } from "../_core/bookingRules";
+import { validateReservationPolicy } from "@shared/reservationPolicy";
 
 const router = Router();
 const CUSTOMER_COOKIE = "customer_session_id";
@@ -116,6 +117,21 @@ router.post("/request", async (req, res) => {
 
     const parsedDisponibiliteIdRaw =
       disponibiliteId !== null && disponibiliteId !== undefined ? parseInt(disponibiliteId, 10) : null;
+
+    const selectedDispoForPolicy =
+      parsedDisponibiliteIdRaw && Number.isFinite(parsedDisponibiliteIdRaw)
+        ? await db.select().from(disponibilites).where(eq(disponibilites.id, parsedDisponibiliteIdRaw)).limit(1)
+        : [];
+    const effectiveDestination = destination || selectedDispoForPolicy[0]?.destination || "";
+    const policyCheck = validateReservationPolicy({
+      dateDebut,
+      dateFin,
+      destination: effectiveDestination,
+    });
+    if (!policyCheck.ok) {
+      return res.status(400).json({ error: policyCheck.reason });
+    }
+
     const parsedDisponibiliteId = await resolveDisponibiliteIdForReservation(db, {
       disponibiliteId: parsedDisponibiliteIdRaw,
       dateDebut,
@@ -344,6 +360,22 @@ router.put("/:id", requireAdmin, async (req, res) => {
       dateDebut: dateDebut ? String(dateDebut) : new Date(existing[0].dateDebut).toISOString(),
       dateFin: dateFin ? String(dateFin) : new Date(existing[0].dateFin).toISOString(),
     });
+
+    const selectedDispoForPolicy =
+      resolvedDisponibiliteId && Number.isFinite(resolvedDisponibiliteId)
+        ? await db.select().from(disponibilites).where(eq(disponibilites.id, resolvedDisponibiliteId)).limit(1)
+        : [];
+    const effectiveDateDebut = dateDebut ? String(dateDebut) : new Date(existing[0].dateDebut).toISOString();
+    const effectiveDateFin = dateFin ? String(dateFin) : new Date(existing[0].dateFin).toISOString();
+    const effectiveDestination = destination || selectedDispoForPolicy[0]?.destination || existing[0].destination || "";
+    const policyCheck = validateReservationPolicy({
+      dateDebut: effectiveDateDebut,
+      dateFin: effectiveDateFin,
+      destination: effectiveDestination,
+    });
+    if (!policyCheck.ok) {
+      return res.status(400).json({ error: policyCheck.reason });
+    }
 
     const selectedTypeReservation: "bateau_entier" | "cabine" | "place" =
       typeReservation === "cabine" || typeReservation === "place" || typeReservation === "bateau_entier"

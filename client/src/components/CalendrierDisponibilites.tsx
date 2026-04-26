@@ -203,7 +203,7 @@ export default function CalendrierDisponibilites({ isEnglish = false }: { isEngl
   const reservedUnits = getReservedUnits(selected);
   const hasPriva = Boolean(selected && (selected.tarifJourPriva || selected.tarif));
   const hasCabine = Boolean(selected && (selected.tarifCabine || selected.tarifJourPersonne));
-  const canBookPrivate = Boolean(selected && isBookable(selected) && hasPriva && reservedUnits === 0);
+  const canBookPrivate = Boolean(selected && isBookable(selected) && hasPriva);
   const canBookCabine = Boolean(selected && isBookable(selected) && !isDayTrip && hasCabine && reservedUnits < totalUnits);
   const seasonPricePerPassenger = useMemo(() => {
     if (!selected) return null;

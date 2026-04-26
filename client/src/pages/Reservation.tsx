@@ -56,29 +56,20 @@ type BookingRule = {
   maxDuration: number;
   fixedDuration?: number;
   saturdayStartOnly?: boolean;
-  forcedFormule?: FormuleKey;
-  forcedDestination?: string;
-  start?: string;
-  end?: string;
 };
-
-const isIsoInRange = (iso: string, start?: string, end?: string) => {
-  if (start && iso < start) return false;
-  if (end && iso > end) return false;
-  return true;
+const ruleForDay = (isoDay: string): BookingRule => {
+  const month = Number(isoDay.slice(5, 7));
+  if (month === 5 || month === 6) {
+    return { name: "mai-juin-flex", minDuration: 1, maxDuration: 21 };
+  }
+  return {
+    name: "hebdo-samedi",
+    minDuration: 8,
+    maxDuration: 8,
+    fixedDuration: 8,
+    saturdayStartOnly: true,
+  };
 };
-
-const BOOKING_RULES: BookingRule[] = [
-  { name: "journees-printemps", start: "2026-04-01", end: "2026-05-31", minDuration: 1, maxDuration: 1, fixedDuration: 1, forcedFormule: "journee_privee", forcedDestination: "La Ciotat - Cassis (plage de l'Arène) - retour" },
-  { name: "med-juin-flex", start: "2026-06-01", end: "2026-06-26", minDuration: 1, maxDuration: 21, forcedFormule: "croisiere_mediterranee" },
-  { name: "ete-ajaccio", start: "2026-06-27", end: "2026-08-29", minDuration: 8, maxDuration: 8, fixedDuration: 8, saturdayStartOnly: true, forcedFormule: "croisiere_mediterranee", forcedDestination: "Ajaccio / Maddalena Nord ou Sud" },
-  { name: "journees-septembre", start: "2026-09-01", end: "2026-09-30", minDuration: 1, maxDuration: 1, fixedDuration: 1, forcedFormule: "journee_privee", forcedDestination: "La Ciotat - Cassis (plage de l'Arène) - retour" },
-  { name: "nov-transfert", start: "2026-11-01", end: "2026-11-10", minDuration: 10, maxDuration: 10, fixedDuration: 10, forcedFormule: "transatlantique", forcedDestination: "La Ciotat - Transat" },
-  { name: "grenadines", start: "2026-12-21", end: "2027-03-31", minDuration: 7, maxDuration: 21, saturdayStartOnly: true, forcedFormule: "croisiere_caraibes", forcedDestination: "Grenadines (départ Fort-de-France)" },
-  { name: "transat-printemps", start: "2027-04-01", end: "2027-05-01", minDuration: 30, maxDuration: 30, fixedDuration: 30, forcedFormule: "transatlantique", forcedDestination: "Transatique Avril-Mai (bateau entier)" },
-];
-
-const ruleForDay = (isoDay: string) => BOOKING_RULES.find(r => isIsoInRange(isoDay, r.start, r.end)) || null;
 
 export default function Reservation() {
   const [, setLocation] = useLocation();
@@ -219,7 +210,6 @@ export default function Reservation() {
       const rule = ruleForDay(iso);
       if (rule?.saturdayStartOnly && utcDay(iso) !== 6) continue;
       const effectiveDuration = rule?.fixedDuration || durationDays;
-      if (rule?.end && addDays(iso, effectiveDuration - 1) > rule.end) continue;
       let canReserve = true;
       for (let j = 0; j < effectiveDuration; j++) {
         if (blockedDays.has(addDays(iso, j))) {
@@ -249,13 +239,10 @@ export default function Reservation() {
 
   useEffect(() => {
     if (!selectedRule) return;
-    if (selectedRule.forcedFormule && selectedRule.forcedFormule !== formuleKey) {
-      setFormuleKey(selectedRule.forcedFormule);
-    }
     if (selectedRule.fixedDuration && selectedRule.fixedDuration !== durationDays) {
       setDurationDays(selectedRule.fixedDuration);
     }
-  }, [selectedRule, formuleKey, durationDays]);
+  }, [selectedRule, durationDays]);
 
   const pricingDispo = useMemo(
     () => {
@@ -277,7 +264,7 @@ export default function Reservation() {
     [disponibilites, selectedStart]
   );
 
-  const destination = selectedRule?.forcedDestination || (pricingDispo?.destination || "Méditerranée");
+  const destination = pricingDispo?.destination || "Méditerranée";
   const urlMontant = Number(searchParams.get("montant") || "");
   const weeklyCabineEur = pricingDispo?.tarifCabine ?? 3900;
   const weeklyPrivaEur = pricingDispo?.tarif ?? 15000;

@@ -212,12 +212,54 @@ function generateSaturdayWeeks(startIso: string, endIso: string, template: Omit<
 }
 
 function getSeasonTemplatesForYear(year: number): SeasonTemplate[] {
-  const mayDayTrips = year === 2026;
+  const currentYear = new Date().getUTCFullYear();
   const templates: SeasonTemplate[] = [];
 
-  // Juin -> Août: semaines Corse/Sardaigne.
+  // Janvier -> début avril: semaines Caraïbes (samedi -> samedi).
   templates.push(
-    ...generateSaturdayWeeks(isoDate(year, 6, 1), isoDate(year, 9, 1), {
+    ...generateSaturdayWeeks(isoDate(year, 1, 1), isoDate(year, 4, 5), {
+      planningType: "charter",
+      destination: "Caraïbes",
+      notePublique: "Croisière Caraïbes (samedi à samedi).",
+      tarif: null,
+      tarifCabine: 1750,
+      tarifJourPersonne: null,
+      tarifJourPriva: null,
+      capaciteTotale: 4,
+    })
+  );
+
+  // 5 avril -> 15 décembre: transat aller dédiée, réservation flexible (hors samedi->samedi).
+  templates.push(
+    ...generateDailySlots(isoDate(year, 4, 5), isoDate(year, 12, 15), {
+      planningType: "charter",
+      destination: "Transat aller La Ciotat -> Pointe-à-Pitre (Canaries + Cap-Vert)",
+      notePublique: "Transat aller dédiée (réservation flexible selon itinéraire).",
+      tarif: 3000,
+      tarifCabine: null,
+      tarifJourPersonne: null,
+      tarifJourPriva: null,
+      capaciteTotale: 8,
+    })
+  );
+
+  // Exception mai + juin: journées/mini-séjours autorisés.
+  templates.push(
+    ...generateDailySlots(isoDate(year, 5, 1), isoDate(year, 6, 30), {
+      planningType: "charter",
+      destination: "La Ciotat - Cassis (plage de l'Arène) - retour",
+      notePublique: "Mai/juin: réservations à la journée ou multi-jours possibles.",
+      tarif: null,
+      tarifCabine: null,
+      tarifJourPersonne: 130,
+      tarifJourPriva: 900,
+      capaciteTotale: 6,
+    })
+  );
+
+  // Juillet -> fin août: semaines Corse/Sardaigne (samedi -> samedi).
+  templates.push(
+    ...generateSaturdayWeeks(isoDate(year, 7, 1), isoDate(year, 9, 1), {
       planningType: "charter",
       destination: "Corse & Sardaigne — départ Ajaccio",
       notePublique: "Semaine de croisière en Corse et Sardaigne (samedi à samedi).",
@@ -229,7 +271,7 @@ function getSeasonTemplatesForYear(year: number): SeasonTemplate[] {
     })
   );
 
-  // Septembre (1ère quinzaine): journées La Ciotat (conservées après 2026).
+  // Septembre (1ère quinzaine): journées La Ciotat.
   templates.push(
     ...generateDailySlots(isoDate(year, 9, 1), isoDate(year, 9, 15), {
       planningType: "charter",
@@ -240,34 +282,6 @@ function getSeasonTemplatesForYear(year: number): SeasonTemplate[] {
       tarifJourPersonne: 130,
       tarifJourPriva: 900,
       capaciteTotale: 6,
-    })
-  );
-
-  // Octobre: arrêt technique.
-  templates.push(
-    ...generateDailySlots(isoDate(year, 10, 1), isoDate(year, 10, 31), {
-      planningType: "technical_stop",
-      destination: "Arrêt technique — Port-Saint-Louis",
-      notePublique: "Arrêt technique (non réservable).",
-      tarif: null,
-      tarifCabine: null,
-      tarifJourPersonne: null,
-      tarifJourPriva: null,
-      capaciteTotale: 4,
-    })
-  );
-
-  // 1 Nov -> 15 Dec: transat.
-  templates.push(
-    ...generateSaturdayWeeks(isoDate(year, 11, 1), isoDate(year, 12, 16), {
-      planningType: "charter",
-      destination: "Transatlantique",
-      notePublique: "Traversée transatlantique (équipage professionnel).",
-      tarif: 3000,
-      tarifCabine: null,
-      tarifJourPersonne: null,
-      tarifJourPriva: null,
-      capaciteTotale: 8,
     })
   );
 
@@ -285,13 +299,13 @@ function getSeasonTemplatesForYear(year: number): SeasonTemplate[] {
     })
   );
 
-  // 15 Apr -> 15 May: transat (sauf 2026 exceptionnel).
-  if (!mayDayTrips) {
+  // Exception transat retour dédiée: 5 avril -> 15 mai, sauf année courante.
+  if (year !== currentYear) {
     templates.push(
-      ...generateSaturdayWeeks(isoDate(year, 4, 15), isoDate(year, 5, 16), {
+      ...generateDailySlots(isoDate(year, 4, 5), isoDate(year, 5, 15), {
         planningType: "charter",
-        destination: "Transatlantique",
-        notePublique: "Traversée transatlantique (retour de saison).",
+        destination: "Transat retour Pointe-à-Pitre -> La Ciotat",
+        notePublique: "Transat retour dédiée (hors année courante).",
         tarif: 3000,
         tarifCabine: null,
         tarifJourPersonne: null,
@@ -300,36 +314,6 @@ function getSeasonTemplatesForYear(year: number): SeasonTemplate[] {
       })
     );
   }
-
-  // Mai (2026 uniquement): journées La Ciotat.
-  if (mayDayTrips) {
-    templates.push(
-      ...generateDailySlots(isoDate(year, 5, 1), isoDate(year, 5, 31), {
-        planningType: "charter",
-        destination: "La Ciotat - Cassis (plage de l'Arène) - retour",
-        notePublique: "Journée privative (La Ciotat): navigation, baignade, paddle, apéro.",
-        tarif: null,
-        tarifCabine: null,
-        tarifJourPersonne: 130,
-        tarifJourPriva: 900,
-        capaciteTotale: 6,
-      })
-    );
-  }
-
-  // 15 May -> 1 Jun: arrêt technique.
-  templates.push(
-    ...generateDailySlots(isoDate(year, 5, 15), isoDate(year, 6, 1), {
-      planningType: "technical_stop",
-      destination: "Arrêt technique — Port-Saint-Louis",
-      notePublique: "Arrêt technique (non réservable).",
-      tarif: null,
-      tarifCabine: null,
-      tarifJourPersonne: null,
-      tarifJourPriva: null,
-      capaciteTotale: 4,
-    })
-  );
 
   return templates;
 }
