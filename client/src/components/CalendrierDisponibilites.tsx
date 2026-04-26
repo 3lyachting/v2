@@ -44,6 +44,36 @@ const DEFAULT_SEASON_PRICING: SeasonPricingConfig = {
   caraibes: { highSeasonPerPassenger: null, lowSeasonPerPassenger: null },
   journee: { highSeasonPerPassenger: null, lowSeasonPerPassenger: null },
 };
+const FILTER_ANCHOR_MONTH_BY_PRODUCT: Partial<Record<Produit, number>> = {
+  med: 6, // Juillet
+  transat: 10, // Novembre
+  caraibes: 11, // Decembre
+};
+
+function toUtcMonthStart(date: Date) {
+  return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 1));
+}
+
+function normalizeProductFilter(value: string): Produit {
+  const normalized = value
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim();
+
+  if (["med", "mediterranee", "mediterranean", "croisiere_mediterranee"].includes(normalized)) return "med";
+  if (["transat", "transatlantique", "traversee", "atlantic"].includes(normalized)) return "transat";
+  if (["caraibes", "caribbean", "antilles", "croisiere_caraibes"].includes(normalized)) return "caraibes";
+  if (["journee", "daytrip", "day_trip", "journee_privee"].includes(normalized)) return "journee";
+  if (normalized === "all" || normalized === "tous") return "all";
+  return "all";
+}
+
+function getAnchorMonthForFilter(filter: Produit, today: Date) {
+  const monthIdx = FILTER_ANCHOR_MONTH_BY_PRODUCT[normalizeProductFilter(filter)];
+  if (monthIdx === undefined) return toUtcMonthStart(today);
+  return new Date(Date.UTC(today.getUTCFullYear(), monthIdx, 1));
+}
 
 function getProduct(dispo: Disponibilite): Produit {
   return getProductFromDisponibilite(dispo);
@@ -93,10 +123,11 @@ function toSeasonPricingProduct(product: Produit): SeasonPricingProduct {
 }
 
 export default function CalendrierDisponibilites({ isEnglish = false }: { isEnglish?: boolean }) {
+  const [todayAnchor] = useState(() => toUtcMonthStart(new Date()));
   const [dispos, setDispos] = useState<Disponibilite[]>([]);
   const [loading, setLoading] = useState(true);
   const [pricing, setPricing] = useState<SeasonPricingConfig>(DEFAULT_SEASON_PRICING);
-  const [month, setMonth] = useState(new Date());
+  const [month, setMonth] = useState(todayAnchor);
   const [selected, setSelected] = useState<Disponibilite | null>(null);
   const [filter, setFilter] = useState<Produit>("all");
   const [reservationMode, setReservationMode] = useState<ReservationMode>("cabine");
@@ -113,8 +144,6 @@ export default function CalendrierDisponibilites({ isEnglish = false }: { isEngl
         setDispos(sorted);
         const first = sorted.find((d) => isBookable(d));
         if (first) {
-          const start = new Date(first.debut);
-          setMonth(new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth(), 1)));
           setSelected(first);
         }
       } catch {
@@ -125,6 +154,10 @@ export default function CalendrierDisponibilites({ isEnglish = false }: { isEngl
     };
     void run();
   }, []);
+
+  useEffect(() => {
+    setMonth(getAnchorMonthForFilter(filter, todayAnchor));
+  }, [filter, todayAnchor]);
 
   useEffect(() => {
     const loadPricing = async () => {
