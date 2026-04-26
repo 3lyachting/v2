@@ -6,10 +6,11 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
-import { Plus, Edit2, Trash2, Calendar, LogOut, Anchor, CreditCard, Check, Clock, X, Link2, FileText, Users, Wrench, ChevronLeft, ChevronRight } from "lucide-react";
+import { Plus, Edit2, Trash2, Calendar, LogOut, Anchor, CreditCard, Check, Clock, X, Link2, FileText, Users, Wrench, ChevronLeft, ChevronRight, MapPinned } from "lucide-react";
 import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import ConfigIcal from "@/components/ConfigIcal";
 import BackofficeOps from "@/components/BackofficeOps";
+import InventoryManager from "@/components/InventoryManager";
 import logoSabine from "/logo-sabine.png";
 
 interface Reservation {
@@ -899,6 +900,16 @@ export default function Admin() {
           >
             <CreditCard className="w-4 h-4" /> Finances
           </button>
+          <button
+            onClick={() => setTab("inventaire")}
+            className={`px-5 py-3 font-semibold text-sm flex items-center gap-2 border-b-2 transition-colors ${
+              tab === "inventaire"
+                ? "text-blue-900 border-blue-900"
+                : "text-slate-500 border-transparent hover:text-slate-700"
+            }`}
+          >
+            <MapPinned className="w-4 h-4" /> Inventaire
+          </button>
         </div>
 
         {/* Vue Synchronisation iCal */}
@@ -906,6 +917,7 @@ export default function Admin() {
         {tab === "documents" && <BackofficeOps mode="documents" />}
         {tab === "equipage" && <BackofficeOps mode="crew" />}
         {tab === "maintenance" && <BackofficeOps mode="maintenance" />}
+        {tab === "inventaire" && <InventoryManager />}
         {tab === "finances" && (
           <div className="space-y-6">
             <div>
