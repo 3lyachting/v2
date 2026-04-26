@@ -1,5 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { ChevronLeft, ChevronRight, Info } from "lucide-react";
+import {
+  chooseBestDisponibiliteForDay,
+  getProductFromDisponibilite,
+  isBookableDisponibilite,
+  parseIsoDayUtc,
+  toIsoDayUtc,
+} from "@shared/calendarSelection";
 
 type Statut = "disponible" | "reserve" | "option" | "ferme";
 type Produit = "all" | "med" | "transat" | "caraibes" | "journee";
@@ -38,35 +45,12 @@ const DEFAULT_SEASON_PRICING: SeasonPricingConfig = {
   journee: { highSeasonPerPassenger: null, lowSeasonPerPassenger: null },
 };
 
-function safeToIsoDay(input: string | Date | null | undefined) {
-  if (!input) return null;
-  const d = new Date(input);
-  if (Number.isNaN(d.getTime())) return null;
-  return d.toISOString().slice(0, 10);
-}
-
-function parseIsoDay(iso: string) {
-  const [y, m, d] = iso.split("-").map(Number);
-  const parsed = new Date(Date.UTC(y, m - 1, d, 0, 0, 0, 0));
-  if (Number.isNaN(parsed.getTime())) return null;
-  return parsed;
-}
-
 function getProduct(dispo: Disponibilite): Produit {
-  const destination = String(dispo.destination || "").toLowerCase();
-  const start = safeToIsoDay(dispo.debut);
-  const end = safeToIsoDay(dispo.fin);
-  const isDay = Boolean(start && end && start === end);
-  if (isDay && destination.includes("la ciotat")) return "journee";
-  if (destination.includes("transat")) return "transat";
-  if (destination.includes("cara")) return "caraibes";
-  return "med";
+  return getProductFromDisponibilite(dispo);
 }
 
 function isBookable(dispo?: Disponibilite | null) {
-  if (!dispo) return false;
-  if (dispo.planningType && dispo.planningType !== "charter") return false;
-  return dispo.statut === "disponible" || dispo.statut === "option";
+  return isBookableDisponibilite(dispo);
 }
 
 function getTotalUnits(dispo?: Disponibilite | null) {
@@ -86,7 +70,7 @@ function getBadgeClass(dispo: Disponibilite) {
 }
 
 function getDateLabel(iso: string) {
-  const d = parseIsoDay(iso);
+  const d = parseIsoDayUtc(iso);
   if (!d) return "--/--";
   return `${String(d.getUTCDate()).padStart(2, "0")}/${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
 }
@@ -124,7 +108,7 @@ export default function CalendrierDisponibilites({ isEnglish = false }: { isEngl
         const res = await fetch(`/api/disponibilites?t=${Date.now()}`, { cache: "no-store" });
         if (!res.ok) throw new Error("Failed to fetch disponibilites");
         const rows: Disponibilite[] = await res.json();
-        const normalized = rows.filter((r) => Boolean(safeToIsoDay(r.debut) && safeToIsoDay(r.fin)));
+        const normalized = rows.filter((r) => Boolean(toIsoDayUtc(r.debut) && toIsoDayUtc(r.fin)));
         const sorted = normalized.slice().sort((a, b) => new Date(a.debut).getTime() - new Date(b.debut).getTime());
         setDispos(sorted);
         const first = sorted.find((d) => isBookable(d));
@@ -160,15 +144,15 @@ export default function CalendrierDisponibilites({ isEnglish = false }: { isEngl
   const byDay = useMemo(() => {
     const map = new Map<string, Disponibilite[]>();
     for (const d of filtered) {
-      const start = safeToIsoDay(d.debut);
-      const end = safeToIsoDay(d.fin);
+      const start = toIsoDayUtc(d.debut);
+      const end = toIsoDayUtc(d.fin);
       if (!start || !end) continue;
       let cursor = start;
       while (cursor <= end) {
         const current = map.get(cursor) || [];
         current.push(d);
         map.set(cursor, current);
-        const next = parseIsoDay(cursor);
+        const next = parseIsoDayUtc(cursor);
         if (!next) break;
         next.setUTCDate(next.getUTCDate() + 1);
         cursor = next.toISOString().slice(0, 10);
@@ -180,12 +164,7 @@ export default function CalendrierDisponibilites({ isEnglish = false }: { isEngl
   const bestForDay = (iso: string) => {
     const rows = byDay.get(iso) || [];
     if (!rows.length) return null;
-    return rows
-      .slice()
-      .sort((a, b) => {
-        const p = (v: Disponibilite) => (v.statut === "reserve" ? 4 : v.statut === "option" ? 3 : v.statut === "ferme" ? 2 : 1);
-        return p(b) - p(a);
-      })[0];
+    return chooseBestDisponibiliteForDay(rows, iso);
   };
 
   const year = month.getUTCFullYear();
@@ -201,26 +180,26 @@ export default function CalendrierDisponibilites({ isEnglish = false }: { isEngl
   const isDayTrip = selectedProduct === "journee";
   const totalUnits = getTotalUnits(selected);
   const reservedUnits = getReservedUnits(selected);
-  const hasPriva = Boolean(selected && (selected.tarifJourPriva || selected.tarif));
-  const hasCabine = Boolean(selected && (selected.tarifCabine || selected.tarifJourPersonne || selected.tarif));
+  const privateBasePrice = selected?.tarifJourPriva ?? selected?.tarif ?? null;
+  const directCabinePrice = selected?.tarifCabine ?? selected?.tarifJourPersonne ?? null;
+  const hasPriva = Boolean(selected && privateBasePrice !== null);
+  const hasCabine = Boolean(selected && directCabinePrice !== null);
   const hasCabineCapacity = totalUnits > 0 && reservedUnits < totalUnits;
   const canBookPrivate = Boolean(selected && isBookable(selected) && hasPriva);
   const canBookCabine = Boolean(selected && isBookable(selected) && !isDayTrip && hasCabine && hasCabineCapacity);
   const seasonPricePerPassenger = useMemo(() => {
     if (!selected) return null;
     const product = toSeasonPricingProduct(selectedProduct);
-    const dateIso = safeToIsoDay(selected.debut);
+    const dateIso = toIsoDayUtc(selected.debut);
     if (!dateIso) return null;
     const productPricing = pricing[product];
     if (!productPricing) return null;
     return isHighSeasonDate(dateIso) ? productPricing.highSeasonPerPassenger : productPricing.lowSeasonPerPassenger;
   }, [selected, selectedProduct, pricing]);
 
-  const fallbackPrice =
-    reservationMode === "priva"
-      ? selected?.tarifJourPriva ?? selected?.tarif ?? 0
-      : selected?.tarifCabine ?? selected?.tarifJourPersonne ?? selected?.tarif ?? 0;
-  const price = reservationMode === "cabine" && seasonPricePerPassenger !== null ? seasonPricePerPassenger : fallbackPrice;
+  const cabinPrice = seasonPricePerPassenger ?? directCabinePrice ?? 0;
+  const privatePrice = privateBasePrice ?? 0;
+  const price = reservationMode === "cabine" ? cabinPrice : privatePrice;
 
   useEffect(() => {
     if (reservationMode === "priva" && !canBookPrivate && canBookCabine) setReservationMode("cabine");
@@ -273,11 +252,11 @@ export default function CalendrierDisponibilites({ isEnglish = false }: { isEngl
                 const selectedRange =
                   selected &&
                   (() => {
-                    const s = safeToIsoDay(selected.debut);
-                    const e = safeToIsoDay(selected.fin);
+                    const s = toIsoDayUtc(selected.debut);
+                    const e = toIsoDayUtc(selected.fin);
                     if (!s || !e) return false;
-                    const sDate = parseIsoDay(s);
-                    const eDate = parseIsoDay(e);
+                    const sDate = parseIsoDayUtc(s);
+                    const eDate = parseIsoDayUtc(e);
                     if (!sDate || !eDate) return false;
                     return sDate.getTime() <= d.getTime() && d.getTime() <= eDate.getTime();
                   })();
@@ -306,7 +285,7 @@ export default function CalendrierDisponibilites({ isEnglish = false }: { isEngl
               <div className="space-y-3 text-sm">
                 <p>
                   <span className="font-semibold">{isEnglish ? "Period:" : "Période:"}</span>{" "}
-                  {getDateLabel(safeToIsoDay(selected.debut) || "")} - {getDateLabel(safeToIsoDay(selected.fin) || "")}
+                  {getDateLabel(toIsoDayUtc(selected.debut) || "")} - {getDateLabel(toIsoDayUtc(selected.fin) || "")}
                 </p>
                 <p><span className="font-semibold">{isEnglish ? "Destination:" : "Destination:"}</span> {selected.destination}</p>
                 <p><span className="font-semibold">{isEnglish ? "Status:" : "Statut:"}</span> {selected.statut}</p>
@@ -342,7 +321,7 @@ export default function CalendrierDisponibilites({ isEnglish = false }: { isEngl
                     )}
                     {(canBookPrivate || canBookCabine) && (
                       <a
-                        href={`/reservation?id=${selected.id}&destination=${encodeURIComponent(selected.destination || "")}&formule=${isDayTrip ? "journee" : "semaine"}&typeReservation=${reservationMode === "priva" ? "bateau_entier" : "cabine"}&montant=${price}&dateDebut=${encodeURIComponent(safeToIsoDay(selected.debut) || "")}&dateFin=${encodeURIComponent(safeToIsoDay(selected.fin) || "")}`}
+                        href={`/reservation?id=${selected.id}&destination=${encodeURIComponent(selected.destination || "")}&formule=${isDayTrip ? "journee" : "semaine"}&typeReservation=${reservationMode === "priva" ? "bateau_entier" : "cabine"}&montant=${price}&dateDebut=${encodeURIComponent(toIsoDayUtc(selected.debut) || "")}&dateFin=${encodeURIComponent(toIsoDayUtc(selected.fin) || "")}`}
                         className="block rounded-xl px-4 py-3 text-center font-bold text-white"
                         style={{ backgroundColor: BRAND_DEEP }}
                       >
