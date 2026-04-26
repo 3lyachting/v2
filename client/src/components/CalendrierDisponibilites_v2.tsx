@@ -26,18 +26,27 @@ type Disponibilite = {
 const BRAND_DEEP = "#00384A";
 const BRAND_LIGHT = "#E8D5C4";
 
-function toIsoDay(input: string | Date) {
-  return new Date(input).toISOString().slice(0, 10);
+function safeToIsoDay(input: string | Date | null | undefined) {
+  if (!input) return null;
+  const d = new Date(input);
+  if (Number.isNaN(d.getTime())) return null;
+  return d.toISOString().slice(0, 10);
 }
 
-function parseIsoDay(iso: string) {
+function parseIsoDay(value: string | Date | null | undefined) {
+  const iso = safeToIsoDay(value);
+  if (!iso) return null;
   const [y, m, d] = iso.split("-").map(Number);
-  return new Date(Date.UTC(y, m - 1, d, 0, 0, 0, 0));
+  const parsed = new Date(Date.UTC(y, m - 1, d, 0, 0, 0, 0));
+  if (Number.isNaN(parsed.getTime())) return null;
+  return parsed;
 }
 
 function getProduct(dispo: Disponibilite): Produit {
   const destination = String(dispo.destination || "").toLowerCase();
-  const isDay = toIsoDay(dispo.debut) === toIsoDay(dispo.fin);
+  const start = safeToIsoDay(dispo.debut);
+  const end = safeToIsoDay(dispo.fin);
+  const isDay = Boolean(start && end && start === end);
   if (isDay && destination.includes("la ciotat")) return "journee";
   if (destination.includes("transat")) return "transat";
   if (destination.includes("cara")) return "caraibes";
@@ -75,7 +84,8 @@ function getStatusBadgeStyle(statut: Statut) {
 function formatDateRange(startIso: string, endIso: string, isEnglish: boolean = false) {
   const start = parseIsoDay(startIso);
   const end = parseIsoDay(endIso);
-  const isSameDay = startIso === endIso;
+  if (!start || !end) return isEnglish ? "Date unavailable" : "Date indisponible";
+  const isSameDay = safeToIsoDay(startIso) === safeToIsoDay(endIso);
 
   if (isSameDay) {
     return start.toLocaleDateString(isEnglish ? "en-GB" : "fr-FR", {
@@ -102,8 +112,11 @@ function formatDateRange(startIso: string, endIso: string, isEnglish: boolean = 
 }
 
 function getDurationDays(startIso: string, endIso: string) {
-  const start = parseIsoDay(startIso).getTime();
-  const end = parseIsoDay(endIso).getTime();
+  const startDate = parseIsoDay(startIso);
+  const endDate = parseIsoDay(endIso);
+  if (!startDate || !endDate) return 1;
+  const start = startDate.getTime();
+  const end = endDate.getTime();
   return Math.max(1, Math.floor((end - start) / (24 * 3600 * 1000)) + 1);
 }
 
@@ -132,7 +145,8 @@ export default function CalendrierDisponibilites({ isEnglish = false }: { isEngl
         const res = await fetch(`/api/disponibilites?t=${Date.now()}`, { cache: "no-store" });
         if (!res.ok) throw new Error("Failed to fetch disponibilites");
         const rows: Disponibilite[] = await res.json();
-        const sorted = rows.slice().sort((a, b) => new Date(a.debut).getTime() - new Date(b.debut).getTime());
+        const normalized = rows.filter((r) => Boolean(safeToIsoDay(r.debut) && safeToIsoDay(r.fin)));
+        const sorted = normalized.slice().sort((a, b) => new Date(a.debut).getTime() - new Date(b.debut).getTime());
         setDispos(sorted);
       } catch {
         setDispos([]);
@@ -151,9 +165,11 @@ export default function CalendrierDisponibilites({ isEnglish = false }: { isEngl
   const bookableDispos = useMemo(() => filtered.filter((d) => isBookable(d)), [filtered]);
 
   const handleReserve = (dispo: Disponibilite) => {
+    const dateDebut = safeToIsoDay(dispo.debut) || "";
+    const dateFin = safeToIsoDay(dispo.fin) || "";
     const params = new URLSearchParams({
-      dateDebut: dispo.debut,
-      dateFin: dispo.fin,
+      dateDebut,
+      dateFin,
       destination: dispo.destination,
     });
     setLocation(`/reservation?${params.toString()}`);
