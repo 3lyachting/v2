@@ -243,12 +243,12 @@ function getSeasonTemplatesForYear(year: number): SeasonTemplate[] {
     })
   );
 
-  // Exception mai + juin: journées/mini-séjours autorisés.
+  // Exception avril + mai: journées/mini-séjours autorisés.
   templates.push(
-    ...generateDailySlots(isoDate(year, 5, 1), isoDate(year, 6, 30), {
+    ...generateDailySlots(isoDate(year, 4, 1), isoDate(year, 5, 31), {
       planningType: "charter",
       destination: "La Ciotat - Cassis (plage de l'Arène) - retour",
-      notePublique: "Mai/juin: réservations à la journée ou multi-jours possibles.",
+      notePublique: "Avril/mai: réservations à la journée ou multi-jours possibles.",
       tarif: null,
       tarifCabine: null,
       tarifJourPersonne: 130,
@@ -257,9 +257,9 @@ function getSeasonTemplatesForYear(year: number): SeasonTemplate[] {
     })
   );
 
-  // Juillet -> fin août: semaines Corse/Sardaigne (samedi -> samedi).
+  // Juin -> fin août: semaines Corse/Sardaigne (samedi -> samedi).
   templates.push(
-    ...generateSaturdayWeeks(isoDate(year, 7, 1), isoDate(year, 9, 1), {
+    ...generateSaturdayWeeks(isoDate(year, 6, 1), isoDate(year, 9, 1), {
       planningType: "charter",
       destination: "Corse & Sardaigne — départ Ajaccio",
       notePublique: "Semaine de croisière en Corse et Sardaigne (samedi à samedi).",

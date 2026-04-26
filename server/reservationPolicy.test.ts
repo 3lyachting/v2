@@ -18,39 +18,34 @@ describe("reservation policy", () => {
     expect(rejected.ok).toBe(false);
   });
 
-  it("allows flexible stays in may and june", () => {
+  it("allows flexible stays in april and may", () => {
+    const result = validateReservationPolicy({
+      dateDebut: "2026-04-12T00:00:00.000Z",
+      dateFin: "2026-04-14T00:00:00.000Z",
+      destination: "La Ciotat",
+    });
+    expect(result).toEqual({ ok: true, policy: "april_may_flexible" });
+  });
+
+  it("keeps june in saturday-weekly mode", () => {
     const result = validateReservationPolicy({
       dateDebut: "2026-05-12T00:00:00.000Z",
       dateFin: "2026-05-14T00:00:00.000Z",
-      destination: "La Ciotat",
+      destination: "Corse",
     });
-    expect(result).toEqual({ ok: true, policy: "may_june_flexible" });
-  });
+    expect(result).toEqual({ ok: true, policy: "april_may_flexible" });
 
-  it("allows outbound transat exception", () => {
-    const result = validateReservationPolicy({
-      dateDebut: "2026-10-03T00:00:00.000Z",
-      dateFin: "2026-10-20T00:00:00.000Z",
-      destination: "La Ciotat -> Pointe-à-Pitre via Canaries + Cap-Vert",
+    const juneRejected = validateReservationPolicy({
+      dateDebut: "2026-06-10T00:00:00.000Z",
+      dateFin: "2026-06-17T00:00:00.000Z",
+      destination: "Corse",
     });
-    expect(result).toEqual({ ok: true, policy: "transat_outbound" });
-  });
-
-  it("blocks current-year return transat but allows previous years", () => {
-    const blocked = validateReservationPolicy({
-      dateDebut: "2026-04-10T00:00:00.000Z",
-      dateFin: "2026-04-20T00:00:00.000Z",
-      destination: "Transat retour Pointe-à-Pitre -> La Ciotat",
-      now: new Date("2026-04-01T00:00:00.000Z"),
+    expect(juneRejected.ok).toBe(false);
+    const juneWeekly = validateReservationPolicy({
+      dateDebut: "2026-06-13T00:00:00.000Z",
+      dateFin: "2026-06-20T00:00:00.000Z",
+      destination: "Corse",
     });
-    expect(blocked.ok).toBe(false);
-
-    const allowed = validateReservationPolicy({
-      dateDebut: "2025-04-10T00:00:00.000Z",
-      dateFin: "2025-04-20T00:00:00.000Z",
-      destination: "Transat retour Pointe-à-Pitre -> La Ciotat",
-      now: new Date("2026-04-01T00:00:00.000Z"),
-    });
-    expect(allowed).toEqual({ ok: true, policy: "transat_return" });
+    expect(juneWeekly).toEqual({ ok: true, policy: "weekly_saturday" });
   });
 });

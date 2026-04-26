@@ -59,8 +59,8 @@ type BookingRule = {
 };
 const ruleForDay = (isoDay: string): BookingRule => {
   const month = Number(isoDay.slice(5, 7));
-  if (month === 5 || month === 6) {
-    return { name: "mai-juin-flex", minDuration: 1, maxDuration: 21 };
+  if (month === 4 || month === 5) {
+    return { name: "avril-mai-flex", minDuration: 1, maxDuration: 21 };
   }
   return {
     name: "hebdo-samedi",
