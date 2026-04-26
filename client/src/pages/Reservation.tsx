@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useLocation } from "wouter";
 import { Anchor, ArrowLeft, Calendar, Check, Send, Shield, Users } from "lucide-react";
+import { inferSlotType, isTransatType } from "@shared/slotRules";
 
 type FormuleKey = "croisiere_mediterranee" | "transatlantique" | "croisiere_caraibes" | "journee_privee";
 type TypeReservation = "bateau_entier" | "cabine" | "place";
@@ -17,6 +18,7 @@ type Disponibilite = {
   tarifJourPersonne?: number | null;
   tarifJourPriva?: number | null;
   destination: string;
+  note?: string | null;
   capaciteTotale?: number;
   cabinesReservees?: number;
 };
@@ -60,7 +62,16 @@ type BookingRule = {
 const ruleForDay = (isoDay: string): BookingRule => {
   const month = Number(isoDay.slice(5, 7));
   if (month === 4 || month === 5) {
-    return { name: "avril-mai-flex", minDuration: 1, maxDuration: 21 };
+    return { name: "avril-mai-privatif-journee", minDuration: 1, maxDuration: 1, fixedDuration: 1 };
+  }
+  if (month === 6 || month === 7 || month === 8) {
+    return {
+      name: "juin-aout-samedi",
+      minDuration: 8,
+      maxDuration: 8,
+      fixedDuration: 8,
+      saturdayStartOnly: true,
+    };
   }
   return {
     name: "hebdo-samedi",
@@ -234,6 +245,9 @@ export default function Reservation() {
 
   const selectedStart = selectedStartDay || availableStartDays[0] || "";
   const selectedRule = selectedStart ? ruleForDay(selectedStart) : null;
+  const selectedMonth = selectedStart ? Number(selectedStart.slice(5, 7)) : null;
+  const isAprilMaySelection = selectedMonth === 4 || selectedMonth === 5;
+  const isSummerSelection = selectedMonth === 6 || selectedMonth === 7 || selectedMonth === 8;
   const effectiveDuration = selectedRule?.fixedDuration || durationDays;
   const selectedEnd = selectedStart ? addDays(selectedStart, effectiveDuration - 1) : "";
 
@@ -244,6 +258,12 @@ export default function Reservation() {
     }
   }, [selectedRule, durationDays]);
 
+  useEffect(() => {
+    if (isAprilMaySelection && typeReservation !== "bateau_entier") {
+      setTypeReservation("bateau_entier");
+    }
+  }, [isAprilMaySelection, typeReservation]);
+
   const pricingDispo = useMemo(
     () => {
       if (!selectedStart) return null;
@@ -252,19 +272,26 @@ export default function Reservation() {
         return dStart === selectedStart;
       });
       if (exact) return exact;
-      return (
-        disponibilites.find((d) => {
+      const containing = disponibilites.find((d) => {
           const dStart = toIsoDay(new Date(d.debut));
           const dEnd = toIsoDay(new Date(d.fin));
           // Comparaison stricte sur la fin pour éviter de matcher la semaine précédente sur samedi de rotation.
-          return selectedStart >= dStart && selectedStart < dEnd;
-        }) || null
-      );
+          if (!(selectedStart >= dStart && selectedStart < dEnd)) return false;
+          // Evite d'accrocher des reliquats transat hors fenêtre commerciale.
+          const slotType = inferSlotType(d as any);
+          if (String(d.destination || "").toLowerCase().includes("transat") && !isTransatType(slotType)) {
+            return false;
+          }
+          return true;
+        });
+      return containing || null;
     },
     [disponibilites, selectedStart]
   );
 
   const destination = pricingDispo?.destination || "Méditerranée";
+  const pricingSlotType = pricingDispo ? inferSlotType(pricingDispo as any) : "other";
+  const isTransatSelection = isTransatType(pricingSlotType);
   const urlMontant = Number(searchParams.get("montant") || "");
   const weeklyCabineEur = pricingDispo?.tarifCabine ?? 3900;
   const weeklyPrivaEur = pricingDispo?.tarif ?? 15000;
@@ -280,20 +307,40 @@ export default function Reservation() {
         : disponibiliteFreeUnits;
   const maxPersonnesSelectable = Math.max(1, Math.min(formule.maxPers, maxPersonnesByAvailability || formule.maxPers));
   const requiredCabins = Math.max(1, Math.ceil((form.nbPersonnes || 1) / 2));
+  const safePersons = Math.max(1, form.nbPersonnes || 1);
   const selectedWeeklyPrice =
     Number.isFinite(urlMontant) && urlMontant > 0
       ? urlMontant
+      : isTransatSelection
+        ? 3000
       : isJournee
         ? dayTripPrivaEur
       : typeReservation === "bateau_entier"
         ? weeklyPrivaEur
         : weeklyCabineEur;
   const montantTotal =
-    typeReservation === "bateau_entier"
+    isTransatSelection
+      ? selectedWeeklyPrice * safePersons * 100
+      : typeReservation === "bateau_entier"
       ? selectedWeeklyPrice * 100
       : typeReservation === "cabine"
         ? selectedWeeklyPrice * requiredCabins * 100
         : selectedWeeklyPrice * 100;
+
+  useEffect(() => {
+    if (!isTransatSelection) return;
+    if (typeReservation !== "place") setTypeReservation("place");
+    setForm((prev) => ({
+      ...prev,
+      nbCabines: Math.max(1, Math.min(4, prev.nbPersonnes || 1)),
+      nbPersonnes: Math.max(1, Math.min(4, prev.nbPersonnes || 1)),
+    }));
+  }, [isTransatSelection, typeReservation]);
+
+  useEffect(() => {
+    if (!isTransatSelection) return;
+    setForm((prev) => ({ ...prev, nbCabines: Math.max(1, Math.min(4, prev.nbPersonnes || 1)) }));
+  }, [isTransatSelection, form.nbPersonnes]);
 
   const canSubmit = Boolean(
     selectedStart &&
@@ -409,12 +456,21 @@ export default function Reservation() {
                   <button onClick={() => setTypeReservation("bateau_entier")} className={`text-left rounded-xl border-2 p-4 ${typeReservation === "bateau_entier" ? "border-[oklch(0.82_0.1_85)]" : "border-white/20"}`}>
                     <p className="font-bold">Privatif</p>
                   </button>
-                  {!isJournee && (
+                  {!isJournee && !isAprilMaySelection && !isTransatSelection && (
                     <button onClick={() => setTypeReservation(isTransat ? "place" : "cabine")} className={`text-left rounded-xl border-2 p-4 ${typeReservation !== "bateau_entier" ? "border-[oklch(0.82_0.1_85)]" : "border-white/20"}`}>
                       <p className="font-bold">{isTransat ? "A la place" : "A la cabine / personne"}</p>
                     </button>
                   )}
                 </div>
+                {isTransatSelection && (
+                  <p className="text-xs text-white/70 mb-3">Transat: sélection automatique de toute la traversée, 3000€/personne, capacité 4 places.</p>
+                )}
+                {isAprilMaySelection && (
+                  <p className="text-xs text-white/70 mb-3">Avril/Mai: privatif unique 950€/jour, départ La Ciotat.</p>
+                )}
+                {isSummerSelection && (
+                  <p className="text-xs text-white/70 mb-3">Juin/Juillet/Août: réservation samedi → samedi, cabine (1..4) ou privatif.</p>
+                )}
 
                 <label className="text-sm text-white/70">
                   Duree (jours): {activeRule?.fixedDuration || durationDays}
@@ -567,7 +623,11 @@ export default function Reservation() {
               <span className="text-[oklch(0.82_0.1_85)]">{(montantTotal / 100).toLocaleString("fr-FR")} EUR</span>
             </div>
             <p className="text-xs text-white/50 mt-2">
-              {isJournee
+              {isTransatSelection
+                ? `3000€/personne · traversée complète · ${safePersons} place(s)`
+                : isAprilMaySelection
+                ? "950€/journée · privatif unique · départ La Ciotat"
+                : isJournee
                 ? `${dayTripPrivaEur}€/journée tout inclus · bateau entier`
                 : typeReservation === "bateau_entier"
                 ? `${weeklyPrivaEur}€/semaine bateau entier`

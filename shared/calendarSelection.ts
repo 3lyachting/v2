@@ -3,10 +3,12 @@ export type DisponibiliteLike = {
   fin: string | Date;
   statut: "disponible" | "reserve" | "option" | "ferme";
   destination: string;
+  note?: string | null;
   planningType?: "charter" | "technical_stop" | "maintenance" | "blocked";
 };
 
 export type ProductType = "med" | "transat" | "caraibes" | "journee";
+import { inferSlotType, isTransatType, slotTypePriority } from "./slotRules";
 
 export function toIsoDayUtc(input: string | Date | null | undefined) {
   if (!input) return null;
@@ -23,14 +25,17 @@ export function parseIsoDayUtc(iso: string) {
 }
 
 export function getProductFromDisponibilite(dispo: Pick<DisponibiliteLike, "destination" | "debut" | "fin">): ProductType {
-  const destination = String(dispo.destination || "").toLowerCase();
-  const start = toIsoDayUtc(dispo.debut);
-  const end = toIsoDayUtc(dispo.fin);
-  const isDay = Boolean(start && end && start === end);
-  if (isDay && destination.includes("la ciotat")) return "journee";
-  if (destination.includes("transat")) return "transat";
-  if (destination.includes("cara")) return "caraibes";
+  const slotType = inferSlotType(dispo);
+  if (isTransatType(slotType)) return "transat";
+  if (slotType === "day_private") return "journee";
+  if (slotType === "caribbean_week") return "caraibes";
   return "med";
+}
+
+function isInvalidTransatOutsideWindow(dispo: Pick<DisponibiliteLike, "destination" | "debut" | "fin">) {
+  const destination = String(dispo.destination || "").toLowerCase();
+  if (!destination.includes("transat")) return false;
+  return !isTransatType(inferSlotType(dispo));
 }
 
 export function isBookableDisponibilite(dispo?: DisponibiliteLike | null) {
@@ -65,10 +70,21 @@ export function chooseBestDisponibiliteForDay<T extends DisponibiliteLike>(rows:
 
       const aProduct = getProductFromDisponibilite(a);
       const bProduct = getProductFromDisponibilite(b);
+      const aInvalidTransat = isInvalidTransatOutsideWindow(a) ? 1 : 0;
+      const bInvalidTransat = isInvalidTransatOutsideWindow(b) ? 1 : 0;
+      if (aInvalidTransat !== bInvalidTransat) return aInvalidTransat - bInvalidTransat;
+      const aTypePriority = slotTypePriority(inferSlotType(a), month);
+      const bTypePriority = slotTypePriority(inferSlotType(b), month);
+      if (aTypePriority !== bTypePriority) return aTypePriority - bTypePriority;
       if (inAprilMay) {
         const aIsWrongTransat = aProduct === "transat" ? 1 : 0;
         const bIsWrongTransat = bProduct === "transat" ? 1 : 0;
         if (aIsWrongTransat !== bIsWrongTransat) return aIsWrongTransat - bIsWrongTransat;
+      }
+      if (month >= 6 && month <= 8) {
+        const aWeekly = getDurationDays(a) === 8 ? 0 : 1;
+        const bWeekly = getDurationDays(b) === 8 ? 0 : 1;
+        if (aWeekly !== bWeekly) return aWeekly - bWeekly;
       }
 
       const aDuration = getDurationDays(a);

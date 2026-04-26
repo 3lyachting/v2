@@ -2,6 +2,7 @@ import { useEffect, useState, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Calendar, ChevronLeft, ChevronRight, Plus, Edit2, Trash2, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
+import { inferSlotType } from "@shared/slotRules";
 
 interface Disponibilite {
   id: number;
@@ -81,6 +82,19 @@ function getPlanningTypeLabel(type?: string) {
     blocked: "Bloqué",
   };
   return labels[type || "charter"] || "Croisière";
+}
+
+function getSlotTypeLabel(dispo: Disponibilite) {
+  const slotType = inferSlotType(dispo as any);
+  const labels: Record<string, string> = {
+    day_private: "Journée privative",
+    week_charter: "Semaine charter",
+    transat_outbound: "Transat aller",
+    transat_return: "Transat retour",
+    caribbean_week: "Semaine Caraïbes",
+    other: "Autre",
+  };
+  return labels[slotType] || "Autre";
 }
 
 function getDayOfMonth(date: string): number {
@@ -329,6 +343,9 @@ export default function AdminCalendarView({
                   </span>
                   <span className={`px-3 py-1.5 rounded-full text-xs font-semibold border ${getPlanningTypeColor(selectedDispo.planningType)}`}>
                     {getPlanningTypeLabel(selectedDispo.planningType)}
+                  </span>
+                  <span className="px-3 py-1.5 rounded-full text-xs font-semibold border bg-cyan-50 text-cyan-800 border-cyan-200">
+                    {getSlotTypeLabel(selectedDispo)}
                   </span>
                 </div>
 

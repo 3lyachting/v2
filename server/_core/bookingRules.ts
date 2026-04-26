@@ -1,5 +1,6 @@
 import { eq } from "drizzle-orm";
 import { disponibilites, reservations } from "../../drizzle/schema";
+import { SLOT_NOTE_PREFIX, inferSlotType, isTransatType, type SlotType } from "@shared/slotRules";
 
 type BookingDb = any;
 
@@ -18,11 +19,10 @@ const BLOCKING_WORKFLOW_STATUSES = [
   ...CONFIRMED_WORKFLOW_STATUSES,
 ] as const;
 
-const AUTO_NOTE_MARKER = "[AUTO_SEASON_SLOT]";
-
 type SeasonTemplate = {
   startIso: string;
   endIso: string;
+  slotType: SlotType;
   planningType: "charter" | "technical_stop";
   destination: string;
   notePublique: string | null;
@@ -212,12 +212,12 @@ function generateSaturdayWeeks(startIso: string, endIso: string, template: Omit<
 }
 
 function getSeasonTemplatesForYear(year: number): SeasonTemplate[] {
-  const currentYear = new Date().getUTCFullYear();
   const templates: SeasonTemplate[] = [];
 
   // Janvier -> début avril: semaines Caraïbes (samedi -> samedi).
   templates.push(
     ...generateSaturdayWeeks(isoDate(year, 1, 1), isoDate(year, 4, 5), {
+      slotType: "caribbean_week",
       planningType: "charter",
       destination: "Caraïbes",
       notePublique: "Croisière Caraïbes (samedi à samedi).",
@@ -229,41 +229,44 @@ function getSeasonTemplatesForYear(year: number): SeasonTemplate[] {
     })
   );
 
-  // 5 avril -> 15 décembre: transat aller dédiée, réservation flexible (hors samedi->samedi).
+  // 5 avril -> 15 mai: transat retour dédiée.
   templates.push(
-    ...generateDailySlots(isoDate(year, 4, 5), isoDate(year, 12, 15), {
+    ...generateDailySlots(isoDate(year, 4, 5), isoDate(year, 5, 15), {
+      slotType: "transat_return",
       planningType: "charter",
-      destination: "Transat aller La Ciotat -> Pointe-à-Pitre (Canaries + Cap-Vert)",
-      notePublique: "Transat aller dédiée (réservation flexible selon itinéraire).",
+      destination: "Transat retour Pointe-à-Pitre -> La Ciotat",
+      notePublique: "Transat retour (fenêtre commerciale dédiée).",
       tarif: 3000,
       tarifCabine: null,
       tarifJourPersonne: null,
       tarifJourPriva: null,
-      capaciteTotale: 8,
+      capaciteTotale: 4,
     })
   );
 
-  // Exception avril + mai: journées/mini-séjours autorisés.
+  // Avril + mai (hors transat retour): privatif journée unique, départ La Ciotat.
   templates.push(
     ...generateDailySlots(isoDate(year, 4, 1), isoDate(year, 5, 31), {
+      slotType: "day_private",
       planningType: "charter",
       destination: "La Ciotat - Cassis (plage de l'Arène) - retour",
-      notePublique: "Avril/mai: réservations à la journée ou multi-jours possibles.",
-      tarif: null,
+      notePublique: "Avril/mai: privatif unique 950€/jour, départ La Ciotat.",
+      tarif: 950,
       tarifCabine: null,
-      tarifJourPersonne: 130,
-      tarifJourPriva: 900,
-      capaciteTotale: 6,
+      tarifJourPersonne: null,
+      tarifJourPriva: 950,
+      capaciteTotale: 4,
     })
   );
 
-  // Juin -> fin août: semaines Corse/Sardaigne (samedi -> samedi).
+  // Juin -> fin août: semaines vendables samedi -> samedi.
   templates.push(
     ...generateSaturdayWeeks(isoDate(year, 6, 1), isoDate(year, 9, 1), {
+      slotType: "week_charter",
       planningType: "charter",
       destination: "Corse & Sardaigne — départ Ajaccio",
-      notePublique: "Semaine de croisière en Corse et Sardaigne (samedi à samedi).",
-      tarif: null,
+      notePublique: "Juin-août: réservation samedi à samedi, cabine (1-4) ou privatif.",
+      tarif: 15000,
       tarifCabine: 1750,
       tarifJourPersonne: null,
       tarifJourPriva: null,
@@ -274,6 +277,7 @@ function getSeasonTemplatesForYear(year: number): SeasonTemplate[] {
   // Septembre (1ère quinzaine): journées La Ciotat.
   templates.push(
     ...generateDailySlots(isoDate(year, 9, 1), isoDate(year, 9, 15), {
+      slotType: "other",
       planningType: "charter",
       destination: "La Ciotat - Cassis (plage de l'Arène) - retour",
       notePublique: "Journée privative (La Ciotat): navigation, baignade, paddle, apéro.",
@@ -288,6 +292,7 @@ function getSeasonTemplatesForYear(year: number): SeasonTemplate[] {
   // 2e quinzaine Dec -> 1 Apr (année suivante): Caraïbes, samedi -> samedi.
   templates.push(
     ...generateSaturdayWeeks(isoDate(year, 12, 16), isoDate(year + 1, 4, 1), {
+      slotType: "caribbean_week",
       planningType: "charter",
       destination: "Caraïbes",
       notePublique: "Croisière Caraïbes (samedi à samedi).",
@@ -299,21 +304,20 @@ function getSeasonTemplatesForYear(year: number): SeasonTemplate[] {
     })
   );
 
-  // Exception transat retour dédiée: 5 avril -> 15 mai, sauf année courante.
-  if (year !== currentYear) {
-    templates.push(
-      ...generateDailySlots(isoDate(year, 4, 5), isoDate(year, 5, 15), {
-        planningType: "charter",
-        destination: "Transat retour Pointe-à-Pitre -> La Ciotat",
-        notePublique: "Transat retour dédiée (hors année courante).",
-        tarif: 3000,
-        tarifCabine: null,
-        tarifJourPersonne: null,
-        tarifJourPriva: null,
-        capaciteTotale: 8,
-      })
-    );
-  }
+  // 5 novembre -> 5 décembre: transat aller dédiée.
+  templates.push(
+    ...generateDailySlots(isoDate(year, 11, 5), isoDate(year, 12, 5), {
+      slotType: "transat_outbound",
+      planningType: "charter",
+      destination: "Transat aller La Ciotat -> Pointe-à-Pitre (Canaries + Cap-Vert)",
+      notePublique: "Transat aller (fenêtre commerciale dédiée).",
+      tarif: 3000,
+      tarifCabine: null,
+      tarifJourPersonne: null,
+      tarifJourPriva: null,
+      capaciteTotale: 4,
+    })
+  );
 
   return templates;
 }
@@ -329,11 +333,31 @@ async function ensureSeasonAvailabilitySlots(db: BookingDb, years: number[]) {
     existingByRange.set(`${start}|${end}`, d);
   }
 
+  const templateKeys = new Set<string>();
   for (const year of normalizedYears) {
     const templates = getSeasonTemplatesForYear(year);
     for (const t of templates) {
       const key = `${t.startIso}|${t.endIso}`;
-      if (existingByRange.has(key)) continue;
+      templateKeys.add(key);
+      const existing = existingByRange.get(key);
+      if (existing) {
+        await db
+          .update(disponibilites)
+          .set({
+            planningType: t.planningType,
+            destination: t.destination,
+            tarif: t.tarif,
+            tarifCabine: t.tarifCabine,
+            tarifJourPersonne: t.tarifJourPersonne,
+            tarifJourPriva: t.tarifJourPriva,
+            capaciteTotale: t.capaciteTotale,
+            note: `${SLOT_NOTE_PREFIX}:${t.slotType}`,
+            notePublique: t.notePublique,
+            updatedAt: new Date(),
+          })
+          .where(eq(disponibilites.id, existing.id));
+        continue;
+      }
       const inserted = await db
         .insert(disponibilites)
         .values({
@@ -347,17 +371,107 @@ async function ensureSeasonAvailabilitySlots(db: BookingDb, years: number[]) {
           tarifJourPersonne: t.tarifJourPersonne,
           tarifJourPriva: t.tarifJourPriva,
           capaciteTotale: t.capaciteTotale,
-          note: AUTO_NOTE_MARKER,
+          note: `${SLOT_NOTE_PREFIX}:${t.slotType}`,
           notePublique: t.notePublique,
         })
         .returning({ id: disponibilites.id, debut: disponibilites.debut, fin: disponibilites.fin });
       const start = toIsoDay(inserted[0]?.debut);
       const end = toIsoDay(inserted[0]?.fin);
-      if (start && end) {
-        existingByRange.set(`${start}|${end}`, inserted[0]);
-      }
+      if (start && end) existingByRange.set(`${start}|${end}`, inserted[0]);
     }
   }
+
+  const autoDispos = allDispos.filter((d: any) => String(d.note || "").startsWith(`${SLOT_NOTE_PREFIX}:`));
+  for (const d of autoDispos) {
+    const start = toIsoDay(d.debut);
+    const end = toIsoDay(d.fin);
+    if (!start || !end) continue;
+    const key = `${start}|${end}`;
+    if (templateKeys.has(key)) continue;
+    const linkedReservations = await db
+      .select({ id: reservations.id })
+      .from(reservations)
+      .where(eq(reservations.disponibiliteId, d.id));
+    if (linkedReservations.length > 0) continue;
+    await db.delete(disponibilites).where(eq(disponibilites.id, d.id));
+  }
+}
+
+async function purgeInvalidTransatSlots(db: BookingDb) {
+  const allDispos = await db.select().from(disponibilites);
+  for (const d of allDispos) {
+    const start = toIsoDay(d.debut);
+    const end = toIsoDay(d.fin);
+    if (!start || !end) continue;
+    const slotType = inferSlotType(d as any);
+    const isTransatLabel = String(d.destination || "").toLowerCase().includes("transat");
+    if (!isTransatLabel || isTransatType(slotType)) continue;
+    const linkedReservations = await db
+      .select({ id: reservations.id })
+      .from(reservations)
+      .where(eq(reservations.disponibiliteId, d.id));
+    if (linkedReservations.length > 0) continue;
+    await db.delete(disponibilites).where(eq(disponibilites.id, d.id));
+  }
+}
+
+async function normalizeAprilMayDailySlots(db: BookingDb) {
+  const allDispos = await db.select().from(disponibilites);
+  for (const d of allDispos) {
+    const start = toIsoDay(d.debut);
+    const end = toIsoDay(d.fin);
+    if (!start || !end) continue;
+    const year = Number(start.slice(0, 4));
+    const inAprMay = start >= `${year}-04-01` && end <= `${year}-05-31`;
+    if (!inAprMay) continue;
+    const slotType = inferSlotType(d as any);
+    if (isTransatType(slotType)) continue;
+    await db
+      .update(disponibilites)
+      .set({
+        destination: "La Ciotat - Cassis (plage de l'Arène) - retour",
+        tarif: 950,
+        tarifCabine: null,
+        tarifJourPersonne: null,
+        tarifJourPriva: 950,
+        capaciteTotale: 4,
+        notePublique: "Avril/mai: privatif unique 950€/jour, départ La Ciotat.",
+        updatedAt: new Date(),
+      })
+      .where(eq(disponibilites.id, d.id));
+  }
+}
+
+async function normalizeSummerWeeklySlots(db: BookingDb) {
+  const allDispos = await db.select().from(disponibilites);
+  for (const d of allDispos) {
+    const start = toIsoDay(d.debut);
+    const end = toIsoDay(d.fin);
+    if (!start || !end) continue;
+    const year = Number(start.slice(0, 4));
+    const inSummer = start >= `${year}-06-01` && end <= `${year}-08-31`;
+    if (!inSummer) continue;
+    const slotType = inferSlotType(d as any);
+    if (isTransatType(slotType)) continue;
+    await db
+      .update(disponibilites)
+      .set({
+        tarif: 15000,
+        tarifCabine: 1750,
+        tarifJourPersonne: null,
+        tarifJourPriva: null,
+        capaciteTotale: 4,
+        notePublique: "Juin-août: réservation samedi à samedi, cabine (1-4) ou privatif.",
+        updatedAt: new Date(),
+      })
+      .where(eq(disponibilites.id, d.id));
+  }
+}
+
+async function normalizeCommercialSlots(db: BookingDb) {
+  await purgeInvalidTransatSlots(db);
+  await normalizeAprilMayDailySlots(db);
+  await normalizeSummerWeeklySlots(db);
 }
 
 export async function runBookingConsistencyAudit(db: BookingDb) {
@@ -401,6 +515,7 @@ export async function syncDisponibilitesFromReservations(db: BookingDb) {
     .filter((y: any) => Number.isFinite(y)) as number[];
   const currentYear = new Date().getUTCFullYear();
   await ensureSeasonAvailabilitySlots(db, [currentYear - 1, currentYear, currentYear + 1, ...reservationYears]);
+  await normalizeCommercialSlots(db);
 
   const allDisposAfterSeed = await db.select().from(disponibilites);
   const createdDispoIds: number[] = [];

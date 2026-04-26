@@ -211,14 +211,15 @@ export default function CalendrierDisponibilites({ isEnglish = false }: { isEngl
 
   const selectedProduct = selected ? getProduct(selected) : "med";
   const isDayTrip = selectedProduct === "journee";
+  const isTransatSelected = selectedProduct === "transat";
   const totalUnits = getTotalUnits(selected);
   const reservedUnits = getReservedUnits(selected);
-  const privateBasePrice = selected?.tarifJourPriva ?? selected?.tarif ?? null;
-  const directCabinePrice = selected?.tarifCabine ?? selected?.tarifJourPersonne ?? null;
+  const privateBasePrice = isTransatSelected ? null : selected?.tarifJourPriva ?? selected?.tarif ?? null;
+  const directCabinePrice = isTransatSelected ? (selected?.tarif ?? 3000) : selected?.tarifCabine ?? selected?.tarifJourPersonne ?? null;
   const hasPriva = Boolean(selected && privateBasePrice !== null);
   const hasCabine = Boolean(selected && directCabinePrice !== null);
   const hasCabineCapacity = totalUnits > 0 && reservedUnits < totalUnits;
-  const canBookPrivate = Boolean(selected && isBookable(selected) && hasPriva);
+  const canBookPrivate = Boolean(selected && isBookable(selected) && hasPriva && !isTransatSelected);
   const canBookCabine = Boolean(selected && isBookable(selected) && !isDayTrip && hasCabine && hasCabineCapacity);
   const seasonPricePerPassenger = useMemo(() => {
     if (!selected) return null;
@@ -230,7 +231,7 @@ export default function CalendrierDisponibilites({ isEnglish = false }: { isEngl
     return isHighSeasonDate(dateIso) ? productPricing.highSeasonPerPassenger : productPricing.lowSeasonPerPassenger;
   }, [selected, selectedProduct, pricing]);
 
-  const cabinPrice = seasonPricePerPassenger ?? directCabinePrice ?? 0;
+  const cabinPrice = isTransatSelected ? 3000 : seasonPricePerPassenger ?? directCabinePrice ?? 0;
   const privatePrice = privateBasePrice ?? 0;
   const price = reservationMode === "cabine" ? cabinPrice : privatePrice;
 
@@ -326,15 +327,17 @@ export default function CalendrierDisponibilites({ isEnglish = false }: { isEngl
                 {!!selected.notePublique && <p className="rounded-lg bg-slate-50 p-2 text-xs text-slate-600">{selected.notePublique}</p>}
                 {isBookable(selected) && (
                   <>
-                    <div className={`grid gap-2 ${isDayTrip ? "grid-cols-1" : "grid-cols-2"}`}>
-                      <button
-                        onClick={() => setReservationMode("priva")}
-                        disabled={!canBookPrivate}
-                        className={`rounded-lg border px-3 py-2 text-xs font-semibold ${reservationMode === "priva" ? "text-white" : ""} ${canBookPrivate ? "" : "opacity-40 cursor-not-allowed"}`}
-                        style={reservationMode === "priva" ? { backgroundColor: BRAND_DEEP, borderColor: BRAND_DEEP } : { color: BRAND_DEEP, borderColor: "#d8c1a6" }}
-                      >
-                        {isEnglish ? "Private" : "Privatif"}
-                      </button>
+                    <div className={`grid gap-2 ${isDayTrip || isTransatSelected ? "grid-cols-1" : "grid-cols-2"}`}>
+                      {!isTransatSelected && (
+                        <button
+                          onClick={() => setReservationMode("priva")}
+                          disabled={!canBookPrivate}
+                          className={`rounded-lg border px-3 py-2 text-xs font-semibold ${reservationMode === "priva" ? "text-white" : ""} ${canBookPrivate ? "" : "opacity-40 cursor-not-allowed"}`}
+                          style={reservationMode === "priva" ? { backgroundColor: BRAND_DEEP, borderColor: BRAND_DEEP } : { color: BRAND_DEEP, borderColor: "#d8c1a6" }}
+                        >
+                          {isEnglish ? "Private" : "Privatif"}
+                        </button>
+                      )}
                       {!isDayTrip && (
                         <button
                           onClick={() => setReservationMode("cabine")}
@@ -342,19 +345,22 @@ export default function CalendrierDisponibilites({ isEnglish = false }: { isEngl
                           className={`rounded-lg border px-3 py-2 text-xs font-semibold ${reservationMode === "cabine" ? "text-white" : ""} ${canBookCabine ? "" : "opacity-40 cursor-not-allowed"}`}
                           style={reservationMode === "cabine" ? { backgroundColor: BRAND_DEEP, borderColor: BRAND_DEEP } : { color: BRAND_DEEP, borderColor: "#d8c1a6" }}
                         >
-                          {isEnglish ? "Cabin/seat" : "Cabine/place"}
+                          {isTransatSelected ? (isEnglish ? "Seat" : "Place") : (isEnglish ? "Cabin/seat" : "Cabine/place")}
                         </button>
                       )}
                     </div>
                     <p className="text-2xl font-bold" style={{ color: BRAND_DEEP }}>{price.toLocaleString("fr-FR")} €</p>
-                    {reservationMode === "cabine" && seasonPricePerPassenger !== null && (
+                    {isTransatSelected && (
+                      <p className="text-xs text-slate-500">{isEnglish ? "3000€ per person · full transatlantic leg" : "3000€/personne · traversée complète automatique"}</p>
+                    )}
+                    {reservationMode === "cabine" && seasonPricePerPassenger !== null && !isTransatSelected && (
                       <p className="text-xs text-slate-500">
                         {isEnglish ? "Season price per passenger" : "Tarif saison par passager"}
                       </p>
                     )}
                     {(canBookPrivate || canBookCabine) && (
                       <a
-                        href={`/reservation?id=${selected.id}&destination=${encodeURIComponent(selected.destination || "")}&formule=${isDayTrip ? "journee" : "semaine"}&typeReservation=${reservationMode === "priva" ? "bateau_entier" : "cabine"}&montant=${price}&dateDebut=${encodeURIComponent(toIsoDayUtc(selected.debut) || "")}&dateFin=${encodeURIComponent(toIsoDayUtc(selected.fin) || "")}`}
+                        href={`/reservation?id=${selected.id}&destination=${encodeURIComponent(selected.destination || "")}&formule=${isDayTrip ? "journee" : "semaine"}&typeReservation=${isTransatSelected ? "place" : reservationMode === "priva" ? "bateau_entier" : "cabine"}&montant=${price}&dateDebut=${encodeURIComponent(toIsoDayUtc(selected.debut) || "")}&dateFin=${encodeURIComponent(toIsoDayUtc(selected.fin) || "")}`}
                         className="block rounded-xl px-4 py-3 text-center font-bold text-white"
                         style={{ backgroundColor: BRAND_DEEP }}
                       >

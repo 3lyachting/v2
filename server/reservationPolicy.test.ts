@@ -21,31 +21,65 @@ describe("reservation policy", () => {
   it("allows flexible stays in april and may", () => {
     const result = validateReservationPolicy({
       dateDebut: "2026-04-12T00:00:00.000Z",
-      dateFin: "2026-04-14T00:00:00.000Z",
+      dateFin: "2026-04-12T00:00:00.000Z",
       destination: "La Ciotat",
+      typeReservation: "bateau_entier",
     });
-    expect(result).toEqual({ ok: true, policy: "april_may_flexible" });
+    expect(result).toEqual({ ok: true, policy: "april_may_private_daytrip" });
+  });
+
+  it("rejects april cabin mode and wrong destination", () => {
+    const cabinRejected = validateReservationPolicy({
+      dateDebut: "2026-05-12T00:00:00.000Z",
+      dateFin: "2026-05-12T00:00:00.000Z",
+      destination: "La Ciotat",
+      typeReservation: "cabine",
+      nbCabines: 1,
+    });
+    expect(cabinRejected.ok).toBe(false);
+    const destinationRejected = validateReservationPolicy({
+      dateDebut: "2026-04-16T00:00:00.000Z",
+      dateFin: "2026-04-16T00:00:00.000Z",
+      destination: "Ajaccio",
+      typeReservation: "bateau_entier",
+    });
+    expect(destinationRejected.ok).toBe(false);
   });
 
   it("keeps june in saturday-weekly mode", () => {
-    const result = validateReservationPolicy({
-      dateDebut: "2026-05-12T00:00:00.000Z",
-      dateFin: "2026-05-14T00:00:00.000Z",
-      destination: "Corse",
-    });
-    expect(result).toEqual({ ok: true, policy: "april_may_flexible" });
-
     const juneRejected = validateReservationPolicy({
       dateDebut: "2026-06-10T00:00:00.000Z",
       dateFin: "2026-06-17T00:00:00.000Z",
       destination: "Corse",
+      typeReservation: "cabine",
+      nbCabines: 2,
     });
     expect(juneRejected.ok).toBe(false);
     const juneWeekly = validateReservationPolicy({
       dateDebut: "2026-06-13T00:00:00.000Z",
       dateFin: "2026-06-20T00:00:00.000Z",
       destination: "Corse",
+      typeReservation: "cabine",
+      nbCabines: 2,
     });
-    expect(juneWeekly).toEqual({ ok: true, policy: "weekly_saturday" });
+    expect(juneWeekly).toEqual({ ok: true, policy: "summer_weekly_private_or_cabine" });
+  });
+
+  it("accepts only transat windows", () => {
+    const transatWindow = validateReservationPolicy({
+      dateDebut: "2026-11-10T00:00:00.000Z",
+      dateFin: "2026-11-17T00:00:00.000Z",
+      destination: "Transat aller La Ciotat -> Pointe-à-Pitre",
+      typeReservation: "bateau_entier",
+    });
+    expect(transatWindow).toEqual({ ok: true, policy: "transat_window" });
+    const julyTransat = validateReservationPolicy({
+      dateDebut: "2026-07-11T00:00:00.000Z",
+      dateFin: "2026-07-18T00:00:00.000Z",
+      destination: "Transat aller La Ciotat -> Pointe-à-Pitre",
+      typeReservation: "cabine",
+      nbCabines: 2,
+    });
+    expect(julyTransat.ok).toBe(false);
   });
 });

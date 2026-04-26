@@ -73,6 +73,8 @@ router.post("/request", async (req, res) => {
     const computedNbCabines =
       normalizedTypeReservation === "cabine"
         ? Math.max(1, Math.ceil(parsedNbPersonnes / 2))
+        : normalizedTypeReservation === "place"
+          ? Math.max(1, parsedNbPersonnes)
         : Math.max(1, parseInt(nbCabines) || 1);
 
     const customerRows = await db.select().from(customers).where(eq(customers.email, normalizedEmail)).limit(1);
@@ -127,6 +129,8 @@ router.post("/request", async (req, res) => {
       dateDebut,
       dateFin,
       destination: effectiveDestination,
+      typeReservation: normalizedTypeReservation,
+      nbCabines: normalizedTypeReservation === "cabine" ? computedNbCabines : null,
     });
     if (!policyCheck.ok) {
       return res.status(400).json({ error: policyCheck.reason });
@@ -150,7 +154,8 @@ router.post("/request", async (req, res) => {
       const { totalUnits } = await getConfirmedBookingUsage(db, parsedDisponibiliteId);
       const selectedDispo = await db.select().from(disponibilites).where(eq(disponibilites.id, parsedDisponibiliteId)).limit(1);
       const isDayTrip = Boolean(selectedDispo[0] && new Date(selectedDispo[0].debut).toISOString().slice(0, 10) === new Date(selectedDispo[0].fin).toISOString().slice(0, 10));
-      const maxPeople = isDayTrip ? 12 : 8;
+      const isTransat = String(selectedDispo[0]?.destination || "").toLowerCase().includes("transat");
+      const maxPeople = isTransat ? 4 : isDayTrip ? 12 : 8;
       if (parsedNbPersonnes > maxPeople) {
         return res.status(400).json({ error: `Maximum ${maxPeople} personnes sur ce créneau.` });
       }
@@ -368,26 +373,35 @@ router.put("/:id", requireAdmin, async (req, res) => {
     const effectiveDateDebut = dateDebut ? String(dateDebut) : new Date(existing[0].dateDebut).toISOString();
     const effectiveDateFin = dateFin ? String(dateFin) : new Date(existing[0].dateFin).toISOString();
     const effectiveDestination = destination || selectedDispoForPolicy[0]?.destination || existing[0].destination || "";
+    const selectedTypeReservation: "bateau_entier" | "cabine" | "place" =
+      typeReservation === "cabine" || typeReservation === "place" || typeReservation === "bateau_entier"
+        ? typeReservation
+        : (existing[0].typeReservation as any);
+    const selectedNbCabines =
+      selectedTypeReservation === "cabine"
+        ? Math.max(1, Math.ceil(parsedNbPersonnes / 2))
+        : selectedTypeReservation === "place"
+          ? Math.max(1, parsedNbPersonnes)
+          : nbCabines !== undefined
+            ? Math.max(1, parseInt(nbCabines))
+            : Math.max(1, existing[0].nbCabines || 1);
     const policyCheck = validateReservationPolicy({
       dateDebut: effectiveDateDebut,
       dateFin: effectiveDateFin,
       destination: effectiveDestination,
+      typeReservation: selectedTypeReservation,
+      nbCabines: selectedTypeReservation === "cabine" ? selectedNbCabines : null,
     });
     if (!policyCheck.ok) {
       return res.status(400).json({ error: policyCheck.reason });
     }
 
-    const selectedTypeReservation: "bateau_entier" | "cabine" | "place" =
-      typeReservation === "cabine" || typeReservation === "place" || typeReservation === "bateau_entier"
-        ? typeReservation
-        : (existing[0].typeReservation as any);
-    const selectedNbCabines = nbCabines !== undefined ? Math.max(1, parseInt(nbCabines)) : Math.max(1, existing[0].nbCabines || 1);
-
     if (resolvedDisponibiliteId) {
       const { totalUnits } = await getConfirmedBookingUsage(db, resolvedDisponibiliteId);
       const selectedDispo = await db.select().from(disponibilites).where(eq(disponibilites.id, resolvedDisponibiliteId)).limit(1);
       const isDayTrip = Boolean(selectedDispo[0] && new Date(selectedDispo[0].debut).toISOString().slice(0, 10) === new Date(selectedDispo[0].fin).toISOString().slice(0, 10));
-      const maxPeople = isDayTrip ? 12 : 8;
+      const isTransat = String(selectedDispo[0]?.destination || "").toLowerCase().includes("transat");
+      const maxPeople = isTransat ? 4 : isDayTrip ? 12 : 8;
       if (parsedNbPersonnes > maxPeople) {
         return res.status(400).json({ error: `Maximum ${maxPeople} personnes sur ce créneau.` });
       }

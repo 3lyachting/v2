@@ -337,6 +337,54 @@ export default function Admin() {
     });
   }, [disponibilites, searchDispo, filterStatut, filterPlanningType]);
 
+  const sortedReservations = useMemo(() => {
+    return reservations.slice().sort((a, b) => new Date(b.dateDebut).getTime() - new Date(a.dateDebut).getTime());
+  }, [reservations]);
+
+  const openManualReservationForm = () => {
+    setEditingReservation(null);
+    setReservationFormData(getDefaultReservationFormData());
+    setShowReservationForm(true);
+  };
+
+  const submitManualReservation = async () => {
+    const payload = {
+      nomClient: reservationFormData.nomClient,
+      prenomClient: reservationFormData.prenomClient || "",
+      emailClient: reservationFormData.emailClient,
+      telClient: reservationFormData.telClient || "",
+      nbPersonnes: Number(reservationFormData.nbPersonnes || 1),
+      formule: reservationFormData.formule || "semaine",
+      destination: reservationFormData.destination || "La Ciotat",
+      dateDebut: `${reservationFormData.dateDebut}T00:00:00.000Z`,
+      dateFin: `${reservationFormData.dateFin}T00:00:00.000Z`,
+      montantTotal: Number(reservationFormData.montantTotal || 0),
+      typeReservation: reservationFormData.typeReservation || "bateau_entier",
+      nbCabines: Number(reservationFormData.nbCabines || 1),
+      message: reservationFormData.message || "Ajout manuel backoffice",
+      disponibiliteId: reservationFormData.disponibiliteId || null,
+    };
+    if (!payload.nomClient || !payload.emailClient || !reservationFormData.dateDebut || !reservationFormData.dateFin) {
+      setReservationActionMessage("Nom, email et dates sont requis.");
+      return;
+    }
+    setReservationActionMessage("");
+    const res = await fetch("/api/reservations/request", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      setReservationActionMessage(data?.error || "Erreur lors de l'ajout manuel.");
+      return;
+    }
+    setShowReservationForm(false);
+    setReservationFormData(getDefaultReservationFormData());
+    await fetchData();
+  };
+
   if (!authChecked) return null;
   if (!authOk) return null;
 
@@ -466,10 +514,93 @@ export default function Admin() {
           </>
         )}
 
+        {tab === "reservations" && (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-2xl font-bold text-slate-900">Réservations</h2>
+                <p className="text-sm text-slate-600">Gestion des demandes et ajout manuel.</p>
+              </div>
+              <button
+                onClick={openManualReservationForm}
+                className="flex items-center gap-2 bg-blue-900 text-white px-4 py-2.5 rounded-xl font-semibold hover:bg-blue-800"
+              >
+                <Plus className="w-4 h-4" />
+                Ajouter une réservation manuelle
+              </button>
+            </div>
+            {!!reservationActionMessage && (
+              <div className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+                {reservationActionMessage}
+              </div>
+            )}
+            <div className="grid gap-3">
+              {sortedReservations.map((reservation) => (
+                <div key={reservation.id} className="bg-white rounded-lg border border-slate-200 p-4">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <p className="font-semibold text-slate-900">{reservation.nomClient}</p>
+                      <p className="text-xs text-slate-600">{reservation.emailClient}</p>
+                      <p className="text-xs text-slate-600">
+                        {new Date(reservation.dateDebut).toLocaleDateString("fr-FR", { timeZone: "UTC" })} →{" "}
+                        {new Date(reservation.dateFin).toLocaleDateString("fr-FR", { timeZone: "UTC" })}
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <span className={`px-2 py-1 rounded-full text-xs font-semibold ${getRequestStatusColor(reservation.requestStatus)}`}>
+                        {getRequestStatusLabel(reservation.requestStatus)}
+                      </span>
+                      <p className="text-xs text-slate-600 mt-2">
+                        {(reservation.montantTotal / 100).toLocaleString("fr-FR")} €
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              ))}
+              {!sortedReservations.length && (
+                <div className="bg-white rounded-lg border border-slate-200 p-6 text-sm text-slate-600">
+                  Aucune réservation enregistrée.
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
         {tab === "config" && <ConfigIcal />}
         {tab === "maintenance" && <BackofficeOps mode="maintenance" />}
         {tab === "pricing" && <SeasonPricingManager />}
         {tab === "documents" && <InventoryManager />}
+
+        {showReservationForm && (
+          <div className="fixed inset-0 z-40 bg-black/40 flex items-center justify-center px-4">
+            <div className="w-full max-w-2xl rounded-2xl bg-white border border-slate-200 p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-bold text-slate-900">Nouvelle réservation manuelle</h3>
+                <button onClick={() => setShowReservationForm(false)} className="p-2 rounded-lg hover:bg-slate-100">
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+              <div className="grid md:grid-cols-2 gap-3">
+                <input value={reservationFormData.nomClient || ""} onChange={(e) => setReservationFormData((s) => ({ ...s, nomClient: e.target.value }))} placeholder="Nom client *" className="px-3 py-2 border border-slate-300 rounded-lg text-sm" />
+                <input value={reservationFormData.emailClient || ""} onChange={(e) => setReservationFormData((s) => ({ ...s, emailClient: e.target.value }))} placeholder="Email *" className="px-3 py-2 border border-slate-300 rounded-lg text-sm" />
+                <input type="date" value={reservationFormData.dateDebut || ""} onChange={(e) => setReservationFormData((s) => ({ ...s, dateDebut: e.target.value }))} className="px-3 py-2 border border-slate-300 rounded-lg text-sm" />
+                <input type="date" value={reservationFormData.dateFin || ""} onChange={(e) => setReservationFormData((s) => ({ ...s, dateFin: e.target.value }))} className="px-3 py-2 border border-slate-300 rounded-lg text-sm" />
+                <input value={reservationFormData.destination || ""} onChange={(e) => setReservationFormData((s) => ({ ...s, destination: e.target.value }))} placeholder="Destination" className="px-3 py-2 border border-slate-300 rounded-lg text-sm" />
+                <select value={reservationFormData.typeReservation || "bateau_entier"} onChange={(e) => setReservationFormData((s) => ({ ...s, typeReservation: e.target.value as any }))} className="px-3 py-2 border border-slate-300 rounded-lg text-sm">
+                  <option value="bateau_entier">Privatif</option>
+                  <option value="cabine">Cabine</option>
+                </select>
+                <input type="number" min={1} max={8} value={reservationFormData.nbPersonnes || 1} onChange={(e) => setReservationFormData((s) => ({ ...s, nbPersonnes: Number(e.target.value || 1) }))} placeholder="Nb personnes" className="px-3 py-2 border border-slate-300 rounded-lg text-sm" />
+                <input type="number" min={1} max={4} value={reservationFormData.nbCabines || 1} onChange={(e) => setReservationFormData((s) => ({ ...s, nbCabines: Number(e.target.value || 1) }))} placeholder="Nb cabines" className="px-3 py-2 border border-slate-300 rounded-lg text-sm" />
+                <input type="number" min={0} value={reservationFormData.montantTotal || 0} onChange={(e) => setReservationFormData((s) => ({ ...s, montantTotal: Number(e.target.value || 0) }))} placeholder="Montant total (centimes)" className="px-3 py-2 border border-slate-300 rounded-lg text-sm md:col-span-2" />
+              </div>
+              <div className="mt-5 flex items-center justify-end gap-2">
+                <button onClick={() => setShowReservationForm(false)} className="px-4 py-2 rounded-lg border border-slate-300">Annuler</button>
+                <button onClick={submitManualReservation} className="px-4 py-2 rounded-lg bg-blue-900 text-white font-semibold">Créer la réservation</button>
+              </div>
+            </div>
+          </div>
+        )}
       </main>
     </div>
   );
