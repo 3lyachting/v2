@@ -6,26 +6,6 @@ import { requireAdmin } from "../_core/authz";
 import { runBookingConsistencyAudit, syncDisponibilitesFromReservations } from "../_core/bookingRules";
 
 const router = Router();
-let lastSyncAt = 0;
-let syncPromise: Promise<void> | null = null;
-
-async function syncWithThrottle(db: any) {
-  const now = Date.now();
-  if (now - lastSyncAt < 30000) return;
-  if (syncPromise) {
-    await syncPromise;
-    return;
-  }
-  syncPromise = (async () => {
-    await syncDisponibilitesFromReservations(db);
-    lastSyncAt = Date.now();
-  })();
-  try {
-    await syncPromise;
-  } finally {
-    syncPromise = null;
-  }
-}
 
 // GET toutes les disponibilités
 router.get("/", async (req, res) => {
@@ -37,7 +17,7 @@ router.get("/", async (req, res) => {
     if (!db) {
       return res.status(500).json({ error: "Base de données non disponible" });
     }
-    await syncWithThrottle(db);
+    await syncDisponibilitesFromReservations(db);
     const all = await db.select().from(disponibilites).orderBy(disponibilites.debut);
     res.json(all);
   } catch (error) {
@@ -55,7 +35,7 @@ router.get("/range", async (req, res) => {
     if (!db) {
       return res.status(500).json({ error: "Base de données non disponible" });
     }
-    await syncWithThrottle(db);
+    await syncDisponibilitesFromReservations(db);
     const { debut, fin } = req.query;
     if (!debut || !fin) {
       return res.status(400).json({ error: "Paramètres debut et fin requis" });
@@ -85,7 +65,7 @@ router.get("/audit", requireAdmin, async (_req, res) => {
   try {
     const db = await getDb();
     if (!db) return res.status(500).json({ error: "Base de données non disponible" });
-    await syncWithThrottle(db);
+    await syncDisponibilitesFromReservations(db);
     const audit = await runBookingConsistencyAudit(db);
     return res.json(audit);
   } catch (error: any) {
