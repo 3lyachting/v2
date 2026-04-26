@@ -3,10 +3,12 @@ import { eq } from "drizzle-orm";
 import { getDb } from "../db";
 import { config, crewMembers, maintenanceTasks } from "../../drizzle/schema";
 import { requireAdmin } from "../_core/authz";
+import { DEFAULT_SEASON_PRICING, normalizeSeasonPricing } from "../_core/seasonPricing";
 
 const router = Router();
 router.use(requireAdmin);
 const INVENTORY_KEY = "boat_inventory_v1";
+const SEASON_PRICING_KEY = "season_pricing_v1";
 
 function mapDbError(error: any, fallback: string) {
   const message = String(error?.message || "");
@@ -218,6 +220,40 @@ router.put("/inventory", async (req, res) => {
     return res.json({ success: true });
   } catch (error: any) {
     return res.status(500).json({ error: mapDbError(error, "Erreur sauvegarde inventaire") });
+  }
+});
+
+router.get("/season-pricing", async (_req, res) => {
+  try {
+    const db = await getDb();
+    if (!db) return res.status(500).json({ error: "Base de données non disponible" });
+    const [row] = await db.select().from(config).where(eq(config.cle, SEASON_PRICING_KEY)).limit(1);
+    const parsed = row?.valeur ? normalizeSeasonPricing(JSON.parse(row.valeur)) : DEFAULT_SEASON_PRICING;
+    return res.json(parsed);
+  } catch (error: any) {
+    return res.status(500).json({ error: mapDbError(error, "Erreur lecture tarifs saisonniers") });
+  }
+});
+
+router.put("/season-pricing", async (req, res) => {
+  try {
+    const db = await getDb();
+    if (!db) return res.status(500).json({ error: "Base de données non disponible" });
+    const payload = normalizeSeasonPricing(req.body || {});
+    const json = JSON.stringify(payload);
+    const [existing] = await db.select().from(config).where(eq(config.cle, SEASON_PRICING_KEY)).limit(1);
+    if (existing) {
+      await db.update(config).set({ valeur: json, updatedAt: new Date() }).where(eq(config.cle, SEASON_PRICING_KEY));
+    } else {
+      await db.insert(config).values({
+        cle: SEASON_PRICING_KEY,
+        valeur: json,
+        description: "Tarifs haute/basse saison par produit (prix par passager)",
+      });
+    }
+    return res.json({ success: true, pricing: payload });
+  } catch (error: any) {
+    return res.status(500).json({ error: mapDbError(error, "Erreur sauvegarde tarifs saisonniers") });
   }
 });
 

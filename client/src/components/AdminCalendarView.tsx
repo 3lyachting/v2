@@ -254,7 +254,7 @@ export default function AdminCalendarView({
                       ? "bg-white border-slate-200 hover:border-slate-300"
                       : "bg-slate-50 border-slate-100 text-slate-400"
                   } ${isToday ? "ring-2 ring-offset-1" : ""}`}
-                  style={isToday ? { ringColor: BRAND_DEEP } : {}}
+                  style={isToday ? ({ ["--tw-ring-color" as any]: BRAND_DEEP } as any) : undefined}
                 >
                   <div className="flex flex-col h-full">
                     <span className={`text-xs font-semibold ${isCurrentMonth ? "text-slate-900" : "text-slate-400"}`}>

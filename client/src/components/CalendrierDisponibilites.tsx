@@ -4,6 +4,14 @@ import { ChevronLeft, ChevronRight, Info } from "lucide-react";
 type Statut = "disponible" | "reserve" | "option" | "ferme";
 type Produit = "all" | "med" | "transat" | "caraibes" | "journee";
 type ReservationMode = "priva" | "cabine";
+type SeasonPricingProduct = "med" | "transat" | "caraibes" | "journee";
+
+type ProductSeasonPricing = {
+  highSeasonPerPassenger: number | null;
+  lowSeasonPerPassenger: number | null;
+};
+
+type SeasonPricingConfig = Record<SeasonPricingProduct, ProductSeasonPricing>;
 
 type Disponibilite = {
   id: number;
@@ -23,6 +31,12 @@ type Disponibilite = {
 
 const BRAND_DEEP = "#00384A";
 const MONTHS_FR = ["Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"];
+const DEFAULT_SEASON_PRICING: SeasonPricingConfig = {
+  med: { highSeasonPerPassenger: null, lowSeasonPerPassenger: null },
+  transat: { highSeasonPerPassenger: null, lowSeasonPerPassenger: null },
+  caraibes: { highSeasonPerPassenger: null, lowSeasonPerPassenger: null },
+  journee: { highSeasonPerPassenger: null, lowSeasonPerPassenger: null },
+};
 
 function safeToIsoDay(input: string | Date | null | undefined) {
   if (!input) return null;
@@ -77,9 +91,27 @@ function getDateLabel(iso: string) {
   return `${String(d.getUTCDate()).padStart(2, "0")}/${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
 }
 
+function isHighSeasonDate(dateInput: string | Date) {
+  const d = new Date(dateInput);
+  if (Number.isNaN(d.getTime())) return false;
+  const month = d.getUTCMonth() + 1;
+  const day = d.getUTCDate();
+  if (month === 7 || month === 8) return true;
+  if (month === 12 && day >= 15) return true;
+  if (month === 1 && day <= 8) return true;
+  if (month === 2) return true;
+  return false;
+}
+
+function toSeasonPricingProduct(product: Produit): SeasonPricingProduct {
+  if (product === "all") return "med";
+  return product;
+}
+
 export default function CalendrierDisponibilites({ isEnglish = false }: { isEnglish?: boolean }) {
   const [dispos, setDispos] = useState<Disponibilite[]>([]);
   const [loading, setLoading] = useState(true);
+  const [pricing, setPricing] = useState<SeasonPricingConfig>(DEFAULT_SEASON_PRICING);
   const [month, setMonth] = useState(new Date());
   const [selected, setSelected] = useState<Disponibilite | null>(null);
   const [filter, setFilter] = useState<Produit>("all");
@@ -108,6 +140,20 @@ export default function CalendrierDisponibilites({ isEnglish = false }: { isEngl
       }
     };
     void run();
+  }, []);
+
+  useEffect(() => {
+    const loadPricing = async () => {
+      try {
+        const res = await fetch("/api/backoffice-ops/season-pricing", { cache: "no-store" });
+        if (!res.ok) return;
+        const payload = await res.json();
+        setPricing({ ...DEFAULT_SEASON_PRICING, ...(payload || {}) });
+      } catch {
+        // fallback silencieux sur défauts
+      }
+    };
+    void loadPricing();
   }, []);
 
   const filtered = useMemo(() => dispos.filter((d) => (filter === "all" ? true : getProduct(d) === filter)), [dispos, filter]);
@@ -159,10 +205,21 @@ export default function CalendrierDisponibilites({ isEnglish = false }: { isEngl
   const hasCabine = Boolean(selected && (selected.tarifCabine || selected.tarifJourPersonne));
   const canBookPrivate = Boolean(selected && isBookable(selected) && hasPriva && reservedUnits === 0);
   const canBookCabine = Boolean(selected && isBookable(selected) && !isDayTrip && hasCabine && reservedUnits < totalUnits);
-  const price =
+  const seasonPricePerPassenger = useMemo(() => {
+    if (!selected) return null;
+    const product = toSeasonPricingProduct(selectedProduct);
+    const dateIso = safeToIsoDay(selected.debut);
+    if (!dateIso) return null;
+    const productPricing = pricing[product];
+    if (!productPricing) return null;
+    return isHighSeasonDate(dateIso) ? productPricing.highSeasonPerPassenger : productPricing.lowSeasonPerPassenger;
+  }, [selected, selectedProduct, pricing]);
+
+  const fallbackPrice =
     reservationMode === "priva"
       ? selected?.tarifJourPriva ?? selected?.tarif ?? 0
       : selected?.tarifCabine ?? selected?.tarifJourPersonne ?? selected?.tarif ?? 0;
+  const price = reservationMode === "cabine" && seasonPricePerPassenger !== null ? seasonPricePerPassenger : fallbackPrice;
 
   useEffect(() => {
     if (reservationMode === "priva" && !canBookPrivate && canBookCabine) setReservationMode("cabine");
@@ -277,6 +334,11 @@ export default function CalendrierDisponibilites({ isEnglish = false }: { isEngl
                       )}
                     </div>
                     <p className="text-2xl font-bold" style={{ color: BRAND_DEEP }}>{price.toLocaleString("fr-FR")} €</p>
+                    {reservationMode === "cabine" && seasonPricePerPassenger !== null && (
+                      <p className="text-xs text-slate-500">
+                        {isEnglish ? "Season price per passenger" : "Tarif saison par passager"}
+                      </p>
+                    )}
                     {(canBookPrivate || canBookCabine) && (
                       <a
                         href={`/reservation?id=${selected.id}&destination=${encodeURIComponent(selected.destination || "")}&formule=${isDayTrip ? "journee" : "semaine"}&typeReservation=${reservationMode === "priva" ? "bateau_entier" : "cabine"}&montant=${price}&dateDebut=${encodeURIComponent(safeToIsoDay(selected.debut) || "")}&dateFin=${encodeURIComponent(safeToIsoDay(selected.fin) || "")}`}

@@ -12,6 +12,7 @@ import ConfigIcal from "@/components/ConfigIcal";
 import BackofficeOps from "@/components/BackofficeOps";
 import AdminCalendarView from "@/components/AdminCalendarView";
 import InventoryManager from "@/components/InventoryManager";
+import SeasonPricingManager from "@/components/SeasonPricingManager";
 import logoSabine from "/logo-sabine.png";
 
 interface Reservation {
@@ -90,7 +91,7 @@ type ReservationFormData = Partial<Reservation> & {
 export default function Admin() {
   const [authChecked, setAuthChecked] = useState(false);
   const [authOk, setAuthOk] = useState(false);
-  const [tab, setTab] = useState<"disponibilites" | "reservations" | "finances" | "config" | "documents" | "equipage" | "maintenance" | string>("disponibilites");
+  const [tab, setTab] = useState<"disponibilites" | "reservations" | "finances" | "config" | "documents" | "equipage" | "maintenance" | "pricing" | string>("disponibilites");
   const [reservations, setReservations] = useState<Reservation[]>([]);
   const [disponibilites, setDisponibilites] = useState<Disponibilite[]>([]);
   const [cabinesMap, setCabinesMap] = useState<Record<number, CabinesReservees>>({});
@@ -325,6 +326,7 @@ export default function Admin() {
             { id: "disponibilites", label: "Calendrier", icon: Calendar },
             { id: "reservations", label: "Réservations", icon: Anchor },
             { id: "finances", label: "Finances", icon: CreditCard },
+            { id: "pricing", label: "Tarifs saison", icon: CreditCard },
             { id: "documents", label: "Documents", icon: FileText },
             { id: "maintenance", label: "Maintenance", icon: Wrench },
             { id: "config", label: "Configuration", icon: Link2 },
@@ -426,7 +428,8 @@ export default function Admin() {
         )}
 
         {tab === "config" && <ConfigIcal />}
-        {tab === "maintenance" && <BackofficeOps />}
+        {tab === "maintenance" && <BackofficeOps mode="maintenance" />}
+        {tab === "pricing" && <SeasonPricingManager />}
         {tab === "documents" && <InventoryManager />}
       </main>
     </div>
