@@ -13,7 +13,7 @@ import {
   Phone, Mail, Instagram, Facebook, ChevronDown,
   Ship, Compass, Fish, Sunset, ArrowRight, Menu, X, MessageCircle
 } from "lucide-react";
-const CalendrierDisponibilites = lazy(() => import("@/components/CalendrierDisponibilites"));
+const CalendrierDisponibilites = lazy(() => import("@/components/CalendrierDisponibilites_v2"));
 const AvisGoogle = lazy(() => import("@/components/AvisGoogle"));
 
 const BRAND_SAND = "#B58E6E";
