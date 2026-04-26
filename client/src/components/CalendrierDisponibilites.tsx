@@ -1,5 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
-import { ChevronLeft, ChevronRight, Info } from "lucide-react";
+import FullCalendar from "@fullcalendar/react";
+import dayGridPlugin from "@fullcalendar/daygrid";
+import interactionPlugin from "@fullcalendar/interaction";
+import { Info } from "lucide-react";
+import "@fullcalendar/core/index.css";
+import "@fullcalendar/daygrid/index.css";
 
 type Statut = "disponible" | "reserve" | "option" | "ferme";
 type Produit = "all" | "med" | "transat" | "caraibes" | "journee";
@@ -22,7 +27,6 @@ type Disponibilite = {
 };
 
 const BRAND_DEEP = "#00384A";
-const MONTHS_FR = ["Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"];
 
 function toIsoDay(input: string | Date) {
   return new Date(input).toISOString().slice(0, 10);
@@ -72,7 +76,6 @@ function getDateLabel(iso: string) {
 export default function CalendrierDisponibilites({ isEnglish = false }: { isEnglish?: boolean }) {
   const [dispos, setDispos] = useState<Disponibilite[]>([]);
   const [loading, setLoading] = useState(true);
-  const [month, setMonth] = useState(new Date());
   const [selected, setSelected] = useState<Disponibilite | null>(null);
   const [filter, setFilter] = useState<Produit>("all");
   const [reservationMode, setReservationMode] = useState<ReservationMode>("cabine");
@@ -88,8 +91,6 @@ export default function CalendrierDisponibilites({ isEnglish = false }: { isEngl
         setDispos(sorted);
         const first = sorted.find((d) => isBookable(d));
         if (first) {
-          const start = new Date(first.debut);
-          setMonth(new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth(), 1)));
           setSelected(first);
         }
       } catch {
@@ -102,43 +103,39 @@ export default function CalendrierDisponibilites({ isEnglish = false }: { isEngl
   }, []);
 
   const filtered = useMemo(() => dispos.filter((d) => (filter === "all" ? true : getProduct(d) === filter)), [dispos, filter]);
-  const byDay = useMemo(() => {
-    const map = new Map<string, Disponibilite[]>();
-    for (const d of filtered) {
-      const start = toIsoDay(d.debut);
-      const end = toIsoDay(d.fin);
-      let cursor = start;
-      while (cursor <= end) {
-        const current = map.get(cursor) || [];
-        current.push(d);
-        map.set(cursor, current);
-        const next = parseIsoDay(cursor);
-        next.setUTCDate(next.getUTCDate() + 1);
-        cursor = next.toISOString().slice(0, 10);
-      }
-    }
-    return map;
-  }, [filtered]);
-
-  const bestForDay = (iso: string) => {
-    const rows = byDay.get(iso) || [];
-    if (!rows.length) return null;
-    return rows
-      .slice()
-      .sort((a, b) => {
-        const p = (v: Disponibilite) => (v.statut === "reserve" ? 4 : v.statut === "option" ? 3 : v.statut === "ferme" ? 2 : 1);
-        return p(b) - p(a);
-      })[0];
-  };
-
-  const year = month.getUTCFullYear();
-  const monthIdx = month.getUTCMonth();
-  const first = new Date(Date.UTC(year, monthIdx, 1));
-  const last = new Date(Date.UTC(year, monthIdx + 1, 0));
-  const startOffset = (first.getUTCDay() + 6) % 7;
-  const days: (Date | null)[] = [];
-  for (let i = 0; i < startOffset; i++) days.push(null);
-  for (let d = 1; d <= last.getUTCDate(); d++) days.push(new Date(Date.UTC(year, monthIdx, d)));
+  const events = useMemo(
+    () =>
+      filtered.map((d) => {
+        const endExclusive = parseIsoDay(toIsoDay(d.fin));
+        endExclusive.setUTCDate(endExclusive.getUTCDate() + 1);
+        return {
+          id: String(d.id),
+          start: toIsoDay(d.debut),
+          end: endExclusive.toISOString().slice(0, 10),
+          allDay: true,
+          title: d.destination,
+          extendedProps: { dispo: d },
+          className: getBadgeClass(d),
+          backgroundColor:
+            d.planningType && d.planningType !== "charter"
+              ? "#94a3b8"
+              : d.statut === "reserve" || d.statut === "ferme"
+                ? "#ef4444"
+                : d.statut === "option"
+                  ? "#fb923c"
+                  : "#10b981",
+          borderColor:
+            d.planningType && d.planningType !== "charter"
+              ? "#64748b"
+              : d.statut === "reserve" || d.statut === "ferme"
+                ? "#dc2626"
+                : d.statut === "option"
+                  ? "#f97316"
+                  : "#059669",
+        };
+      }),
+    [filtered]
+  );
 
   const selectedProduct = selected ? getProduct(selected) : "med";
   const isDayTrip = selectedProduct === "journee";
@@ -184,39 +181,37 @@ export default function CalendrierDisponibilites({ isEnglish = false }: { isEngl
       ) : (
         <div className="grid lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2 rounded-2xl border bg-white p-4 sm:p-6" style={{ borderColor: "#dac2a7" }}>
-            <div className="mb-4 flex items-center justify-between">
-              <button onClick={() => setMonth(new Date(Date.UTC(year, monthIdx - 1, 1)))} className="rounded-lg p-2 hover:bg-slate-100">
-                <ChevronLeft className="h-5 w-5" style={{ color: BRAND_DEEP }} />
-              </button>
-              <h3 className="text-xl font-bold" style={{ color: BRAND_DEEP }}>{MONTHS_FR[monthIdx]} {year}</h3>
-              <button onClick={() => setMonth(new Date(Date.UTC(year, monthIdx + 1, 1)))} className="rounded-lg p-2 hover:bg-slate-100">
-                <ChevronRight className="h-5 w-5" style={{ color: BRAND_DEEP }} />
-              </button>
-            </div>
-            <div className="mb-2 grid grid-cols-7 gap-2 text-center text-xs font-semibold text-slate-500">
-              {["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"].map((d) => <div key={d}>{d}</div>)}
-            </div>
-            <div className="grid grid-cols-7 gap-2">
-              {days.map((d, idx) => {
-                if (!d) return <div key={`empty-${idx}`} className="aspect-square min-h-[48px]" />;
-                const iso = d.toISOString().slice(0, 10);
-                const slot = bestForDay(iso);
-                const selectedRange =
-                  selected &&
-                  parseIsoDay(toIsoDay(selected.debut)).getTime() <= d.getTime() &&
-                  d.getTime() <= parseIsoDay(toIsoDay(selected.fin)).getTime();
-                return (
-                  <button
-                    key={iso}
-                    onClick={() => slot && setSelected(slot)}
-                    className={`aspect-square min-h-[48px] rounded-lg border text-xs font-semibold ${slot ? getBadgeClass(slot) : "bg-slate-100 text-slate-400 border-slate-200"} ${selectedRange ? "ring-2 ring-offset-2" : ""}`}
-                    style={selectedRange ? { ["--tw-ring-color" as any]: BRAND_DEEP } : undefined}
-                  >
-                    <span>{d.getUTCDate()}</span>
-                  </button>
-                );
-              })}
-            </div>
+            <FullCalendar
+              plugins={[dayGridPlugin, interactionPlugin]}
+              initialView="dayGridMonth"
+              height="auto"
+              locale="fr"
+              firstDay={1}
+              events={events}
+              eventDisplay="block"
+              dayMaxEventRows={3}
+              eventClick={(info) => {
+                const d = info.event.extendedProps.dispo as Disponibilite | undefined;
+                if (d) setSelected(d);
+              }}
+              dateClick={(info) => {
+                const clicked = filtered.find((d) => {
+                  const day = info.dateStr;
+                  const start = toIsoDay(d.debut);
+                  const end = toIsoDay(d.fin);
+                  return day >= start && day <= end;
+                });
+                if (clicked) setSelected(clicked);
+              }}
+              headerToolbar={{
+                left: "prev,next today",
+                center: "title",
+                right: "",
+              }}
+              buttonText={{
+                today: isEnglish ? "Today" : "Aujourd'hui",
+              }}
+            />
           </div>
 
           <div className="rounded-2xl border bg-white p-6" style={{ borderColor: "#dac2a7" }}>
