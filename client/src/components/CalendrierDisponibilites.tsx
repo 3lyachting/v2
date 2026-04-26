@@ -177,17 +177,18 @@ export default function CalendrierDisponibilites({ isEnglish = false }: { isEngl
       {loading ? (
         <div className="py-10 text-center">{isEnglish ? "Loading..." : "Chargement..."}</div>
       ) : (
-        <div className="grid lg:grid-cols-3 gap-6">
-          <div className="lg:col-span-2 rounded-2xl border bg-white p-4 sm:p-6" style={{ borderColor: "#dac2a7" }}>
+        <div className="space-y-6">
+          <div className="rounded-2xl border bg-white p-3 sm:p-5 lg:p-6" style={{ borderColor: "#dac2a7" }}>
             <FullCalendar
               plugins={[dayGridPlugin, interactionPlugin]}
               initialView="dayGridMonth"
               height="auto"
+              contentHeight="auto"
               locale="fr"
               firstDay={1}
               events={events}
               eventDisplay="block"
-              dayMaxEventRows={3}
+              dayMaxEventRows={4}
               eventClick={(info) => {
                 const d = info.event.extendedProps.dispo as Disponibilite | undefined;
                 if (d) setSelected(d);
@@ -212,7 +213,7 @@ export default function CalendrierDisponibilites({ isEnglish = false }: { isEngl
             />
           </div>
 
-          <div className="rounded-2xl border bg-white p-6" style={{ borderColor: "#dac2a7" }}>
+          <div className="rounded-2xl border bg-white p-6 lg:p-7" style={{ borderColor: "#dac2a7" }}>
             <h3 className="mb-4 text-xl font-bold" style={{ color: BRAND_DEEP }}>{isEnglish ? "Details" : "Détails"}</h3>
             {!selected ? (
               <div className="py-6 text-center text-slate-500">
