@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ChevronRight, MapPin, Users, Anchor, Info } from "lucide-react";
-import { useNavigate } from "wouter";
+import { useLocation } from "wouter";
 
 type Statut = "disponible" | "reserve" | "option" | "ferme";
 type Produit = "all" | "med" | "transat" | "caraibes" | "journee";
@@ -119,7 +119,7 @@ function getProductLabel(product: Produit, isEnglish: boolean = false): string {
 }
 
 export default function CalendrierDisponibilites({ isEnglish = false }: { isEnglish?: boolean }) {
-  const navigate = useNavigate();
+  const [, setLocation] = useLocation();
   const [dispos, setDispos] = useState<Disponibilite[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<Produit>("all");
@@ -156,7 +156,7 @@ export default function CalendrierDisponibilites({ isEnglish = false }: { isEngl
       dateFin: dispo.fin,
       destination: dispo.destination,
     });
-    navigate(`/reservation?${params.toString()}`);
+    setLocation(`/reservation?${params.toString()}`);
   };
 
   return (
