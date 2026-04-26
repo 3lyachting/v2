@@ -1,7 +1,4 @@
 import { useEffect, useMemo, useState } from "react";
-import FullCalendar from "@fullcalendar/react";
-import dayGridPlugin from "@fullcalendar/daygrid";
-import interactionPlugin from "@fullcalendar/interaction";
 import { Info } from "lucide-react";
 
 type Statut = "disponible" | "reserve" | "option" | "ferme";
@@ -71,6 +68,54 @@ function getDateLabel(iso: string) {
   return `${String(d.getUTCDate()).padStart(2, "0")}/${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
 }
 
+function statusBadge(statut: Statut, isEnglish: boolean) {
+  if (statut === "disponible") return { label: isEnglish ? "Available" : "Disponible", cls: "bg-emerald-100 text-emerald-800 border-emerald-300" };
+  if (statut === "option") return { label: "Option", cls: "bg-orange-100 text-orange-800 border-orange-300" };
+  if (statut === "reserve") return { label: isEnglish ? "Booked" : "Complet", cls: "bg-red-100 text-red-800 border-red-300" };
+  return { label: isEnglish ? "Closed" : "Fermé", cls: "bg-slate-100 text-slate-700 border-slate-300" };
+}
+
+function monthLabel(iso: string) {
+  const d = parseIsoDay(iso);
+  return d.toLocaleDateString("fr-FR", { month: "short", year: "2-digit", timeZone: "UTC" });
+}
+
+function firstDayOfMonth(iso: string) {
+  const d = parseIsoDay(iso);
+  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1)).toISOString().slice(0, 10);
+}
+
+function addMonths(isoMonthStart: string, count: number) {
+  const d = parseIsoDay(isoMonthStart);
+  d.setUTCMonth(d.getUTCMonth() + count);
+  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1)).toISOString().slice(0, 10);
+}
+
+function getMonthSpan(dispos: Disponibilite[]) {
+  if (!dispos.length) {
+    const now = new Date();
+    const start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString().slice(0, 10);
+    return Array.from({ length: 12 }).map((_, i) => addMonths(start, i));
+  }
+  const starts = dispos.map((d) => firstDayOfMonth(toIsoDay(d.debut))).sort();
+  const ends = dispos.map((d) => firstDayOfMonth(toIsoDay(d.fin))).sort();
+  const minMonth = starts[0];
+  const maxMonth = ends[ends.length - 1];
+  const out: string[] = [];
+  let cursor = minMonth;
+  while (cursor <= maxMonth) {
+    out.push(cursor);
+    cursor = addMonths(cursor, 1);
+  }
+  return out;
+}
+
+function daysBetweenInclusive(startIso: string, endIso: string) {
+  const start = parseIsoDay(startIso).getTime();
+  const end = parseIsoDay(endIso).getTime();
+  return Math.max(1, Math.floor((end - start) / (24 * 3600 * 1000)) + 1);
+}
+
 export default function CalendrierDisponibilites({ isEnglish = false }: { isEnglish?: boolean }) {
   const [dispos, setDispos] = useState<Disponibilite[]>([]);
   const [loading, setLoading] = useState(true);
@@ -101,39 +146,21 @@ export default function CalendrierDisponibilites({ isEnglish = false }: { isEngl
   }, []);
 
   const filtered = useMemo(() => dispos.filter((d) => (filter === "all" ? true : getProduct(d) === filter)), [dispos, filter]);
-  const events = useMemo(
-    () =>
-      filtered.map((d) => {
-        const endExclusive = parseIsoDay(toIsoDay(d.fin));
-        endExclusive.setUTCDate(endExclusive.getUTCDate() + 1);
-        return {
-          id: String(d.id),
-          start: toIsoDay(d.debut),
-          end: endExclusive.toISOString().slice(0, 10),
-          allDay: true,
-          title: d.destination,
-          extendedProps: { dispo: d },
-          className: getBadgeClass(d),
-          backgroundColor:
-            d.planningType && d.planningType !== "charter"
-              ? "#94a3b8"
-              : d.statut === "reserve" || d.statut === "ferme"
-                ? "#ef4444"
-                : d.statut === "option"
-                  ? "#fb923c"
-                  : "#10b981",
-          borderColor:
-            d.planningType && d.planningType !== "charter"
-              ? "#64748b"
-              : d.statut === "reserve" || d.statut === "ferme"
-                ? "#dc2626"
-                : d.statut === "option"
-                  ? "#f97316"
-                  : "#059669",
-        };
-      }),
-    [filtered]
-  );
+  const monthSpan = useMemo(() => getMonthSpan(filtered), [filtered]);
+  const timelineStart = monthSpan[0];
+  const timelineEnd = addMonths(monthSpan[monthSpan.length - 1] || firstDayOfMonth(toIsoDay(new Date())), 1);
+  const timelineDays = daysBetweenInclusive(timelineStart, timelineEnd);
+
+  const groupedByLane = useMemo(() => {
+    const lanes = {
+      journee: filtered.filter((d) => getProduct(d) === "journee"),
+      med: filtered.filter((d) => getProduct(d) === "med"),
+      transat: filtered.filter((d) => getProduct(d) === "transat"),
+      caraibes: filtered.filter((d) => getProduct(d) === "caraibes"),
+      stop: filtered.filter((d) => d.planningType === "technical_stop" || d.planningType === "maintenance" || d.planningType === "blocked"),
+    };
+    return lanes;
+  }, [filtered]);
 
   const selectedProduct = selected ? getProduct(selected) : "med";
   const isDayTrip = selectedProduct === "journee";
@@ -178,39 +205,82 @@ export default function CalendrierDisponibilites({ isEnglish = false }: { isEngl
         <div className="py-10 text-center">{isEnglish ? "Loading..." : "Chargement..."}</div>
       ) : (
         <div className="space-y-6">
-          <div className="rounded-2xl border bg-white p-3 sm:p-5 lg:p-6" style={{ borderColor: "#dac2a7" }}>
-            <FullCalendar
-              plugins={[dayGridPlugin, interactionPlugin]}
-              initialView="dayGridMonth"
-              height="auto"
-              contentHeight="auto"
-              locale="fr"
-              firstDay={1}
-              events={events}
-              eventDisplay="block"
-              dayMaxEventRows={4}
-              eventClick={(info) => {
-                const d = info.event.extendedProps.dispo as Disponibilite | undefined;
-                if (d) setSelected(d);
-              }}
-              dateClick={(info) => {
-                const clicked = filtered.find((d) => {
-                  const day = info.dateStr;
-                  const start = toIsoDay(d.debut);
-                  const end = toIsoDay(d.fin);
-                  return day >= start && day <= end;
-                });
-                if (clicked) setSelected(clicked);
-              }}
-              headerToolbar={{
-                left: "prev,next today",
-                center: "title",
-                right: "",
-              }}
-              buttonText={{
-                today: isEnglish ? "Today" : "Aujourd'hui",
-              }}
-            />
+          <div className="rounded-2xl border bg-white p-4 sm:p-6 lg:p-7" style={{ borderColor: "#dac2a7" }}>
+            <div className="mb-4 flex items-center justify-between">
+              <h3 className="text-xl font-bold" style={{ color: BRAND_DEEP }}>
+                {isEnglish ? "Season timeline" : "Timeline des saisons"}
+              </h3>
+              <div className="flex gap-2 text-[11px]">
+                <span className="inline-flex items-center rounded-full border border-emerald-300 bg-emerald-100 px-2 py-1 font-semibold text-emerald-800">{isEnglish ? "Available" : "Disponible"}</span>
+                <span className="inline-flex items-center rounded-full border border-orange-300 bg-orange-100 px-2 py-1 font-semibold text-orange-800">Option</span>
+                <span className="inline-flex items-center rounded-full border border-red-300 bg-red-100 px-2 py-1 font-semibold text-red-800">{isEnglish ? "Booked" : "Complet"}</span>
+                <span className="inline-flex items-center rounded-full border border-slate-300 bg-slate-100 px-2 py-1 font-semibold text-slate-700">{isEnglish ? "Closed" : "Fermé"}</span>
+              </div>
+            </div>
+
+            <div className="overflow-x-auto">
+              <div className="min-w-[900px]">
+                <div className="grid grid-cols-[220px_1fr] gap-3 pb-2">
+                  <div />
+                  <div className="grid gap-1" style={{ gridTemplateColumns: `repeat(${monthSpan.length}, minmax(0, 1fr))` }}>
+                    {monthSpan.map((m) => (
+                      <div key={m} className="text-center text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                        {monthLabel(m)}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {[
+                  { key: "journee", label: isEnglish ? "Day trips La Ciotat" : "Journées La Ciotat" },
+                  { key: "med", label: isEnglish ? "Mediterranean weeks" : "Semaines Méditerranée" },
+                  { key: "transat", label: "Transatlantique" },
+                  { key: "caraibes", label: isEnglish ? "Caribbean weeks" : "Semaines Caraïbes" },
+                  { key: "stop", label: isEnglish ? "Technical stop" : "Arrêt technique" },
+                ].map((lane) => {
+                  const laneDispos = (groupedByLane as any)[lane.key] as Disponibilite[];
+                  return (
+                    <div key={lane.key} className="grid grid-cols-[220px_1fr] gap-3 py-2">
+                      <div className="flex items-center text-sm font-semibold text-slate-700">{lane.label}</div>
+                      <div className="relative h-12 rounded-xl border border-slate-200 bg-slate-50">
+                        {monthSpan.map((m) => {
+                          const offsetDays = daysBetweenInclusive(timelineStart, m) - 1;
+                          const leftPct = (offsetDays / timelineDays) * 100;
+                          return <div key={m} className="absolute inset-y-0 w-px bg-slate-200" style={{ left: `${leftPct}%` }} />;
+                        })}
+                        {laneDispos.map((d) => {
+                          const start = toIsoDay(d.debut);
+                          const end = toIsoDay(d.fin);
+                          const left = ((daysBetweenInclusive(timelineStart, start) - 1) / timelineDays) * 100;
+                          const width = (daysBetweenInclusive(start, end) / timelineDays) * 100;
+                          const b = statusBadge(d.statut, isEnglish);
+                          const barBg =
+                            d.planningType && d.planningType !== "charter"
+                              ? "bg-slate-400 border-slate-500"
+                              : d.statut === "reserve"
+                                ? "bg-red-500 border-red-600"
+                                : d.statut === "option"
+                                  ? "bg-orange-500 border-orange-600"
+                                  : "bg-emerald-500 border-emerald-600";
+                          return (
+                            <button
+                              key={d.id}
+                              type="button"
+                              onClick={() => setSelected(d)}
+                              className={`absolute top-1/2 -translate-y-1/2 h-8 rounded-lg border px-2 text-left text-[11px] font-semibold text-white shadow-sm transition hover:scale-[1.01] ${barBg}`}
+                              style={{ left: `${left}%`, width: `${Math.max(width, 5)}%` }}
+                              title={`${d.destination} · ${b.label}`}
+                            >
+                              <span className="truncate block">{d.destination}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
           </div>
 
           <div className="rounded-2xl border bg-white p-6 lg:p-7" style={{ borderColor: "#dac2a7" }}>
@@ -226,6 +296,9 @@ export default function CalendrierDisponibilites({ isEnglish = false }: { isEngl
                 <p><span className="font-semibold">{isEnglish ? "Destination:" : "Destination:"}</span> {selected.destination}</p>
                 <p><span className="font-semibold">{isEnglish ? "Status:" : "Statut:"}</span> {selected.statut}</p>
                 <p><span className="font-semibold">{isEnglish ? "Remaining units:" : "Unités restantes:"}</span> {Math.max(0, totalUnits - reservedUnits)} / {totalUnits || "?"}</p>
+                <span className={`inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-semibold ${statusBadge(selected.statut, isEnglish).cls}`}>
+                  {statusBadge(selected.statut, isEnglish).label}
+                </span>
                 {!!selected.notePublique && <p className="rounded-lg bg-slate-50 p-2 text-xs text-slate-600">{selected.notePublique}</p>}
                 {isBookable(selected) && (
                   <>
