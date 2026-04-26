@@ -8,6 +8,7 @@ import { requireAdmin } from "../_core/authz";
 import { generateCustomerPassword, hashCustomerPassword, sendCustomerPasswordEmail } from "../_core/customerPassword";
 import { ENV } from "../_core/env";
 import { getSessionCookieOptions } from "../_core/cookies";
+import { sdk } from "../_core/sdk";
 import {
   getConfirmedBookingUsage,
   refreshDisponibiliteBookingState,
@@ -16,6 +17,11 @@ import {
 
 const router = Router();
 const CUSTOMER_COOKIE = "customer_session_id";
+
+function isActiveReservationForCapacity(r: any) {
+  const requestStatus = String(r?.requestStatus || "nouvelle");
+  return requestStatus !== "refusee" && requestStatus !== "archivee";
+}
 
 
 async function signCustomerSession(email: string) {
@@ -116,8 +122,32 @@ router.post("/request", async (req, res) => {
       dateFin,
     });
 
+    let isAdminRequester = false;
+    try {
+      const authUser = await sdk.authenticateRequest(req);
+      isAdminRequester = authUser?.role === "admin";
+    } catch {
+      isAdminRequester = false;
+    }
+
     if (parsedDisponibiliteId) {
-      const { totalUnits, reservedUnits, hasPrivate } = await getConfirmedBookingUsage(db, parsedDisponibiliteId);
+      const { totalUnits } = await getConfirmedBookingUsage(db, parsedDisponibiliteId);
+      const sameSlotReservations = await db
+        .select()
+        .from(reservations)
+        .where(eq(reservations.disponibiliteId, parsedDisponibiliteId));
+      const activeReservations = isAdminRequester
+        ? sameSlotReservations.filter((r: any) => isActiveReservationForCapacity(r))
+        : sameSlotReservations.filter((r: any) =>
+            ["validee_owner", "contrat_envoye", "contrat_signe", "acompte_confirme", "solde_confirme"].includes(String(r.workflowStatut || ""))
+          );
+      const hasPrivate = activeReservations.some((r: any) => r.typeReservation === "bateau_entier");
+      const reservedUnits = hasPrivate
+        ? totalUnits
+        : activeReservations
+            .filter((r: any) => r.typeReservation === "cabine" || r.typeReservation === "place")
+            .reduce((sum: number, r: any) => sum + Math.max(1, r.nbCabines || 1), 0);
+
       if (hasPrivate && (normalizedTypeReservation === "cabine" || normalizedTypeReservation === "place")) {
         return res.status(400).json({ error: "Ce créneau est déjà privatisé." });
       }
@@ -155,7 +185,7 @@ router.post("/request", async (req, res) => {
       typeReservation: normalizedTypeReservation,
       nbCabines: computedNbCabines,
       message: message || null,
-      requestStatus: "nouvelle",
+      requestStatus: isAdminRequester ? "validee" : "nouvelle",
       disponibiliteId: parsedDisponibiliteId || null,
       statutPaiement: "en_attente", // En attente de devis
     }).returning({ id: reservations.id });
@@ -311,6 +341,47 @@ router.put("/:id", requireAdmin, async (req, res) => {
       dateFin: dateFin ? String(dateFin) : new Date(existing[0].dateFin).toISOString(),
     });
 
+    const selectedTypeReservation: "bateau_entier" | "cabine" | "place" =
+      typeReservation === "cabine" || typeReservation === "place" || typeReservation === "bateau_entier"
+        ? typeReservation
+        : (existing[0].typeReservation as any);
+    const selectedNbCabines = nbCabines !== undefined ? Math.max(1, parseInt(nbCabines)) : Math.max(1, existing[0].nbCabines || 1);
+
+    if (resolvedDisponibiliteId) {
+      const { totalUnits } = await getConfirmedBookingUsage(db, resolvedDisponibiliteId);
+      const sameSlotReservations = await db
+        .select()
+        .from(reservations)
+        .where(eq(reservations.disponibiliteId, resolvedDisponibiliteId));
+      const otherActiveReservations = sameSlotReservations.filter(
+        (r: any) => r.id !== existing[0].id && isActiveReservationForCapacity(r)
+      );
+      const hasPrivate = otherActiveReservations.some((r: any) => r.typeReservation === "bateau_entier");
+      const reservedUnits = hasPrivate
+        ? totalUnits
+        : otherActiveReservations
+            .filter((r: any) => r.typeReservation === "cabine" || r.typeReservation === "place")
+            .reduce((sum: number, r: any) => sum + Math.max(1, r.nbCabines || 1), 0);
+
+      if (hasPrivate && (selectedTypeReservation === "cabine" || selectedTypeReservation === "place")) {
+        return res.status(400).json({ error: "Ce créneau est déjà privatisé." });
+      }
+      if (selectedTypeReservation === "bateau_entier" && reservedUnits > 0) {
+        return res
+          .status(400)
+          .json({ error: "Ce créneau a déjà des options/réservations en cours. Privatisation impossible." });
+      }
+      if (selectedTypeReservation === "cabine" || selectedTypeReservation === "place") {
+        const nextReserved = reservedUnits + selectedNbCabines;
+        if (nextReserved > totalUnits) {
+          const remaining = Math.max(0, totalUnits - reservedUnits);
+          return res
+            .status(400)
+            .json({ error: `Il ne reste pas assez de cabines disponibles (${remaining} restante(s)).` });
+        }
+      }
+    }
+
     await db.update(reservations).set({
       nomClient: nomClient || existing[0].nomClient,
       prenomClient: prenomClient !== undefined ? prenomClient : existing[0].prenomClient,
@@ -346,7 +417,7 @@ router.put("/:id", requireAdmin, async (req, res) => {
     const disponibilitesToRefresh = new Set<number>();
     if (existing[0].disponibiliteId) disponibilitesToRefresh.add(existing[0].disponibiliteId);
     if (resolvedDisponibiliteId) disponibilitesToRefresh.add(resolvedDisponibiliteId);
-    for (const dispoId of disponibilitesToRefresh) {
+    for (const dispoId of Array.from(disponibilitesToRefresh)) {
       await refreshDisponibiliteBookingState(db, dispoId);
     }
 

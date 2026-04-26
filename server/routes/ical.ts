@@ -173,6 +173,7 @@ router.get("/export.ics", async (_req, res) => {
       .from(disponibilites)
       .where(gte(disponibilites.fin, now))
       .orderBy(disponibilites.debut);
+    const blockingEvents = events.filter((ev) => ev.statut === "option" || ev.statut === "reserve");
 
     const lines: string[] = [
       "BEGIN:VCALENDAR",
@@ -184,7 +185,7 @@ router.get("/export.ics", async (_req, res) => {
       "X-WR-TIMEZONE:UTC",
     ];
 
-    for (const ev of events) {
+    for (const ev of blockingEvents) {
       const title = `[${ev.planningType}] ${ev.destination} - ${ev.statut}`;
       const descriptionParts = [
         `Type: ${ev.planningType}`,

@@ -232,7 +232,13 @@ export async function syncDisponibilitesFromReservations(db: BookingDb) {
     }
   }
 
-  const idsToRefresh = [...new Set([...Array.from(linkedDispoIds), ...createdDispoIds])];
+  // Inclure aussi les créneaux potentiellement "stale" (réservés/optionnés sans résa active)
+  // pour éviter des restes de cabinesReservees quand une résa est déplacée/supprimée.
+  const staleDispoIds = allDisposAfterSeed
+    .filter((d: any) => (d.cabinesReservees || 0) > 0 || String(d.statut || "") === "option" || String(d.statut || "") === "reserve")
+    .map((d: any) => d.id);
+
+  const idsToRefresh = Array.from(new Set([...Array.from(linkedDispoIds), ...createdDispoIds, ...staleDispoIds]));
   for (const dispoId of idsToRefresh) {
     if (!dispoId) continue;
     await refreshDisponibiliteBookingState(db, dispoId);
