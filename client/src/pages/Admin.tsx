@@ -140,6 +140,10 @@ export default function Admin() {
     requestStatus: "nouvelle",
     internalComment: "",
   });
+
+  const redirectToLogin = () => {
+    window.location.href = "/admin/login";
+  };
   const getDefaultReservationFormData = (): ReservationFormData => ({
     nomClient: "",
     prenomClient: "",
@@ -214,17 +218,17 @@ export default function Admin() {
         });
         const contentType = response.headers.get("content-type") || "";
         if (!response.ok || !contentType.includes("application/json")) {
-          window.location.href = "/admin/login";
+          redirectToLogin();
           return;
         }
         const payload = await response.json().catch(() => null);
         if (payload?.role !== "admin") {
-          window.location.href = "/admin/login";
+          redirectToLogin();
           return;
         }
         setAuthOk(true);
       } catch {
-        window.location.href = "/admin/login";
+        redirectToLogin();
       } finally {
         setAuthChecked(true);
       }
@@ -236,10 +240,15 @@ export default function Admin() {
     try {
       setLoading(true);
       const [resResa, resDispo, resCabines] = await Promise.all([
-        fetch("/api/reservations"),
-        fetch("/api/disponibilites"),
-        fetch("/api/cabines-reservees"),
+        fetch("/api/reservations", { credentials: "include" }),
+        fetch("/api/disponibilites", { credentials: "include" }),
+        fetch("/api/cabines-reservees", { credentials: "include" }),
       ]);
+      if ([resResa, resDispo, resCabines].some((r) => r.status === 401 || r.status === 403)) {
+        setAuthOk(false);
+        redirectToLogin();
+        return;
+      }
       const dataResa = await resResa.json();
       const dataDispo = await resDispo.json();
       const dataCabines = await resCabines.json();
@@ -256,6 +265,20 @@ export default function Admin() {
       console.error(err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleLogout = async () => {
+    try {
+      await fetch("/api/admin-auth/logout", {
+        method: "POST",
+        credentials: "include",
+      });
+    } catch {
+      // no-op: always redirect to login even if request fails
+    } finally {
+      setAuthOk(false);
+      redirectToLogin();
     }
   };
 
@@ -327,11 +350,11 @@ export default function Admin() {
             <h1 className="text-lg font-bold text-slate-900">Backoffice</h1>
           </div>
           <button
-            onClick={() => (window.location.href = "/")}
+            onClick={handleLogout}
             className="flex items-center gap-2 text-sm font-semibold text-slate-600 hover:text-rose-600 transition-colors"
           >
             <LogOut className="w-4 h-4" />
-            Quitter
+            Déconnexion
           </button>
         </div>
       </header>
