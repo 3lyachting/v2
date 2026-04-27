@@ -4,6 +4,7 @@ import ConfigIcal from "@/components/ConfigIcal";
 import BackofficeOps from "@/components/BackofficeOps";
 import InventoryManager from "@/components/InventoryManager";
 import SeasonPricingManager from "@/components/SeasonPricingManager";
+import CharterSlotManager from "@/components/CharterSlotManager";
 import logoSabine from "/logo-sabine.png";
 
 type AdminTab = "calendar_reset" | "finances_reset" | "pricing" | "documents" | "maintenance" | "config";
@@ -94,17 +95,7 @@ export default function Admin() {
           ))}
         </div>
 
-        {tab === "calendar_reset" && (
-          <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-            <h2 className="text-2xl font-bold text-slate-900">Module calendrier en reset</h2>
-            <p className="mt-2 text-sm text-slate-600">
-              L&apos;ancien systeme reservation/calendrier backoffice a ete volontairement neutralise pour repartir de zero.
-            </p>
-            <p className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-              Etape en cours: reconstruction d&apos;un nouveau socle calendrier MVP (UI d&apos;abord, regles metier ensuite).
-            </p>
-          </div>
-        )}
+        {tab === "calendar_reset" && <CharterSlotManager />}
 
         {tab === "finances_reset" && (
           <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">

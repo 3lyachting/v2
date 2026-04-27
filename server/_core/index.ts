@@ -16,6 +16,7 @@ import customerAuthRouter from "../routes/customerAuth";
 import customerPortalRouter from "../routes/customerPortal";
 import adminDocumentsRouter from "../routes/adminDocuments";
 import backofficeOpsRouter from "../routes/backofficeOps";
+import charterSlotsRouter from "../routes/charterSlots";
 import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
 
@@ -77,6 +78,7 @@ async function startServer() {
   app.use("/api/customer-portal", customerPortalRouter);
   app.use("/api/admin-documents", adminDocumentsRouter);
   app.use("/api/backoffice-ops", backofficeOpsRouter);
+  app.use("/api/charter-slots", charterSlotsRouter);
   // tRPC API
   app.use(
     "/api/trpc",

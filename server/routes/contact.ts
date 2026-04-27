@@ -49,7 +49,7 @@ router.post("/test-smtp", requireAdmin, async (_req, res) => {
 
 router.post("/", async (req, res) => {
   try {
-    const { nom, email, tel, message, formule, dateDebut, dateFin, nbPassagers, destination, typeDemande } = req.body as {
+    const { nom, email, tel, message, formule, dateDebut, dateFin, nbPassagers, produit, destination, typeDemande } = req.body as {
       nom?: string;
       email?: string;
       tel?: string;
@@ -58,6 +58,7 @@ router.post("/", async (req, res) => {
       dateDebut?: string;
       dateFin?: string;
       nbPassagers?: string | number;
+      produit?: string;
       destination?: string;
       typeDemande?: string;
     };
@@ -93,6 +94,7 @@ router.post("/", async (req, res) => {
     const safeDateDebut = required(dateDebut) ? dateDebut : "Non renseignee";
     const safeDateFin = required(dateFin) ? dateFin : "Non renseignee";
     const safeNbPassagers = required(String(nbPassagers ?? "")) ? String(nbPassagers) : "Non renseigne";
+    const safeProduit = required(String(produit ?? "")) ? String(produit) : "Non renseigne";
     const safeDestination = required(destination) ? destination : "Non renseignee";
     const safeTypeDemande = required(typeDemande) ? typeDemande : "Non renseigne";
 
@@ -109,6 +111,7 @@ router.post("/", async (req, res) => {
         `Date début: ${safeDateDebut}`,
         `Date fin: ${safeDateFin}`,
         `Nb passagers: ${safeNbPassagers}`,
+        `Produit: ${safeProduit}`,
         `Destination: ${safeDestination}`,
         `Type de demande: ${safeTypeDemande}`,
         "",
@@ -124,6 +127,7 @@ router.post("/", async (req, res) => {
         <p><strong>Date début:</strong> ${safeDateDebut}</p>
         <p><strong>Date fin:</strong> ${safeDateFin}</p>
         <p><strong>Nb passagers:</strong> ${safeNbPassagers}</p>
+        <p><strong>Produit (site):</strong> ${safeProduit}</p>
         <p><strong>Destination:</strong> ${safeDestination}</p>
         <p><strong>Type de demande:</strong> ${safeTypeDemande}</p>
         <p><strong>Message:</strong><br/>${message.trim().replace(/\n/g, "<br/>")}</p>

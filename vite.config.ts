@@ -170,6 +170,14 @@ export default defineConfig({
   },
   server: {
     host: true,
+    /** Si vous lancez seulement Vite (ex. port 5173), proxyez /api vers l’API Node (pnpm dev sur 3000 ou node dist). */
+    proxy: {
+      "/api": {
+        target: "http://127.0.0.1:3000",
+        changeOrigin: true,
+        secure: false,
+      },
+    },
     allowedHosts: [
       ".manuspre.computer",
       ".manus.computer",

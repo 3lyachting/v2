@@ -5,9 +5,13 @@
  * Typo: Serif élégante (titres) + DM Sans (corps)
  */
 
-import { Suspense, lazy, useEffect, useRef, useState } from "react";
+import { Suspense, lazy, useCallback, useEffect, useRef, useState } from "react";
+import AirbnbCalendarMvp from "@/components/booking/AirbnbCalendarMvp";
+import { addDays, format } from "date-fns";
+import { CHARTER_PRODUCT_LABELS, CHARTER_PRODUCTS, type CharterProductCode } from "@shared/charterProduct";
 import { motion, useInView } from "framer-motion";
 import { withBasePath } from "@/lib/basePath";
+import { apiUrl } from "@/lib/apiBase";
 import {
   Anchor, Wind, Waves, Sun, MapPin, Users, Star,
   Phone, Mail, Instagram, Facebook, ChevronDown,
@@ -1030,6 +1034,8 @@ function SectionEquipage({ isEnglish = false }: { isEnglish?: boolean }) {
 
 // ── Section Calendrier ────────────────────────────────────────────────────────
 function SectionCalendrier({ isEnglish = false }: { isEnglish?: boolean }) {
+  const [product, setProduct] = useState<CharterProductCode>("med");
+  const [dayAvailability, setDayAvailability] = useState<Set<string> | null>(null);
   const [form, setForm] = useState({
     nom: "",
     email: "",
@@ -1038,12 +1044,74 @@ function SectionCalendrier({ isEnglish = false }: { isEnglish?: boolean }) {
     dateDebut: "",
     dateFin: "",
     nbPassagers: "",
-    destination: "",
+    produit: "med" as CharterProductCode,
+    destination: CHARTER_PRODUCT_LABELS.med,
     typeDemande: "",
   });
   const [sent, setSent] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+
+  const expandSlotDays = (debut: string, fin: string) => {
+    const a = debut.slice(0, 10);
+    const b = fin.slice(0, 10);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(a) || !/^\d{4}-\d{2}-\d{2}$/.test(b)) {
+      return [];
+    }
+    if (a > b) return [];
+    const out: string[] = [];
+    let cur = a;
+    for (;;) {
+      out.push(cur);
+      if (cur >= b) break;
+      cur = format(addDays(new Date(`${cur}T12:00:00`), 1), "yyyy-MM-dd");
+    }
+    return out;
+  };
+
+  useEffect(() => {
+    const loadSlots = async () => {
+      try {
+        setDayAvailability(null);
+        const from = format(new Date(), "yyyy-MM-dd");
+        const to = format(addDays(new Date(), 540), "yyyy-MM-dd");
+        const res = await fetch(
+          `${apiUrl("/api/charter-slots")}?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}&product=${encodeURIComponent(
+            product
+          )}`
+        );
+        if (!res.ok) {
+          setDayAvailability(null);
+          return;
+        }
+        const rows = (await res.json()) as { debut: string; fin: string; active: boolean }[];
+        const s = new Set<string>();
+        for (const r of rows) {
+          if (r.active === false) continue;
+          for (const d of expandSlotDays(r.debut, r.fin)) s.add(d);
+        }
+        // Aucun creneau public => pas de contrainte (dates toujours cliquables)
+        setDayAvailability(s.size > 0 ? s : null);
+      } catch {
+        setDayAvailability(null);
+      }
+    };
+    void loadSlots();
+  }, [product]);
+
+  const handleProductChange = (p: CharterProductCode) => {
+    setProduct(p);
+    setForm((f) => ({ ...f, produit: p, destination: CHARTER_PRODUCT_LABELS[p] }));
+  };
+
+  const handleCalendarSelection = useCallback((startIso: string | null, endIso: string | null) => {
+    if (!startIso) {
+      setForm((f) => ({ ...f, dateDebut: "", dateFin: "" }));
+      return;
+    }
+    const end = endIso || startIso;
+    setForm((f) => ({ ...f, dateDebut: startIso, dateFin: end, produit: f.produit, destination: f.destination }));
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -1068,7 +1136,8 @@ function SectionCalendrier({ isEnglish = false }: { isEnglish?: boolean }) {
         dateDebut: "",
         dateFin: "",
         nbPassagers: "",
-        destination: "",
+        produit: product,
+        destination: CHARTER_PRODUCT_LABELS[product],
         typeDemande: "",
       });
     } catch (error: any) {
@@ -1083,15 +1152,49 @@ function SectionCalendrier({ isEnglish = false }: { isEnglish?: boolean }) {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <Reveal>
           <div className="text-center mb-14">
-            <span className="editorial-kicker">{isEnglish ? "Booking request" : "Demande de reservation"}</span>
+            <span className="editorial-kicker">
+              {isEnglish ? "Availability" : "Disponibilité"}
+            </span>
             <h2 className="editorial-title editorial-title-centered mt-4" style={{ fontFamily: "Cormorant Garamond, Times New Roman, serif" }}>
-              {isEnglish ? "Tell us your project" : "Parlez-nous de votre projet"}
+              {isEnglish ? "Choose your dates" : "Choisissez vos dates"}
             </h2>
             <p className="editorial-lead max-w-2xl">
               {isEnglish
-                ? "The calendar module is paused. Send a request and we will reply with a custom proposal."
-                : "Le module calendrier est en pause. Envoyez une demande et nous vous repondrons avec une proposition adaptee."}
+                ? "Pick a period, then complete the request. We will confirm availability and a tailored offer."
+                : "Sélectionnez une période, puis complétez la demande. Nous confirmerons la disponibilité et une offre personnalisée."}
             </p>
+          </div>
+        </Reveal>
+
+        <Reveal delay={0.05}>
+          <div className="mx-auto mb-6 max-w-6xl">
+            <div className="mb-4 flex flex-wrap justify-center gap-2">
+              {CHARTER_PRODUCTS.map((p) => {
+                const active = p === product;
+                return (
+                  <button
+                    key={p}
+                    type="button"
+                    onClick={() => handleProductChange(p)}
+                    className="rounded-full border px-3 py-1.5 text-xs font-bold transition"
+                    style={{
+                      borderColor: active ? "#00384A" : "#d7e3e8",
+                      color: active ? "#ffffff" : "#00384A",
+                      backgroundColor: active ? "#00384A" : "#f4f8fa",
+                    }}
+                  >
+                    {CHARTER_PRODUCT_LABELS[p]}
+                  </button>
+                );
+              })}
+            </div>
+            <AirbnbCalendarMvp
+              key={product}
+              isEnglish={isEnglish}
+              product={product}
+              dayAvailability={dayAvailability}
+              onSelectionChange={handleCalendarSelection}
+            />
           </div>
         </Reveal>
 

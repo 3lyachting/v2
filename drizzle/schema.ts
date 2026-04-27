@@ -37,6 +37,9 @@ export const bookingOriginEnum = pgEnum("booking_origin", ["direct", "clicknboat
 export const documentCategoryEnum = pgEnum("document_category", ["identity", "reservation", "boat"]);
 export const esignProviderEnum = pgEnum("esign_provider", ["yousign", "docusign", "other"]);
 
+/** Produit proposé sur un créneau (public + backoffice). Même vocabulaire que `season_pricing_v1`. */
+export const charterProductEnum = pgEnum("charter_product", ["med", "caraibes", "journee", "transat"]);
+
 export const users = pgTable("users", {
   /**
    * Surrogate primary key. Auto-incremented numeric value managed by the database.
@@ -309,3 +312,27 @@ export const config = pgTable("config", {
 
 export type Config = typeof config.$inferSelect;
 export type InsertConfig = typeof config.$inferInsert;
+
+/** Créneaux proposés sur le site (remplis depuis le backoffice). */
+export const charterSlots = pgTable(
+  "charterSlots",
+  {
+    id: serial("id").primaryKey(),
+    product: charterProductEnum("product").notNull(),
+    /** Début (00:00 UTC) — inclus. */
+    debut: timestamp("debut").notNull(),
+    /** Fin (dernier jour) — 23:59:59.999 UTC, inclus. */
+    fin: timestamp("fin").notNull(),
+    active: boolean("active").default(true).notNull(),
+    note: text("note"),
+    publicNote: text("publicNote"),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().notNull(),
+  },
+  (t) => ({
+    uniqRangeProduct: uniqueIndex("charterSlots_uniq_range_product_idx").on(t.debut, t.fin, t.product),
+  })
+);
+
+export type CharterSlot = typeof charterSlots.$inferSelect;
+export type InsertCharterSlot = typeof charterSlots.$inferInsert;
