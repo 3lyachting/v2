@@ -101,6 +101,13 @@ function getDayOfMonth(date: string): number {
   return new Date(date).getUTCDate();
 }
 
+function toLocalIsoDay(date: Date): string {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
 function isSameDay(date1: string, date2: string): boolean {
   return new Date(date1).toISOString().slice(0, 10) === new Date(date2).toISOString().slice(0, 10);
 }
@@ -178,7 +185,7 @@ export default function AdminCalendarView({
   }, [disponibilites]);
 
   const getDispoForDate = (date: Date) => {
-    const dateKey = date.toISOString().slice(0, 10);
+    const dateKey = toLocalIsoDay(date);
     return disposByDate.get(dateKey) || [];
   };
 
@@ -253,9 +260,9 @@ export default function AdminCalendarView({
               if (!day) return <div key={`empty-${idx}`} className="aspect-square" />;
 
               const isCurrentMonth = day.getMonth() === currentMonth.getMonth();
-              const dateKey = day.toISOString().slice(0, 10);
+              const dateKey = toLocalIsoDay(day);
               const dispos = getDispoForDate(day);
-              const isToday = isSameDay(dateKey, new Date().toISOString().slice(0, 10));
+              const isToday = isSameDay(dateKey, toLocalIsoDay(new Date()));
 
               return (
                 <motion.button
