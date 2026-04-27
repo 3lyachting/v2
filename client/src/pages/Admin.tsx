@@ -572,6 +572,22 @@ export default function Admin() {
     setShowReservationForm(true);
   };
 
+  const openEditReservationForm = (reservation: Reservation) => {
+    setEditingReservation(reservation);
+    setReservationFormData({
+      ...reservation,
+      dateDebut: toDatePart(reservation.dateDebut),
+      dateFin: toDatePart(reservation.dateFin),
+      nbPersonnes: Number(reservation.nbPersonnes || 1),
+      nbCabines: Number(reservation.nbCabines || 1),
+      montantTotal: Number(reservation.montantTotal || 0),
+      typeReservation: reservation.typeReservation || "bateau_entier",
+      destination: reservation.destination || "La Ciotat",
+      formule: reservation.formule || "semaine",
+    });
+    setShowReservationForm(true);
+  };
+
   const submitManualReservation = async () => {
     const payload = {
       nomClient: reservationFormData.nomClient,
@@ -594,18 +610,21 @@ export default function Admin() {
       return;
     }
     setReservationActionMessage("");
-    const res = await fetch("/api/reservations/request", {
-      method: "POST",
+    const endpoint = editingReservation ? `/api/reservations/${editingReservation.id}` : "/api/reservations/request";
+    const method = editingReservation ? "PUT" : "POST";
+    const res = await fetch(endpoint, {
+      method,
       headers: { "Content-Type": "application/json" },
       credentials: "include",
       body: JSON.stringify(payload),
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
-      setReservationActionMessage(data?.error || "Erreur lors de l'ajout manuel.");
+      setReservationActionMessage(data?.error || (editingReservation ? "Erreur lors de la modification." : "Erreur lors de l'ajout manuel."));
       return;
     }
     setShowReservationForm(false);
+    setEditingReservation(null);
     setReservationFormData(getDefaultReservationFormData());
     await fetchData();
   };
@@ -795,6 +814,13 @@ export default function Admin() {
                     </div>
                   </div>
                   <div className="mt-3 flex flex-wrap gap-2">
+                    <button
+                      onClick={() => openEditReservationForm(reservation)}
+                      className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-slate-300 text-slate-700 hover:bg-slate-50"
+                      title="Modifier la réservation"
+                    >
+                      Modifier résa
+                    </button>
                     <button
                       onClick={() => generateQuoteAndContract(reservation.id)}
                       disabled={reservationActionLoadingId === reservation.id}
@@ -999,7 +1025,9 @@ export default function Admin() {
           <div className="fixed inset-0 z-40 bg-black/40 flex items-center justify-center px-4">
             <div className="w-full max-w-2xl rounded-2xl bg-white border border-slate-200 p-6">
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-bold text-slate-900">Nouvelle réservation manuelle</h3>
+                <h3 className="text-lg font-bold text-slate-900">
+                  {editingReservation ? "Modifier la réservation" : "Nouvelle réservation manuelle"}
+                </h3>
                 <button onClick={() => setShowReservationForm(false)} className="p-2 rounded-lg hover:bg-slate-100">
                   <X className="w-4 h-4" />
                 </button>
@@ -1020,7 +1048,9 @@ export default function Admin() {
               </div>
               <div className="mt-5 flex items-center justify-end gap-2">
                 <button onClick={() => setShowReservationForm(false)} className="px-4 py-2 rounded-lg border border-slate-300">Annuler</button>
-                <button onClick={submitManualReservation} className="px-4 py-2 rounded-lg bg-blue-900 text-white font-semibold">Créer la réservation</button>
+                <button onClick={submitManualReservation} className="px-4 py-2 rounded-lg bg-blue-900 text-white font-semibold">
+                  {editingReservation ? "Enregistrer la modification" : "Créer la réservation"}
+                </button>
               </div>
             </div>
           </div>
