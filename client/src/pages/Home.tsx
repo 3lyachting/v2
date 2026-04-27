@@ -1,5 +1,5 @@
 /*
- * DESIGN: Nautique premium (inspiration Izenah Sailing)
+ * DESIGN: Nautique (inspiration Izenah Sailing)
  * Page principale — Sabine Sailing
  * Couleurs: Bleu nuit + Ivoire + Laiton discret
  * Typo: Serif élégante (titres) + DM Sans (corps)
@@ -1038,12 +1038,12 @@ function SectionCalendrier({ isEnglish = false }: { isEnglish?: boolean }) {
           <div className="text-center mb-14">
             <span className="editorial-kicker">{isEnglish ? "Availability & Rates" : "Disponibilités & Tarifs"}</span>
             <h2 className="editorial-title editorial-title-centered mt-4" style={{ fontFamily: "Cormorant Garamond, Times New Roman, serif" }}>
-              {isEnglish ? "Premium Charter Calendar" : "Calendrier Premium Charter"}
+              {isEnglish ? "Charter Calendar" : "Calendrier Charter"}
             </h2>
             <p className="editorial-lead max-w-2xl">
               {isEnglish
-                ? "Saturday departures only, private charter or cabin request, with live premium availability."
-                : "Départs samedi uniquement, demande en privatisation ou cabine, avec disponibilités premium en direct."}
+                ? "Saturday departures only, private charter or cabin request, with live availability."
+                : "Departs samedi uniquement, demande en privatisation ou cabine, avec disponibilites en direct."}
             </p>
           </div>
         </Reveal>

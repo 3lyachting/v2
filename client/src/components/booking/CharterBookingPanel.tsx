@@ -4,12 +4,14 @@ import { calculateEstimatedTotal, formatDateRangeFr, formatEuro, getAvailability
 
 interface CharterBookingPanelProps {
   week: BookingWeek | null;
-  onSubmit: (request: Omit<BookingRequest, "id" | "createdAt" | "status">) => void;
+  onSubmit: (request: Omit<BookingRequest, "id" | "createdAt" | "status">) => Promise<void>;
+  submitting?: boolean;
+  submitError?: string | null;
 }
 
 const initialForm = { fullName: "", email: "", phone: "", message: "", peopleCount: 1 as number };
 
-export function CharterBookingPanel({ week, onSubmit }: CharterBookingPanelProps) {
+export function CharterBookingPanel({ week, onSubmit, submitting = false, submitError = null }: CharterBookingPanelProps) {
   const [mode, setMode] = useState<BookingMode>("private");
   const [form, setForm] = useState(initialForm);
   const [localSuccess, setLocalSuccess] = useState(false);
@@ -20,7 +22,7 @@ export function CharterBookingPanel({ week, onSubmit }: CharterBookingPanelProps
   }, [form.peopleCount, mode, week]);
 
   if (!week) {
-    return <div className="charter-panel-empty">Sélectionnez une semaine premium pour afficher votre devis et faire une demande.</div>;
+    return <div className="charter-panel-empty">Selectionnez une semaine pour afficher votre devis et faire une demande.</div>;
   }
 
   const availability = getAvailability(week);
@@ -65,11 +67,12 @@ export function CharterBookingPanel({ week, onSubmit }: CharterBookingPanelProps
 
       <form
         className="charter-form"
-        onSubmit={(event) => {
+        onSubmit={async (event) => {
           event.preventDefault();
-          if (!canSubmit) return;
-          onSubmit({
+          if (!canSubmit || submitting) return;
+          await onSubmit({
             weekId: week.id,
+            disponibiliteId: week.disponibiliteId,
             mode,
             peopleCount: mode === "private" ? week.totalPeople : form.peopleCount,
             fullName: form.fullName,
@@ -100,10 +103,11 @@ export function CharterBookingPanel({ week, onSubmit }: CharterBookingPanelProps
         </label>
 
         {ruleError && <p className="charter-error">{ruleError}</p>}
+        {submitError && <p className="charter-error">{submitError}</p>}
         {localSuccess && <p className="charter-success">Demande envoyée avec succès. Nous revenons vers vous rapidement.</p>}
 
-        <button className="charter-btn charter-btn--primary" type="submit" disabled={!canSubmit}>
-          Envoyer la demande
+        <button className="charter-btn charter-btn--primary" type="submit" disabled={!canSubmit || submitting}>
+          {submitting ? "Envoi en cours..." : "Envoyer la demande"}
         </button>
       </form>
     </div>

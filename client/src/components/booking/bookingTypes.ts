@@ -6,6 +6,7 @@ export type BookingRequestStatus = "pending" | "accepted" | "rejected";
 
 export interface BookingWeek {
   id: string;
+  disponibiliteId?: number;
   startDate: string;
   endDate: string;
   status: BookingStatus;
@@ -22,6 +23,7 @@ export interface BookingWeek {
 export interface BookingRequest {
   id: string;
   weekId: string;
+  disponibiliteId?: number;
   mode: BookingMode;
   peopleCount: number;
   fullName: string;

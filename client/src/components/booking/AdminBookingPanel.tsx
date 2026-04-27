@@ -40,7 +40,7 @@ export function AdminBookingPanel({ weeks, requests, onWeeksChange, onRequestsCh
 
   return (
     <section className="charter-admin">
-      <h3>Backoffice calendrier premium</h3>
+      <h3>Backoffice calendrier</h3>
 
       <div className="charter-admin-grid">
         <div>
