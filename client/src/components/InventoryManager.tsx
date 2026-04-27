@@ -113,9 +113,9 @@ export default function InventoryManager() {
         </p>
       </div>
 
-      <div className="grid lg:grid-cols-[1fr_340px] gap-6">
+      <div className="grid xl:grid-cols-[minmax(0,1.4fr)_320px] gap-6 items-start">
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
-          <div className="relative aspect-[16/10] w-full overflow-hidden rounded-lg border border-slate-200 bg-slate-50">
+          <div className="relative w-full overflow-hidden rounded-lg border border-slate-200 bg-slate-50 min-h-[340px] sm:min-h-[420px] lg:min-h-[520px] max-h-[78vh]">
             <img
               src="/PLAN-SABINE-OK.jpg"
               alt="Plan bateau Sabine"
