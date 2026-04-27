@@ -28,6 +28,11 @@ function diffDays(startIso: string, endIso: string) {
   return Math.round((end - start) / 86400000);
 }
 
+function todayIsoUtc(now?: Date) {
+  const anchor = now || new Date();
+  return new Date(Date.UTC(anchor.getUTCFullYear(), anchor.getUTCMonth(), anchor.getUTCDate())).toISOString().slice(0, 10);
+}
+
 function isHighSeasonMonth(month: number) {
   // Février(2), Juillet(7), Août(8), Décembre(12)
   return month === 2 || month === 7 || month === 8 || month === 12;
@@ -54,6 +59,10 @@ export function validateReservationPolicy(input: {
   const endIsoRaw = toIsoDay(input.dateFin);
   if (!startIso || !endIsoRaw) return { ok: false, reason: "Dates invalides." };
   const endIso = endIsoRaw < startIso ? startIso : endIsoRaw;
+  const todayIso = todayIsoUtc(input.now);
+  if (startIso < todayIso || endIso < todayIso) {
+    return { ok: false, reason: "Les dates passées ne sont pas réservables." };
+  }
   const startMonth = Number(startIso.slice(5, 7));
   const endMonth = Number(endIso.slice(5, 7));
   const startYear = Number(startIso.slice(0, 4));

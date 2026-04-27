@@ -90,6 +90,7 @@ type ReservationFormData = Partial<Reservation> & {
 };
 
 type BookingOrigin = "direct" | "clicknboat" | "skippair" | "samboat";
+type OriginStats = { count: number; revenueCents: number; source: "local" | "clicknboat_api" };
 
 type DisponibiliteFormData = {
   planningType: "charter" | "technical_stop" | "maintenance" | "blocked";
@@ -136,9 +137,7 @@ export default function Admin() {
   const [reservationDocsMap, setReservationDocsMap] = useState<
     Record<number, { quoteUrl: string | null; contractUrl: string | null }>
   >({});
-  const [originSummary, setOriginSummary] = useState<
-    Record<BookingOrigin, { count: number; revenueCents: number; source: "local" | "clicknboat_api" }>
-  >({
+  const [originSummary, setOriginSummary] = useState<Record<BookingOrigin, OriginStats>>({
     direct: { count: 0, revenueCents: 0, source: "local" },
     clicknboat: { count: 0, revenueCents: 0, source: "local" },
     skippair: { count: 0, revenueCents: 0, source: "local" },
@@ -251,12 +250,42 @@ export default function Admin() {
     if (Number.isNaN(d.getTime())) return "";
     return d.toISOString().split("T")[0];
   };
+  const getTodayLocalIso = () => {
+    const now = new Date();
+    const y = now.getFullYear();
+    const m = String(now.getMonth() + 1).padStart(2, "0");
+    const d = String(now.getDate()).padStart(2, "0");
+    return `${y}-${m}-${d}`;
+  };
+  const isAprilMayIso = (iso?: string | null) => Boolean(iso && (iso.slice(5, 7) === "04" || iso.slice(5, 7) === "05"));
 
   const toTimePart = (value?: string | Date | null) => {
     if (!value) return "00:00";
     const d = new Date(value);
     if (Number.isNaN(d.getTime())) return "00:00";
     return d.toISOString().split("T")[1].slice(0, 5);
+  };
+  const ORIGINS: BookingOrigin[] = ["direct", "clicknboat", "skippair", "samboat"];
+  const EMPTY_ORIGIN_SUMMARY: Record<BookingOrigin, OriginStats> = {
+    direct: { count: 0, revenueCents: 0, source: "local" },
+    clicknboat: { count: 0, revenueCents: 0, source: "local" },
+    skippair: { count: 0, revenueCents: 0, source: "local" },
+    samboat: { count: 0, revenueCents: 0, source: "local" },
+  };
+  const normalizeOriginSummary = (raw: unknown): Record<BookingOrigin, OriginStats> => {
+    if (!raw || typeof raw !== "object") return { ...EMPTY_ORIGIN_SUMMARY };
+    const normalized: Record<BookingOrigin, OriginStats> = { ...EMPTY_ORIGIN_SUMMARY };
+    ORIGINS.forEach((origin) => {
+      const value = (raw as Record<string, unknown>)[origin];
+      if (!value || typeof value !== "object") return;
+      const source = (value as { source?: unknown }).source === "clicknboat_api" ? "clicknboat_api" : "local";
+      normalized[origin] = {
+        count: Number((value as { count?: unknown }).count || 0),
+        revenueCents: Number((value as { revenueCents?: unknown }).revenueCents || 0),
+        source,
+      };
+    });
+    return normalized;
   };
 
   useEffect(() => {
@@ -302,16 +331,20 @@ export default function Admin() {
       const dataDispo = await resDispo.json();
       const dataCabines = await resCabines.json();
 
-      setReservations(dataResa);
-      setDisponibilites(dataDispo);
+      const reservationsSafe = Array.isArray(dataResa) ? dataResa : [];
+      const disponibilitesSafe = Array.isArray(dataDispo) ? dataDispo : [];
+      const cabinesSafe = Array.isArray(dataCabines) ? dataCabines : [];
+
+      setReservations(reservationsSafe);
+      setDisponibilites(disponibilitesSafe);
       await Promise.all(
-        (Array.isArray(dataResa) ? dataResa : []).map(async (r: Reservation) => {
+        reservationsSafe.map(async (r: Reservation) => {
           await loadReservationDocuments(r.id);
         })
       );
 
       const cmap: Record<number, CabinesReservees> = {};
-      dataCabines.forEach((c: CabinesReservees) => {
+      cabinesSafe.forEach((c: CabinesReservees) => {
         cmap[c.disponibiliteId] = c;
       });
       setCabinesMap(cmap);
@@ -320,7 +353,7 @@ export default function Admin() {
         const originResponse = await fetch("/api/reservations/origins-summary", { credentials: "include" });
         if (originResponse.ok) {
           const payload = await originResponse.json();
-          if (payload?.origins) setOriginSummary(payload.origins);
+          setOriginSummary(normalizeOriginSummary(payload?.origins));
           if (payload?.clicknboatIntegration) setOriginIntegrationInfo(payload.clicknboatIntegration);
         }
       } catch {
@@ -576,19 +609,20 @@ export default function Admin() {
   }, [disponibilites, searchDispo, filterStatut, filterPlanningType]);
 
   const financeStats = useMemo(() => {
-    const totalCents = reservations.reduce((sum, r) => sum + Number(r.montantTotal || 0), 0);
-    const validated = reservations.filter(
+    const safeReservations = Array.isArray(reservations) ? reservations : [];
+    const totalCents = safeReservations.reduce((sum, r) => sum + Number(r.montantTotal || 0), 0);
+    const validated = safeReservations.filter(
       (r) =>
         r.requestStatus === "validee" ||
         ["validee_owner", "contrat_envoye", "contrat_signe", "acompte_confirme", "solde_confirme"].includes(String(r.workflowStatut || "")),
     );
-    const pending = reservations.filter((r) => r.requestStatus !== "validee" && r.requestStatus !== "refusee" && r.requestStatus !== "archivee");
-    const paidCents = reservations
+    const pending = safeReservations.filter((r) => r.requestStatus !== "validee" && r.requestStatus !== "refusee" && r.requestStatus !== "archivee");
+    const paidCents = safeReservations
       .filter((r) => r.statutPaiement === "paye" || r.workflowStatut === "solde_confirme")
       .reduce((sum, r) => sum + Number(r.montantTotal || 0), 0);
 
     const byMonthMap = new Map<string, number>();
-    reservations.forEach((r) => {
+    safeReservations.forEach((r) => {
       const d = new Date(r.dateDebut);
       if (Number.isNaN(d.getTime())) return;
       const key = d.toLocaleDateString("fr-FR", { month: "short", year: "numeric", timeZone: "UTC" });
@@ -613,13 +647,13 @@ export default function Admin() {
       localOrigins[origin].revenueCents += Number(r.montantTotal || 0);
     });
 
-    const originBreakdown: Record<BookingOrigin, { count: number; revenueCents: number; source: "local" | "clicknboat_api" }> = {
+    const originBreakdown: Record<BookingOrigin, OriginStats> = {
       direct: { ...localOrigins.direct, source: "local" },
       clicknboat: { ...localOrigins.clicknboat, source: "local" },
       skippair: { ...localOrigins.skippair, source: "local" },
       samboat: { ...localOrigins.samboat, source: "local" },
     };
-    (["direct", "clicknboat", "skippair", "samboat"] as BookingOrigin[]).forEach((origin) => {
+    ORIGINS.forEach((origin) => {
       if (originSummary[origin]) {
         originBreakdown[origin] = originSummary[origin];
       }
@@ -659,6 +693,9 @@ export default function Admin() {
   };
 
   const submitManualReservation = async () => {
+    const todayIso = getTodayLocalIso();
+    const startIso = reservationFormData.dateDebut || "";
+    const endIso = reservationFormData.dateFin || "";
     const payload = {
       nomClient: reservationFormData.nomClient,
       prenomClient: reservationFormData.prenomClient || "",
@@ -680,6 +717,14 @@ export default function Admin() {
       setReservationActionMessage("Nom, email et dates sont requis.");
       return;
     }
+    if (startIso < todayIso || endIso < todayIso) {
+      setReservationActionMessage("Les dates passées ne sont pas réservables.");
+      return;
+    }
+    if ((isAprilMayIso(startIso) || isAprilMayIso(endIso)) && payload.typeReservation === "cabine") {
+      setReservationActionMessage("En avril/mai, seule la privatisation est autorisée.");
+      return;
+    }
     setReservationActionMessage("");
     const endpoint = editingReservation ? `/api/reservations/${editingReservation.id}` : "/api/reservations/request";
     const method = editingReservation ? "PUT" : "POST";
@@ -699,6 +744,13 @@ export default function Admin() {
     setReservationFormData(getDefaultReservationFormData());
     await fetchData();
   };
+  useEffect(() => {
+    const startIso = reservationFormData.dateDebut || "";
+    const endIso = reservationFormData.dateFin || "";
+    if ((isAprilMayIso(startIso) || isAprilMayIso(endIso)) && reservationFormData.typeReservation === "cabine") {
+      setReservationFormData((s) => ({ ...s, typeReservation: "bateau_entier" }));
+    }
+  }, [reservationFormData.dateDebut, reservationFormData.dateFin, reservationFormData.typeReservation]);
 
   if (!authChecked) return null;
   if (!authOk) return null;
@@ -1003,12 +1055,14 @@ export default function Admin() {
               <div className="grid md:grid-cols-2 gap-3">
                 <input value={reservationFormData.nomClient || ""} onChange={(e) => setReservationFormData((s) => ({ ...s, nomClient: e.target.value }))} placeholder="Nom client *" className="px-3 py-2 border border-slate-300 rounded-lg text-sm" />
                 <input value={reservationFormData.emailClient || ""} onChange={(e) => setReservationFormData((s) => ({ ...s, emailClient: e.target.value }))} placeholder="Email *" className="px-3 py-2 border border-slate-300 rounded-lg text-sm" />
-                <input type="date" value={reservationFormData.dateDebut || ""} onChange={(e) => setReservationFormData((s) => ({ ...s, dateDebut: e.target.value }))} className="px-3 py-2 border border-slate-300 rounded-lg text-sm" />
-                <input type="date" value={reservationFormData.dateFin || ""} onChange={(e) => setReservationFormData((s) => ({ ...s, dateFin: e.target.value }))} className="px-3 py-2 border border-slate-300 rounded-lg text-sm" />
+                <input type="date" min={getTodayLocalIso()} value={reservationFormData.dateDebut || ""} onChange={(e) => setReservationFormData((s) => ({ ...s, dateDebut: e.target.value }))} className="px-3 py-2 border border-slate-300 rounded-lg text-sm" />
+                <input type="date" min={getTodayLocalIso()} value={reservationFormData.dateFin || ""} onChange={(e) => setReservationFormData((s) => ({ ...s, dateFin: e.target.value }))} className="px-3 py-2 border border-slate-300 rounded-lg text-sm" />
                 <input value={reservationFormData.destination || ""} onChange={(e) => setReservationFormData((s) => ({ ...s, destination: e.target.value }))} placeholder="Destination" className="px-3 py-2 border border-slate-300 rounded-lg text-sm" />
                 <select value={reservationFormData.typeReservation || "bateau_entier"} onChange={(e) => setReservationFormData((s) => ({ ...s, typeReservation: e.target.value as any }))} className="px-3 py-2 border border-slate-300 rounded-lg text-sm">
                   <option value="bateau_entier">Privatif</option>
-                  <option value="cabine">Cabine</option>
+                  {!(isAprilMayIso(reservationFormData.dateDebut) || isAprilMayIso(reservationFormData.dateFin)) && (
+                    <option value="cabine">Cabine</option>
+                  )}
                 </select>
                 <select value={reservationFormData.bookingOrigin || "direct"} onChange={(e) => setReservationFormData((s) => ({ ...s, bookingOrigin: e.target.value as BookingOrigin }))} className="px-3 py-2 border border-slate-300 rounded-lg text-sm">
                   <option value="direct">Direct</option>
@@ -1020,6 +1074,11 @@ export default function Admin() {
                 <input type="number" min={1} max={4} value={reservationFormData.nbCabines || 1} onChange={(e) => setReservationFormData((s) => ({ ...s, nbCabines: Number(e.target.value || 1) }))} placeholder="Nb cabines" className="px-3 py-2 border border-slate-300 rounded-lg text-sm" />
                 <input type="number" min={0} value={reservationFormData.montantTotal || 0} onChange={(e) => setReservationFormData((s) => ({ ...s, montantTotal: Number(e.target.value || 0) }))} placeholder="Montant total (centimes)" className="px-3 py-2 border border-slate-300 rounded-lg text-sm md:col-span-2" />
               </div>
+              {(isAprilMayIso(reservationFormData.dateDebut) || isAprilMayIso(reservationFormData.dateFin)) && (
+                <p className="mt-3 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                  Avril/mai: création manuelle autorisée en mode privatif uniquement.
+                </p>
+              )}
               <div className="mt-5 flex items-center justify-end gap-2">
                 <button onClick={() => setShowReservationForm(false)} className="px-4 py-2 rounded-lg border border-slate-300">Annuler</button>
                 <button onClick={submitManualReservation} className="px-4 py-2 rounded-lg bg-blue-900 text-white font-semibold">

@@ -3,6 +3,7 @@ import Stripe from "stripe";
 import { getDb } from "../db";
 import { reservations } from "../../drizzle/schema";
 import { eq } from "drizzle-orm";
+import { validateReservationPolicy } from "@shared/reservationPolicy";
 
 const router = Router();
 
@@ -43,6 +44,16 @@ router.post("/create-checkout-session", async (req, res) => {
 
     if (!nomClient || !emailClient || !montantTotal || !formule || !destination) {
       return res.status(400).json({ error: "Données manquantes" });
+    }
+    const policyCheck = validateReservationPolicy({
+      dateDebut,
+      dateFin,
+      destination,
+      typeReservation,
+      nbCabines: typeReservation === "cabine" ? Math.max(1, parseInt(nbCabines) || 1) : null,
+    });
+    if (!policyCheck.ok) {
+      return res.status(400).json({ error: policyCheck.reason });
     }
 
     // Calculer le montant à payer

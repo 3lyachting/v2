@@ -3,6 +3,21 @@ import { disponibilites, reservations } from "../../drizzle/schema";
 import { SLOT_NOTE_PREFIX, inferSlotType, isTransatType, type SlotType } from "@shared/slotRules";
 
 type BookingDb = any;
+type ReservationLite = {
+  id: number;
+  disponibiliteId: number | null;
+  typeReservation: "bateau_entier" | "cabine" | "place";
+  nbCabines: number | null;
+  requestStatus: string | null;
+  workflowStatut: string | null;
+  dateDebut: Date | string;
+  dateFin: Date | string;
+  destination: string | null;
+  formule: string | null;
+  ownerValidatedAt: Date | string | null;
+  createdAt: Date | string | null;
+  updatedAt: Date | string | null;
+};
 
 export type BookingUsage = {
   totalUnits: number;
@@ -12,7 +27,13 @@ export type BookingUsage = {
 };
 
 const CONFIRMED_WORKFLOW_STATUSES = ["contrat_signe", "acompte_confirme", "solde_confirme"] as const;
-const OPTION_WORKFLOW_STATUSES = ["validee_owner", "contrat_envoye"] as const;
+const OPTION_WORKFLOW_STATUSES = [
+  "validee_owner",
+  "devis_emis",
+  "devis_accepte",
+  "contrat_envoye",
+  "acompte_attente",
+] as const;
 const OPTION_HOLD_DAYS = 7;
 const BLOCKING_WORKFLOW_STATUSES = [
   ...OPTION_WORKFLOW_STATUSES,
@@ -51,6 +72,26 @@ function getInclusiveReservationIsoRange(r: any) {
   return { start, end };
 }
 
+async function listReservationsLite(db: BookingDb): Promise<ReservationLite[]> {
+  const result = await db.execute(
+    `select id, "disponibiliteId", "typeReservation", "nbCabines", "requestStatus", "workflowStatut",
+            "dateDebut", "dateFin", destination, formule, "ownerValidatedAt", "createdAt", "updatedAt"
+       from reservations`,
+  );
+  return ((result as any)?.rows || []) as ReservationLite[];
+}
+
+function destinationScore(reservationDestination: string | null | undefined, slotDestination: string | null | undefined) {
+  const r = String(reservationDestination || "").trim().toLowerCase();
+  const s = String(slotDestination || "").trim().toLowerCase();
+  if (!r || !s) return 0;
+  if (r === s) return 4;
+  if (r.includes(s) || s.includes(r)) return 2;
+  const rTokens = r.split(/[\s,/-]+/).filter(Boolean);
+  const sTokens = s.split(/[\s,/-]+/).filter(Boolean);
+  return rTokens.some((token) => sTokens.includes(token)) ? 1 : 0;
+}
+
 function isActiveOptionReservation(r: any) {
   const ws = String(r?.workflowStatut || "");
   const requestValidated = String(r?.requestStatus || "") === "validee";
@@ -70,21 +111,30 @@ export async function resolveDisponibiliteIdForReservation(db: BookingDb, r: any
   const range = getInclusiveReservationIsoRange(r);
   if (!range) return null;
   const { start: reservationStart, end: reservationEnd } = range;
-  let match = rows.find((d: any) => {
+  let best: { id: number; score: number } | null = null;
+  for (const d of rows) {
     const dStart = toIsoDay(d.debut);
     const dEnd = toIsoDay(d.fin);
-    if (!dStart || !dEnd) return false;
-    return dStart === reservationStart && dEnd === reservationEnd;
-  });
-  if (!match) {
-    match = rows.find((d: any) => {
-      const dStart = toIsoDay(d.debut);
-      const dEnd = toIsoDay(d.fin);
-      if (!dStart || !dEnd) return false;
-      return overlapsIsoDayRange(reservationStart, reservationEnd, dStart, dEnd);
-    });
+    if (!dStart || !dEnd) continue;
+    if (!overlapsIsoDayRange(reservationStart, reservationEnd, dStart, dEnd)) continue;
+    const exactRange = dStart === reservationStart && dEnd === reservationEnd ? 1 : 0;
+    const reservationContainsSlot = reservationStart <= dStart && reservationEnd >= dEnd ? 1 : 0;
+    const slotContainsReservation = dStart <= reservationStart && dEnd >= reservationEnd ? 1 : 0;
+    const overlapStart = reservationStart > dStart ? reservationStart : dStart;
+    const overlapEnd = reservationEnd < dEnd ? reservationEnd : dEnd;
+    const overlapDays = Math.max(0, Math.round((new Date(`${overlapEnd}T00:00:00.000Z`).getTime() - new Date(`${overlapStart}T00:00:00.000Z`).getTime()) / 86400000) + 1);
+    const score =
+      exactRange * 100000 +
+      slotContainsReservation * 10000 +
+      reservationContainsSlot * 5000 +
+      destinationScore(r.destination, d.destination) * 1000 +
+      overlapDays * 10 -
+      Math.abs(new Date(`${dStart}T00:00:00.000Z`).getTime() - new Date(`${reservationStart}T00:00:00.000Z`).getTime()) / 86400000;
+    if (!best || score > best.score) {
+      best = { id: d.id, score };
+    }
   }
-  return match?.id || null;
+  return best?.id || null;
 }
 
 export async function getConfirmedBookingUsage(db: BookingDb, disponibiliteId: number): Promise<BookingUsage> {
@@ -101,11 +151,13 @@ export async function getConfirmedBookingUsage(db: BookingDb, disponibiliteId: n
   if (dispo.planningType && dispo.planningType !== "charter") {
     return { totalUnits, reservedUnits: 0, hasPrivate: false, status: "ferme" };
   }
+  const todayIso = new Date().toISOString().slice(0, 10);
+  const endIso = toIsoDay(dispo.fin);
+  if (endIso && endIso < todayIso) {
+    return { totalUnits, reservedUnits: 0, hasPrivate: false, status: "ferme" };
+  }
 
-  const allReservations = await db
-    .select()
-    .from(reservations)
-    .where(eq(reservations.disponibiliteId, disponibiliteId));
+  const allReservations = (await listReservationsLite(db)).filter((r) => r.disponibiliteId === disponibiliteId);
 
   const confirmedReservations = allReservations.filter((r: any) =>
     CONFIRMED_WORKFLOW_STATUSES.includes(r.workflowStatut as any)
@@ -422,10 +474,23 @@ async function normalizeAprilMayDailySlots(db: BookingDb) {
     const end = toIsoDay(d.fin);
     if (!start || !end) continue;
     const year = Number(start.slice(0, 4));
-    const inAprMay = start >= `${year}-04-01` && end <= `${year}-05-31`;
+    const inAprMay = overlapsIsoDayRange(start, end, `${year}-04-01`, `${year}-05-31`);
     if (!inAprMay) continue;
     const slotType = inferSlotType(d as any);
     if (isTransatType(slotType)) continue;
+    const isSingleDay = start === end;
+    if (!isSingleDay) {
+      await db
+        .update(disponibilites)
+        .set({
+          statut: "ferme",
+          cabinesReservees: 0,
+          notePublique: "Créneau fermé: avril/mai réservé au privatif journée.",
+          updatedAt: new Date(),
+        })
+        .where(eq(disponibilites.id, d.id));
+      continue;
+    }
     await db
       .update(disponibilites)
       .set({
@@ -436,6 +501,30 @@ async function normalizeAprilMayDailySlots(db: BookingDb) {
         tarifJourPriva: 950,
         capaciteTotale: 4,
         notePublique: "Avril/mai: privatif unique 950€/jour, départ La Ciotat.",
+        updatedAt: new Date(),
+      })
+      .where(eq(disponibilites.id, d.id));
+  }
+}
+
+async function enforceBlockedCommercialWindows(db: BookingDb) {
+  const allDispos = await db.select().from(disponibilites);
+  for (const d of allDispos) {
+    const start = toIsoDay(d.debut);
+    const end = toIsoDay(d.fin);
+    if (!start || !end) continue;
+    const destination = String(d.destination || "").toLowerCase();
+    const overlapsJanMar2026 = overlapsIsoDayRange(start, end, "2026-01-01", "2026-03-31");
+    const overlapsCaraibesBan = overlapsIsoDayRange(start, end, "2026-03-01", "2026-04-30") && destination.includes("cara");
+    if (!overlapsJanMar2026 && !overlapsCaraibesBan) continue;
+    await db
+      .update(disponibilites)
+      .set({
+        statut: "ferme",
+        cabinesReservees: 0,
+        notePublique: overlapsCaraibesBan
+          ? "Créneau fermé: zone Caraïbes non commercialisée en mars/avril 2026."
+          : "Créneau fermé: fenêtre grisée non réservable (janvier-mars 2026).",
         updatedAt: new Date(),
       })
       .where(eq(disponibilites.id, d.id));
@@ -472,11 +561,12 @@ async function normalizeCommercialSlots(db: BookingDb) {
   await purgeInvalidTransatSlots(db);
   await normalizeAprilMayDailySlots(db);
   await normalizeSummerWeeklySlots(db);
+  await enforceBlockedCommercialWindows(db);
 }
 
 export async function runBookingConsistencyAudit(db: BookingDb) {
   const allDispos = await db.select().from(disponibilites);
-  const allReservations = await db.select().from(reservations);
+  const allReservations = await listReservationsLite(db);
   const dispoIds = new Set(allDispos.map((d: any) => d.id));
 
   const reservationsWithoutSlot = allReservations
@@ -509,7 +599,7 @@ export async function runBookingConsistencyAudit(db: BookingDb) {
 }
 
 export async function syncDisponibilitesFromReservations(db: BookingDb) {
-  const allReservations = await db.select().from(reservations);
+  const allReservations = await listReservationsLite(db);
   const reservationYears = allReservations
     .map((r: any) => new Date(r.dateDebut).getUTCFullYear())
     .filter((y: any) => Number.isFinite(y)) as number[];

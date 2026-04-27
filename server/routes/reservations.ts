@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { SignJWT } from "jose";
 import { getDb } from "../db";
 import { customers, disponibilites, reservations } from "../../drizzle/schema";
@@ -21,6 +21,7 @@ const CUSTOMER_COOKIE = "customer_session_id";
 const CAPACITY_BLOCKING_WORKFLOW = ["validee_owner", "contrat_envoye", "contrat_signe", "acompte_confirme", "solde_confirme"];
 const BOOKING_ORIGINS = ["direct", "clicknboat", "skippair", "samboat"] as const;
 type BookingOrigin = typeof BOOKING_ORIGINS[number];
+let bookingOriginColumnAvailable: boolean | null = null;
 
 function normalizeBookingOrigin(value: unknown): BookingOrigin {
   const normalized = String(value || "").trim().toLowerCase();
@@ -37,6 +38,27 @@ function inferBookingOriginFromRequest(payload: { bookingOrigin?: unknown; email
   if (haystack.includes("skippair")) return "skippair";
   if (haystack.includes("samboat")) return "samboat";
   return "direct";
+}
+
+function isMissingBookingOriginColumnError(error: unknown) {
+  const message = String((error as any)?.message || "").toLowerCase();
+  return message.includes("bookingorigin") || message.includes("booking_origin");
+}
+
+async function supportsBookingOriginColumn(db: any) {
+  if (bookingOriginColumnAvailable !== null) return bookingOriginColumnAvailable;
+  try {
+    const result = await db.execute(
+      `select 1
+       from information_schema.columns
+       where table_name = 'reservations' and column_name = 'booking_origin'
+       limit 1`,
+    );
+    bookingOriginColumnAvailable = Array.isArray((result as any)?.rows) && (result as any).rows.length > 0;
+  } catch {
+    bookingOriginColumnAvailable = false;
+  }
+  return bookingOriginColumnAvailable;
 }
 
 async function fetchClicknboatSummary() {
@@ -78,6 +100,11 @@ function isActiveReservationForCapacity(r: any) {
   const workflow = String(r?.workflowStatut || "");
   if (CAPACITY_BLOCKING_WORKFLOW.includes(workflow)) return true;
   return requestStatus !== "refusee" && requestStatus !== "archivee";
+}
+
+async function lockDisponibiliteForCapacity(tx: any, disponibiliteId: number) {
+  await tx.execute(sql`select id from disponibilites where id = ${disponibiliteId} for update`);
+  await tx.execute(sql`select id from reservations where "disponibiliteId" = ${disponibiliteId} for update`);
 }
 
 function toIsoDay(value: string | Date) {
@@ -245,76 +272,79 @@ router.post("/request", async (req, res) => {
       isAdminRequester = false;
     }
 
-    if (parsedDisponibiliteId) {
-      const { totalUnits } = await getConfirmedBookingUsage(db, parsedDisponibiliteId);
-      const selectedDispo = await db.select().from(disponibilites).where(eq(disponibilites.id, parsedDisponibiliteId)).limit(1);
-      const isDayTrip = Boolean(selectedDispo[0] && new Date(selectedDispo[0].debut).toISOString().slice(0, 10) === new Date(selectedDispo[0].fin).toISOString().slice(0, 10));
-      const isTransat = String(selectedDispo[0]?.destination || "").toLowerCase().includes("transat");
-      const maxPeople = isTransat ? 4 : isDayTrip ? 12 : 8;
-      if (parsedNbPersonnes > maxPeople) {
-        return res.status(400).json({ error: `Maximum ${maxPeople} personnes sur ce créneau.` });
-      }
-      const sameSlotReservations = await db
-        .select()
-        .from(reservations)
-        .where(eq(reservations.disponibiliteId, parsedDisponibiliteId));
-      const activeReservations = isAdminRequester
-        ? sameSlotReservations.filter((r: any) => isActiveReservationForCapacity(r))
-        : sameSlotReservations.filter((r: any) => CAPACITY_BLOCKING_WORKFLOW.includes(String(r.workflowStatut || "")));
-      const hasPrivate = activeReservations.some((r: any) => r.typeReservation === "bateau_entier");
-      const reservedUnits = hasPrivate
-        ? totalUnits
-        : activeReservations
-            .filter((r: any) => r.typeReservation === "cabine" || r.typeReservation === "place")
-            .reduce((sum: number, r: any) => sum + Math.max(1, r.nbCabines || 1), 0);
-
-      if (hasPrivate && (normalizedTypeReservation === "cabine" || normalizedTypeReservation === "place")) {
-        return res.status(400).json({ error: "Ce créneau est déjà privatisé." });
-      }
-      if (normalizedTypeReservation === "bateau_entier" && reservedUnits > 0) {
-        return res
-          .status(400)
-          .json({ error: "Ce créneau a déjà des options/réservations en cours. Privatisation impossible." });
-      }
-      if (normalizedTypeReservation === "cabine" || normalizedTypeReservation === "place") {
-        const nextReserved = reservedUnits + computedNbCabines;
-        if (nextReserved > totalUnits) {
-          const remaining = Math.max(0, totalUnits - reservedUnits);
-          return res
-            .status(400)
-            .json({ error: `Il ne reste pas assez de cabines disponibles (${remaining} restante(s)).` });
+    let reservationId: number | undefined;
+    await db.transaction(async (tx: any) => {
+      if (parsedDisponibiliteId) {
+        await lockDisponibiliteForCapacity(tx, parsedDisponibiliteId);
+        const { totalUnits } = await getConfirmedBookingUsage(tx, parsedDisponibiliteId);
+        const selectedDispo = await tx.select().from(disponibilites).where(eq(disponibilites.id, parsedDisponibiliteId)).limit(1);
+        const isDayTrip = Boolean(selectedDispo[0] && new Date(selectedDispo[0].debut).toISOString().slice(0, 10) === new Date(selectedDispo[0].fin).toISOString().slice(0, 10));
+        const isTransat = String(selectedDispo[0]?.destination || "").toLowerCase().includes("transat");
+        const maxPeople = isTransat ? 4 : isDayTrip ? 12 : 8;
+        if (parsedNbPersonnes > maxPeople) throw new Error(`Maximum ${maxPeople} personnes sur ce créneau.`);
+        const sameSlotReservations = await tx
+          .select()
+          .from(reservations)
+          .where(eq(reservations.disponibiliteId, parsedDisponibiliteId));
+        const activeReservations = isAdminRequester
+          ? sameSlotReservations.filter((r: any) => isActiveReservationForCapacity(r))
+          : sameSlotReservations.filter((r: any) => CAPACITY_BLOCKING_WORKFLOW.includes(String(r.workflowStatut || "")));
+        const hasPrivate = activeReservations.some((r: any) => r.typeReservation === "bateau_entier");
+        const reservedUnits = hasPrivate
+          ? totalUnits
+          : activeReservations
+              .filter((r: any) => r.typeReservation === "cabine" || r.typeReservation === "place")
+              .reduce((sum: number, r: any) => sum + Math.max(1, r.nbCabines || 1), 0);
+        if (hasPrivate && (normalizedTypeReservation === "cabine" || normalizedTypeReservation === "place")) {
+          throw new Error("Ce créneau est déjà privatisé.");
+        }
+        if (normalizedTypeReservation === "bateau_entier" && reservedUnits > 0) {
+          throw new Error("Ce créneau a déjà des options/réservations en cours. Privatisation impossible.");
+        }
+        if (normalizedTypeReservation === "cabine" || normalizedTypeReservation === "place") {
+          const nextReserved = reservedUnits + computedNbCabines;
+          if (nextReserved > totalUnits) {
+            const remaining = Math.max(0, totalUnits - reservedUnits);
+            throw new Error(`Il ne reste pas assez de cabines disponibles (${remaining} restante(s)).`);
+          }
         }
       }
-    }
-
-    // Créer la réservation en base (en attente de devis)
-    const inserted = await db.insert(reservations).values({
-      nomClient,
-      prenomClient: prenomClient || null,
-      emailClient,
-      customerId: customerId || null,
-      telClient: telClient || null,
-      nbPersonnes: parsedNbPersonnes,
-      formule,
-      destination,
-      dateDebut: normalizedSchedule.startDate,
-      dateFin: normalizedSchedule.endDate,
-      montantTotal,
-      typePaiement: "acompte", // Par défaut acompte
-      montantPaye: 0, // Sera défini lors du devis
-      typeReservation: normalizedTypeReservation,
-      nbCabines: computedNbCabines,
-      message: message || null,
-      bookingOrigin: resolvedBookingOrigin,
-      requestStatus: isAdminRequester ? "validee" : "nouvelle",
-      disponibiliteId: parsedDisponibiliteId || null,
-      statutPaiement: "en_attente", // En attente de devis
-    }).returning({ id: reservations.id });
-
-    const reservationId = inserted[0]?.id;
-    if (parsedDisponibiliteId) {
-      await refreshDisponibiliteBookingState(db, parsedDisponibiliteId);
-    }
+      const baseInsertPayload: any = {
+        nomClient,
+        prenomClient: prenomClient || null,
+        emailClient,
+        customerId: customerId || null,
+        telClient: telClient || null,
+        nbPersonnes: parsedNbPersonnes,
+        formule,
+        destination,
+        dateDebut: normalizedSchedule.startDate,
+        dateFin: normalizedSchedule.endDate,
+        montantTotal,
+        typePaiement: "acompte",
+        montantPaye: 0,
+        typeReservation: normalizedTypeReservation,
+        nbCabines: computedNbCabines,
+        message: message || null,
+        requestStatus: isAdminRequester ? "validee" : "nouvelle",
+        disponibiliteId: parsedDisponibiliteId || null,
+        statutPaiement: "en_attente",
+      };
+      if (await supportsBookingOriginColumn(tx)) {
+        baseInsertPayload.bookingOrigin = resolvedBookingOrigin;
+      }
+      let inserted;
+      try {
+        inserted = await tx.insert(reservations).values(baseInsertPayload).returning({ id: reservations.id });
+      } catch (insertError: any) {
+        if (!isMissingBookingOriginColumnError(insertError) || !("bookingOrigin" in baseInsertPayload)) throw insertError;
+        bookingOriginColumnAvailable = false;
+        const { bookingOrigin: _ignored, ...fallbackPayload } = baseInsertPayload;
+        inserted = await tx.insert(reservations).values(fallbackPayload).returning({ id: reservations.id });
+      }
+      reservationId = inserted[0]?.id;
+      if (parsedDisponibiliteId) await refreshDisponibiliteBookingState(tx, parsedDisponibiliteId);
+    });
 
     // Ne pas incrémenter cabinesReservees ici:
     // une "demande" ne doit pas bloquer le planning tant qu'elle n'est pas confirmée.
@@ -370,6 +400,9 @@ Accédez à l'admin pour consulter et envoyer un devis.
       message: "Demande de réservation envoyée avec succès" 
     });
   } catch (error: any) {
+    if (String(error?.message || "").includes("créneau") || String(error?.message || "").includes("Maximum ")) {
+      return res.status(400).json({ error: error.message });
+    }
     console.error("[Reservations] Erreur lors de la création de la demande:", error);
     res.status(500).json({ error: error.message || "Erreur lors de l'envoi de la demande" });
   }
@@ -535,49 +568,7 @@ router.put("/:id", requireAdmin, async (req, res) => {
     }
     const normalizedSchedule = applyHighSeasonCheckinCheckout(effectiveDateDebut, effectiveDateFin);
 
-    if (resolvedDisponibiliteId) {
-      const { totalUnits } = await getConfirmedBookingUsage(db, resolvedDisponibiliteId);
-      const selectedDispo = await db.select().from(disponibilites).where(eq(disponibilites.id, resolvedDisponibiliteId)).limit(1);
-      const isDayTrip = Boolean(selectedDispo[0] && new Date(selectedDispo[0].debut).toISOString().slice(0, 10) === new Date(selectedDispo[0].fin).toISOString().slice(0, 10));
-      const isTransat = String(selectedDispo[0]?.destination || "").toLowerCase().includes("transat");
-      const maxPeople = isTransat ? 4 : isDayTrip ? 12 : 8;
-      if (parsedNbPersonnes > maxPeople) {
-        return res.status(400).json({ error: `Maximum ${maxPeople} personnes sur ce créneau.` });
-      }
-      const sameSlotReservations = await db
-        .select()
-        .from(reservations)
-        .where(eq(reservations.disponibiliteId, resolvedDisponibiliteId));
-      const otherActiveReservations = sameSlotReservations.filter(
-        (r: any) => r.id !== existing[0].id && isActiveReservationForCapacity(r)
-      );
-      const hasPrivate = otherActiveReservations.some((r: any) => r.typeReservation === "bateau_entier");
-      const reservedUnits = hasPrivate
-        ? totalUnits
-        : otherActiveReservations
-            .filter((r: any) => r.typeReservation === "cabine" || r.typeReservation === "place")
-            .reduce((sum: number, r: any) => sum + Math.max(1, r.nbCabines || 1), 0);
-
-      if (hasPrivate && (selectedTypeReservation === "cabine" || selectedTypeReservation === "place")) {
-        return res.status(400).json({ error: "Ce créneau est déjà privatisé." });
-      }
-      if (selectedTypeReservation === "bateau_entier" && reservedUnits > 0) {
-        return res
-          .status(400)
-          .json({ error: "Ce créneau a déjà des options/réservations en cours. Privatisation impossible." });
-      }
-      if (selectedTypeReservation === "cabine" || selectedTypeReservation === "place") {
-        const nextReserved = reservedUnits + selectedNbCabines;
-        if (nextReserved > totalUnits) {
-          const remaining = Math.max(0, totalUnits - reservedUnits);
-          return res
-            .status(400)
-            .json({ error: `Il ne reste pas assez de cabines disponibles (${remaining} restante(s)).` });
-        }
-      }
-    }
-
-    await db.update(reservations).set({
+    const updatePayload: any = {
       nomClient: nomClient || existing[0].nomClient,
       prenomClient: prenomClient !== undefined ? prenomClient : existing[0].prenomClient,
       emailClient: emailClient || existing[0].emailClient,
@@ -591,7 +582,6 @@ router.put("/:id", requireAdmin, async (req, res) => {
       typeReservation: typeReservation || existing[0].typeReservation,
       nbCabines: nbCabines !== undefined ? parseInt(nbCabines) : existing[0].nbCabines,
       message: message !== undefined ? message : existing[0].message,
-      bookingOrigin: bookingOrigin !== undefined ? normalizeBookingOrigin(bookingOrigin) : (existing[0] as any).bookingOrigin || "direct",
       disponibiliteId: resolvedDisponibiliteId,
       statutPaiement: statutPaiement || existing[0].statutPaiement,
       workflowStatut: workflowStatut || existing[0].workflowStatut,
@@ -606,19 +596,72 @@ router.put("/:id", requireAdmin, async (req, res) => {
             ? existing[0].archivedAt || new Date()
             : existing[0].archivedAt,
       updatedAt: new Date(),
-    }).where(eq(reservations.id, parseInt(id)));
-
-    // Recalculer les 2 créneaux (ancien + nouveau) après déplacement de réservation.
-    // Sinon l'ancien créneau peut rester bloqué visuellement.
-    const disponibilitesToRefresh = new Set<number>();
-    if (existing[0].disponibiliteId) disponibilitesToRefresh.add(existing[0].disponibiliteId);
-    if (resolvedDisponibiliteId) disponibilitesToRefresh.add(resolvedDisponibiliteId);
-    for (const dispoId of Array.from(disponibilitesToRefresh)) {
-      await refreshDisponibiliteBookingState(db, dispoId);
+    };
+    if (await supportsBookingOriginColumn(db)) {
+      updatePayload.bookingOrigin =
+        bookingOrigin !== undefined ? normalizeBookingOrigin(bookingOrigin) : (existing[0] as any).bookingOrigin || "direct";
     }
+    await db.transaction(async (tx: any) => {
+      const idsToLock = Array.from(new Set([existing[0].disponibiliteId, resolvedDisponibiliteId].filter((v): v is number => Boolean(v)))).sort((a, b) => a - b);
+      for (const dispoId of idsToLock) {
+        await lockDisponibiliteForCapacity(tx, dispoId);
+      }
+
+      if (resolvedDisponibiliteId) {
+        const { totalUnits } = await getConfirmedBookingUsage(tx, resolvedDisponibiliteId);
+        const selectedDispo = await tx.select().from(disponibilites).where(eq(disponibilites.id, resolvedDisponibiliteId)).limit(1);
+        const isDayTrip = Boolean(selectedDispo[0] && new Date(selectedDispo[0].debut).toISOString().slice(0, 10) === new Date(selectedDispo[0].fin).toISOString().slice(0, 10));
+        const isTransat = String(selectedDispo[0]?.destination || "").toLowerCase().includes("transat");
+        const maxPeople = isTransat ? 4 : isDayTrip ? 12 : 8;
+        if (parsedNbPersonnes > maxPeople) throw new Error(`Maximum ${maxPeople} personnes sur ce créneau.`);
+        const sameSlotReservations = await tx
+          .select()
+          .from(reservations)
+          .where(eq(reservations.disponibiliteId, resolvedDisponibiliteId));
+        const otherActiveReservations = sameSlotReservations.filter((r: any) => r.id !== existing[0].id && isActiveReservationForCapacity(r));
+        const hasPrivate = otherActiveReservations.some((r: any) => r.typeReservation === "bateau_entier");
+        const reservedUnits = hasPrivate
+          ? totalUnits
+          : otherActiveReservations
+              .filter((r: any) => r.typeReservation === "cabine" || r.typeReservation === "place")
+              .reduce((sum: number, r: any) => sum + Math.max(1, r.nbCabines || 1), 0);
+        if (hasPrivate && (selectedTypeReservation === "cabine" || selectedTypeReservation === "place")) {
+          throw new Error("Ce créneau est déjà privatisé.");
+        }
+        if (selectedTypeReservation === "bateau_entier" && reservedUnits > 0) {
+          throw new Error("Ce créneau a déjà des options/réservations en cours. Privatisation impossible.");
+        }
+        if (selectedTypeReservation === "cabine" || selectedTypeReservation === "place") {
+          const nextReserved = reservedUnits + selectedNbCabines;
+          if (nextReserved > totalUnits) {
+            const remaining = Math.max(0, totalUnits - reservedUnits);
+            throw new Error(`Il ne reste pas assez de cabines disponibles (${remaining} restante(s)).`);
+          }
+        }
+      }
+
+      try {
+        await tx.update(reservations).set(updatePayload).where(eq(reservations.id, parseInt(id)));
+      } catch (updateError: any) {
+        if (!isMissingBookingOriginColumnError(updateError) || !("bookingOrigin" in updatePayload)) throw updateError;
+        bookingOriginColumnAvailable = false;
+        const { bookingOrigin: _ignored, ...fallbackPayload } = updatePayload;
+        await tx.update(reservations).set(fallbackPayload).where(eq(reservations.id, parseInt(id)));
+      }
+
+      const disponibilitesToRefresh = new Set<number>();
+      if (existing[0].disponibiliteId) disponibilitesToRefresh.add(existing[0].disponibiliteId);
+      if (resolvedDisponibiliteId) disponibilitesToRefresh.add(resolvedDisponibiliteId);
+      for (const dispoId of Array.from(disponibilitesToRefresh)) {
+        await refreshDisponibiliteBookingState(tx, dispoId);
+      }
+    });
 
     res.json({ success: true, message: "Réservation mise à jour" });
   } catch (error: any) {
+    if (String(error?.message || "").includes("créneau") || String(error?.message || "").includes("Maximum ")) {
+      return res.status(400).json({ error: error.message });
+    }
     console.error("[Reservations] Erreur lors de la mise à jour:", error);
     res.status(500).json({ error: error.message || "Erreur lors de la mise à jour" });
   }

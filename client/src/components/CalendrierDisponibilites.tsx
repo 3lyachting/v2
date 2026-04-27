@@ -82,6 +82,11 @@ function getProduct(dispo: Disponibilite): Produit {
 function isBookable(dispo?: Disponibilite | null) {
   return isBookableDisponibilite(dispo);
 }
+function isPastIso(iso?: string | null) {
+  if (!iso) return false;
+  const today = new Date().toISOString().slice(0, 10);
+  return iso < today;
+}
 
 function getTotalUnits(dispo?: Disponibilite | null) {
   if (!dispo?.capaciteTotale) return 0;
@@ -228,6 +233,11 @@ export default function CalendrierDisponibilites({ isEnglish = false }: { isEngl
   const selectedProduct = selected ? getProduct(selected) : "med";
   const isDayTrip = selectedProduct === "journee";
   const isTransatSelected = selectedProduct === "transat";
+  const selectedStartIso = selected ? toIsoDayUtc(selected.debut) : null;
+  const selectedEndIso = selected ? toIsoDayUtc(selected.fin) : null;
+  const isPastSelection = Boolean(
+    (selectedStartIso && isPastIso(selectedStartIso)) || (selectedEndIso && isPastIso(selectedEndIso)),
+  );
   const totalUnits = getTotalUnits(selected);
   const reservedUnits = getReservedUnits(selected);
   const privateBasePrice = isTransatSelected ? null : selected?.tarifJourPriva ?? selected?.tarif ?? null;
@@ -235,8 +245,8 @@ export default function CalendrierDisponibilites({ isEnglish = false }: { isEngl
   const hasPriva = Boolean(selected && privateBasePrice !== null);
   const hasCabine = Boolean(selected && directCabinePrice !== null);
   const hasCabineCapacity = totalUnits > 0 && reservedUnits < totalUnits;
-  const canBookPrivate = Boolean(selected && isBookable(selected) && hasPriva && !isTransatSelected);
-  const canBookCabine = Boolean(selected && isBookable(selected) && !isDayTrip && hasCabine && hasCabineCapacity);
+  const canBookPrivate = Boolean(selected && !isPastSelection && isBookable(selected) && hasPriva && !isTransatSelected);
+  const canBookCabine = Boolean(selected && !isPastSelection && isBookable(selected) && !isDayTrip && hasCabine && hasCabineCapacity);
   const seasonPricePerPassenger = useMemo(() => {
     if (!selected) return null;
     const product = toSeasonPricingProduct(selectedProduct);
@@ -310,6 +320,7 @@ export default function CalendrierDisponibilites({ isEnglish = false }: { isEngl
                 if (!d) return <div key={`empty-${idx}`} className="aspect-square min-h-[48px]" />;
                 const iso = d.toISOString().slice(0, 10);
                 const slot = bestForDay(iso);
+                const isPastDay = isPastIso(iso);
                 const selectedRange =
                   selected &&
                   (() => {
@@ -324,8 +335,9 @@ export default function CalendrierDisponibilites({ isEnglish = false }: { isEngl
                 return (
                   <button
                     key={iso}
-                    onClick={() => slot && setSelected(slot)}
-                    className={`aspect-square min-h-[48px] rounded-lg border text-xs font-semibold ${slot ? getBadgeClass(slot) : "bg-slate-100 text-slate-400 border-slate-200"} ${selectedRange ? "ring-2 ring-offset-2" : ""}`}
+                    onClick={() => slot && !isPastDay && setSelected(slot)}
+                    disabled={isPastDay}
+                    className={`aspect-square min-h-[48px] rounded-lg border text-xs font-semibold ${slot ? getBadgeClass(slot) : "bg-slate-100 text-slate-400 border-slate-200"} ${selectedRange ? "ring-2 ring-offset-2" : ""} ${isPastDay ? "opacity-45 cursor-not-allowed" : ""}`}
                     style={selectedRange ? { ["--tw-ring-color" as any]: BRAND_DEEP } : undefined}
                   >
                     <span>{d.getUTCDate()}</span>
@@ -350,6 +362,11 @@ export default function CalendrierDisponibilites({ isEnglish = false }: { isEngl
                 </p>
                 <p><span className="font-semibold">{isEnglish ? "Destination:" : "Destination:"}</span> {selected.destination}</p>
                 <p><span className="font-semibold">{isEnglish ? "Status:" : "Statut:"}</span> {selected.statut}</p>
+                {isPastSelection && (
+                  <p className="rounded-lg border border-slate-200 bg-slate-50 p-2 text-xs text-slate-600">
+                    Cette date est dans le passé: réservation indisponible.
+                  </p>
+                )}
                 <p><span className="font-semibold">{isEnglish ? "Remaining units:" : "Unités restantes:"}</span> {Math.max(0, totalUnits - reservedUnits)} / {totalUnits || "?"}</p>
                 {!!selected.notePublique && <p className="rounded-lg bg-slate-50 p-2 text-xs text-slate-600">{selected.notePublique}</p>}
                 {isBookable(selected) && (

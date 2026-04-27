@@ -42,6 +42,11 @@ function monthFromIso(dateIso: string): number {
   return Number(dateIso.slice(5, 7));
 }
 
+export function isPastIsoDay(dateIso: string, todayIso?: string): boolean {
+  const today = todayIso || new Date().toISOString().slice(0, 10);
+  return dateIso < today;
+}
+
 function isHighSeasonMonth(month: number): boolean {
   return month === 2 || month === 7 || month === 8 || month === 12;
 }
@@ -70,6 +75,7 @@ export function getAvailability(week: BookingWeek) {
 }
 
 export function canBookWeek(week: BookingWeek): boolean {
+  if (isPastIsoDay(week.startDate)) return false;
   return week.status === "available" || week.status === "option" || week.status === "partial";
 }
 

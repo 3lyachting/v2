@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { CharterBookingPanel } from "./CharterBookingPanel";
 import { CharterRequestModal } from "./CharterRequestModal";
 import type { BookingRangeSelection, BookingStatus, BookingWeek } from "./bookingTypes";
-import { STATUS_LABELS_FR, canBookWeek } from "./bookingUtils";
+import { STATUS_LABELS_FR, canBookWeek, isPastIsoDay } from "./bookingUtils";
 import "./charter-calendar.css";
 
 type ApiDisponibilite = {
@@ -372,6 +372,7 @@ export default function CharterCalendar() {
 
   const year = month.getUTCFullYear();
   const monthIndex = month.getUTCMonth();
+  const todayIso = new Date().toISOString().slice(0, 10);
   const firstDay = new Date(Date.UTC(year, monthIndex, 1));
   const lastDay = new Date(Date.UTC(year, monthIndex + 1, 0));
   const offset = (firstDay.getUTCDay() + 6) % 7;
@@ -446,6 +447,7 @@ export default function CharterCalendar() {
 
       {loadError && <p className="charter-calendar__warning">{loadError}</p>}
       {selectionError && <p className="charter-calendar__warning">{selectionError}</p>}
+      <p className="charter-calendar__hint">Les dates passees sont bloquees et non reservables.</p>
 
       <div className="charter-product-filter" role="tablist" aria-label="Filtrer les offres">
         {[
@@ -488,7 +490,8 @@ export default function CharterCalendar() {
               const week = getDayWeek(day);
               const dayIso = day.toISOString().slice(0, 10);
               const isForcedBlocked = isWinterBlockedIso(dayIso);
-              const displayStatus: BookingStatus | null = isForcedBlocked ? "blocked" : week?.status || null;
+              const isPastDay = isPastIsoDay(dayIso, todayIso);
+              const displayStatus: BookingStatus | null = isForcedBlocked || isPastDay ? "blocked" : week?.status || null;
               const rangeStart = selectedStartDate && selectedEndDate ? (selectedStartDate <= selectedEndDate ? selectedStartDate : selectedEndDate) : selectedStartDate;
               const rangeEnd = selectedStartDate && selectedEndDate ? (selectedStartDate >= selectedEndDate ? selectedStartDate : selectedEndDate) : selectedEndDate;
               const isStart = selectedStartDate === dayIso;
@@ -499,8 +502,8 @@ export default function CharterCalendar() {
                 <button
                   key={day.toISOString()}
                   type="button"
-                  className={`charter-day ${isSelected ? "is-selected" : ""}`}
-                  disabled={isForcedBlocked}
+                  className={`charter-day ${isSelected ? "is-selected" : ""} ${isPastDay ? "charter-day--past" : ""}`}
+                  disabled={isForcedBlocked || isPastDay}
                   onClick={() => {
                     handleDaySelect(day);
                   }}

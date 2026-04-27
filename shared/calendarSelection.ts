@@ -59,14 +59,14 @@ export function chooseBestDisponibiliteForDay<T extends DisponibiliteLike>(rows:
   const month = Number(isoDay.slice(5, 7));
   const inAprilMay = month === 4 || month === 5;
   const statusRank = (status: T["statut"]) =>
-    status === "disponible" ? 0 : status === "option" ? 1 : status === "reserve" ? 2 : 3;
+    status === "reserve" ? 0 : status === "option" ? 1 : status === "ferme" ? 2 : 3;
 
   const sorted = rows
     .slice()
     .sort((a, b) => {
-      const aBookable = isBookableDisponibilite(a) ? 0 : 1;
-      const bBookable = isBookableDisponibilite(b) ? 0 : 1;
-      if (aBookable !== bBookable) return aBookable - bBookable;
+      const aStatus = statusRank(a.statut);
+      const bStatus = statusRank(b.statut);
+      if (aStatus !== bStatus) return aStatus - bStatus;
 
       const aProduct = getProductFromDisponibilite(a);
       const bProduct = getProductFromDisponibilite(b);
@@ -95,9 +95,9 @@ export function chooseBestDisponibiliteForDay<T extends DisponibiliteLike>(rows:
       const bStartsToday = toIsoDayUtc(b.debut) === isoDay ? 0 : 1;
       if (aStartsToday !== bStartsToday) return aStartsToday - bStartsToday;
 
-      const aStatus = statusRank(a.statut);
-      const bStatus = statusRank(b.statut);
-      if (aStatus !== bStatus) return aStatus - bStatus;
+      const aBookable = isBookableDisponibilite(a) ? 0 : 1;
+      const bBookable = isBookableDisponibilite(b) ? 0 : 1;
+      if (aBookable !== bBookable) return aBookable - bBookable;
 
       return String(a.destination).localeCompare(String(b.destination), "fr");
     });

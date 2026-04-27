@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { BookingMode, BookingRangeSelection, BookingRequest } from "./bookingTypes";
 import { calculateEstimatedRangeTotal, formatDateRangeFr, formatEuro, getAvailability, validateBookingRules } from "./bookingUtils";
 
@@ -16,12 +16,18 @@ export function CharterBookingPanel({ selection, onSubmit, submitting = false, s
   const [form, setForm] = useState(initialForm);
   const [localSuccess, setLocalSuccess] = useState(false);
 
-  const total = useMemo(() => {
-    if (!selection) return 0;
-    return calculateEstimatedRangeTotal(selection, mode, form.peopleCount);
-  }, [form.peopleCount, mode, selection]);
   const isSingleDaySelection = Boolean(selection && selection.startDate === selection.endDate);
   const isAprilMaySingleDay = Boolean(isSingleDaySelection && selection && (selection.startDate.slice(5, 7) === "04" || selection.startDate.slice(5, 7) === "05"));
+  const isAprilMaySelection = Boolean(selection && (selection.startDate.slice(5, 7) === "04" || selection.startDate.slice(5, 7) === "05"));
+  const effectiveMode: BookingMode = isAprilMaySelection ? "private" : mode;
+  const total = useMemo(() => {
+    if (!selection) return 0;
+    return calculateEstimatedRangeTotal(selection, effectiveMode, form.peopleCount);
+  }, [effectiveMode, form.peopleCount, selection]);
+
+  useEffect(() => {
+    if (isAprilMaySelection && mode !== "private") setMode("private");
+  }, [isAprilMaySelection, mode]);
 
   if (!selection) {
     return <div className="charter-panel-empty">Selectionnez une date de depart puis une date de retour pour afficher votre devis.</div>;
@@ -40,11 +46,11 @@ export function CharterBookingPanel({ selection, onSubmit, submitting = false, s
   );
   const maxPeopleForRangeRaw = selection.days.reduce((acc, day) => Math.min(acc, day.totalPeople), Number.POSITIVE_INFINITY);
   const maxPeopleForRange = Number.isFinite(maxPeopleForRangeRaw) ? maxPeopleForRangeRaw : 8;
-  const daysRuleError = selection.days.map((day) => validateBookingRules(day, mode, form.peopleCount)).find(Boolean) || null;
+  const daysRuleError = selection.days.map((day) => validateBookingRules(day, effectiveMode, form.peopleCount)).find(Boolean) || null;
   const rangeRuleError =
-    mode === "private" && !minAvailability.privateAllowed
+    effectiveMode === "private" && !minAvailability.privateAllowed
       ? "La privatisation est indisponible sur au moins un jour de la plage."
-      : mode === "cabin" && form.peopleCount > minAvailability.peopleRemaining
+      : effectiveMode === "cabin" && form.peopleCount > minAvailability.peopleRemaining
         ? "Nombre de passagers supérieur aux places restantes sur la plage sélectionnée."
         : null;
   const ruleError = daysRuleError || rangeRuleError;
@@ -65,19 +71,24 @@ export function CharterBookingPanel({ selection, onSubmit, submitting = false, s
       </p>
 
       <div className="charter-mode-switch" role="radiogroup" aria-label="Choix du mode de réservation">
-        <button type="button" className={`charter-chip ${mode === "private" ? "is-active" : ""}`} onClick={() => setMode("private")}>
+        <button type="button" className={`charter-chip ${effectiveMode === "private" ? "is-active" : ""}`} onClick={() => setMode("private")}>
           Privatisation
         </button>
-        <button type="button" className={`charter-chip ${mode === "cabin" ? "is-active" : ""}`} onClick={() => setMode("cabin")}>
-          Cabine
-        </button>
+        {!isAprilMaySelection && (
+          <button type="button" className={`charter-chip ${effectiveMode === "cabin" ? "is-active" : ""}`} onClick={() => setMode("cabin")}>
+            Cabine
+          </button>
+        )}
       </div>
+      {isAprilMaySelection && (
+        <p className="charter-muted">Avril/mai: seule la privatisation est autorisee sur ce calendrier.</p>
+      )}
 
-      {!minAvailability.privateAllowed && mode === "private" && (
+      {!minAvailability.privateAllowed && effectiveMode === "private" && (
         <p className="charter-error">Privatisation indisponible: des cabines sont déjà réservées.</p>
       )}
 
-      {mode === "cabin" && (
+      {effectiveMode === "cabin" && (
         <label className="charter-field">
           <span>Nombre de passagers</span>
           <input
@@ -104,8 +115,8 @@ export function CharterBookingPanel({ selection, onSubmit, submitting = false, s
           await onSubmit({
             weekId: syntheticWeekId,
             disponibiliteId: selection.disponibiliteId,
-            mode,
-            peopleCount: mode === "private" ? maxPeopleForRange : form.peopleCount,
+            mode: effectiveMode,
+            peopleCount: effectiveMode === "private" ? maxPeopleForRange : form.peopleCount,
             fullName: form.fullName,
             email: form.email,
             phone: form.phone,
