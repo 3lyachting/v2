@@ -58,17 +58,22 @@ export function CharterBookingPanel({ selection, onSubmit, submitting = false, s
 
   return (
     <div className="charter-panel">
-      <h3>Votre sélection</h3>
-      <p className="charter-muted">{formatDateRangeFr(selection.startDate, selection.endDate)}</p>
-      {isSingleDaySelection && <p className="charter-muted">Journée sélectionnée</p>}
-      {isAprilMaySingleDay && (
-        <p className="charter-muted">
-          Offre journée avril/mai: sortie privative au départ de La Ciotat, navigation vers les calanques et retour en fin de journée.
-        </p>
-      )}
-      <p className="charter-muted">
-        {selection.billingDays} jour{selection.billingDays > 1 ? "s" : ""} facturé{selection.billingDays > 1 ? "s" : ""}
-      </p>
+      <div className="charter-panel__intro">
+        <h3>Votre sélection</h3>
+        <p className="charter-muted">{formatDateRangeFr(selection.startDate, selection.endDate)}</p>
+        {isSingleDaySelection && <p className="charter-muted">Journée sélectionnée</p>}
+        {isAprilMaySingleDay && (
+          <p className="charter-muted">
+            Offre journée avril/mai: sortie privative au départ de La Ciotat, navigation vers les calanques et retour en fin de journée.
+          </p>
+        )}
+      </div>
+      <div className="charter-panel__meta">
+        <span className="charter-panel__meta-label">Durée facturée</span>
+        <strong>
+          {selection.billingDays} jour{selection.billingDays > 1 ? "s" : ""}
+        </strong>
+      </div>
 
       <div className="charter-mode-switch" role="radiogroup" aria-label="Choix du mode de réservation">
         <button type="button" className={`charter-chip ${effectiveMode === "private" ? "is-active" : ""}`} onClick={() => setMode("private")}>
@@ -127,6 +132,7 @@ export function CharterBookingPanel({ selection, onSubmit, submitting = false, s
           setForm(initialForm);
         }}
       >
+        <p className="charter-form__title">Coordonnées</p>
         <label className="charter-field">
           <span>Nom complet *</span>
           <input value={form.fullName} onChange={(event) => setForm((prev) => ({ ...prev, fullName: event.target.value }))} required />

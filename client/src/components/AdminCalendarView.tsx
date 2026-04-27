@@ -1,6 +1,6 @@
 import { useEffect, useState, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Calendar, ChevronLeft, ChevronRight, Plus, Edit2, Trash2, AlertCircle } from "lucide-react";
+import { Calendar, ChevronLeft, ChevronRight, Plus, Edit2, Trash2, AlertCircle, User, CreditCard, Clock3, Mail } from "lucide-react";
 import { toast } from "sonner";
 import { inferSlotType } from "@shared/slotRules";
 
@@ -26,16 +26,27 @@ interface Disponibilite {
 interface Reservation {
   id: number;
   nomClient: string;
+  prenomClient?: string | null;
+  emailClient?: string | null;
+  telClient?: string | null;
   disponibiliteId?: number | null;
+  nbPersonnes?: number;
+  nbCabines?: number;
   dateDebut: string;
   dateFin: string;
   montantTotal: number;
+  montantPaye?: number;
+  statutPaiement?: "en_attente" | "paye" | "echec" | "rembourse";
+  typePaiement?: "acompte" | "complet";
+  bookingOrigin?: "direct" | "clicknboat" | "skippair" | "samboat";
+  message?: string | null;
   workflowStatut?: string;
   typeReservation?: string;
   requestStatus?: "nouvelle" | "en_cours" | "validee" | "refusee" | "archivee";
 }
 
 const BRAND_DEEP = "#00384A";
+const BRAND_SAND = "#DCC8A2";
 
 function getStatutColor(statut: string) {
   switch (statut) {
@@ -102,6 +113,15 @@ function getDayOfMonth(date: string): number {
   return new Date(date).getUTCDate();
 }
 
+function toIsoDay(value?: string | null): string {
+  if (!value) return "";
+  const raw = value.trim();
+  if (/^\d{4}-\d{2}-\d{2}/.test(raw)) return raw.slice(0, 10);
+  const parsed = new Date(raw);
+  if (Number.isNaN(parsed.getTime())) return "";
+  return parsed.toISOString().slice(0, 10);
+}
+
 function toLocalIsoDay(date: Date): string {
   const y = date.getFullYear();
   const m = String(date.getMonth() + 1).padStart(2, "0");
@@ -142,8 +162,8 @@ export default function AdminCalendarView({
   const [calendarFilterMode, setCalendarFilterMode] = useState<"all" | "booking_only">("all");
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedDispo, setSelectedDispo] = useState<Disponibilite | null>(null);
+  const [selectedReservation, setSelectedReservation] = useState<Reservation | null>(null);
   const [selectedDayKey, setSelectedDayKey] = useState<string | null>(null);
-  const [showDetails, setShowDetails] = useState(false);
 
   const monthLabel = useMemo(() => {
     return currentMonth.toLocaleDateString("fr-FR", { month: "long", year: "numeric" });
@@ -202,8 +222,9 @@ export default function AdminCalendarView({
   const disposByDate = useMemo(() => {
     const map = new Map<string, Disponibilite[]>();
     filteredDisponibilites.forEach((d) => {
-      const start = new Date(d.debut).toISOString().slice(0, 10);
-      const end = new Date(d.fin).toISOString().slice(0, 10);
+      const start = toIsoDay(d.debut);
+      const end = toIsoDay(d.fin);
+      if (!start || !end) return;
       const isSingleDay = start === end;
       let current = new Date(start);
       while (current.toISOString().slice(0, 10) < end || (isSingleDay && current.toISOString().slice(0, 10) === end)) {
@@ -215,6 +236,24 @@ export default function AdminCalendarView({
     });
     return map;
   }, [filteredDisponibilites]);
+
+  const reservationsByDate = useMemo(() => {
+    const map = new Map<string, Reservation[]>();
+    filteredReservations.forEach((reservation) => {
+      const start = toIsoDay(reservation.dateDebut);
+      const end = toIsoDay(reservation.dateFin);
+      if (!start || !end) return;
+      const isSingleDay = start === end;
+      let current = new Date(start);
+      while (current.toISOString().slice(0, 10) < end || (isSingleDay && current.toISOString().slice(0, 10) === end)) {
+        const key = current.toISOString().slice(0, 10);
+        if (!map.has(key)) map.set(key, []);
+        map.get(key)!.push(reservation);
+        current.setUTCDate(current.getUTCDate() + 1);
+      }
+    });
+    return map;
+  }, [filteredReservations]);
 
   const getDispoForDate = (date: Date) => {
     const dateKey = toLocalIsoDay(date);
@@ -242,7 +281,22 @@ export default function AdminCalendarView({
   const handleSelectDispo = (dispo: Disponibilite, dayKey?: string) => {
     setSelectedDispo(dispo);
     if (dayKey) setSelectedDayKey(dayKey);
-    setShowDetails(true);
+    if (dayKey) {
+      const linkedReservation = (reservationsByDate.get(dayKey) || []).find((r) => r.disponibiliteId === dispo.id) || null;
+      setSelectedReservation(linkedReservation);
+    } else {
+      setSelectedReservation(null);
+    }
+  };
+
+  const handleSelectReservation = (reservation: Reservation, dayKey?: string) => {
+    const key = dayKey || toIsoDay(reservation.dateDebut);
+    if (key) setSelectedDayKey(key);
+    setSelectedReservation(reservation);
+    const linkedDispo = reservation.disponibiliteId
+      ? filteredDisponibilites.find((dispo) => dispo.id === reservation.disponibiliteId) || null
+      : null;
+    setSelectedDispo(linkedDispo);
   };
 
   const selectedDayDispos = useMemo(() => {
@@ -256,6 +310,48 @@ export default function AdminCalendarView({
     return filteredReservations.filter((r) => r.disponibiliteId && dispoIds.has(r.disponibiliteId));
   }, [selectedDayDispos, filteredReservations]);
 
+  const selectedDayReservations = useMemo(() => {
+    if (!selectedDayKey) return [];
+    return reservationsByDate.get(selectedDayKey) || [];
+  }, [reservationsByDate, selectedDayKey]);
+
+  const getOriginLabel = (origin?: Reservation["bookingOrigin"]) => {
+    if (origin === "clicknboat") return "ClicknBoat";
+    if (origin === "skippair") return "Skippair";
+    if (origin === "samboat") return "Samboat";
+    return "Direct";
+  };
+
+  const getRequestStatusLabel = (status?: Reservation["requestStatus"]) => {
+    if (status === "en_cours") return "En cours";
+    if (status === "validee") return "Validée";
+    if (status === "refusee") return "Refusée";
+    if (status === "archivee") return "Archivée";
+    return "Nouvelle";
+  };
+
+  const getRequestStatusClass = (status?: Reservation["requestStatus"]) => {
+    if (status === "validee") return "bg-emerald-100 text-emerald-800 border-emerald-300";
+    if (status === "refusee") return "bg-rose-100 text-rose-800 border-rose-300";
+    if (status === "archivee") return "bg-slate-200 text-slate-700 border-slate-300";
+    if (status === "en_cours") return "bg-cyan-100 text-cyan-900 border-cyan-300";
+    return "bg-amber-100 text-amber-900 border-amber-300";
+  };
+
+  const getPaymentStatusLabel = (status?: Reservation["statutPaiement"]) => {
+    if (status === "paye") return "Payé";
+    if (status === "echec") return "Échec";
+    if (status === "rembourse") return "Remboursé";
+    return "En attente";
+  };
+
+  const getPaymentStatusClass = (status?: Reservation["statutPaiement"]) => {
+    if (status === "paye") return "bg-emerald-100 text-emerald-800 border-emerald-300";
+    if (status === "echec") return "bg-rose-100 text-rose-800 border-rose-300";
+    if (status === "rembourse") return "bg-slate-100 text-slate-800 border-slate-300";
+    return "bg-amber-100 text-amber-900 border-amber-300";
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -267,7 +363,7 @@ export default function AdminCalendarView({
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
       {/* Calendrier */}
-      <div className="lg:col-span-2">
+      <div className="lg:col-span-2 min-w-0">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -280,16 +376,18 @@ export default function AdminCalendarView({
                 <button
                   onClick={() => setCalendarFilterMode("all")}
                   className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${
-                    calendarFilterMode === "all" ? "bg-blue-900 text-white shadow-sm" : "text-slate-600 hover:bg-white"
+                    calendarFilterMode === "all" ? "text-white shadow-sm" : "text-slate-600 hover:bg-white"
                   }`}
+                  style={calendarFilterMode === "all" ? { backgroundColor: BRAND_DEEP } : undefined}
                 >
                   Tout
                 </button>
                 <button
                   onClick={() => setCalendarFilterMode("booking_only")}
                   className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${
-                    calendarFilterMode === "booking_only" ? "bg-blue-900 text-white shadow-sm" : "text-slate-600 hover:bg-white"
+                    calendarFilterMode === "booking_only" ? "text-white shadow-sm" : "text-slate-600 hover:bg-white"
                   }`}
+                  style={calendarFilterMode === "booking_only" ? { backgroundColor: BRAND_DEEP } : undefined}
                 >
                   Réservations + demandes
                 </button>
@@ -342,6 +440,9 @@ export default function AdminCalendarView({
               const dispos = getDispoForDate(day);
               const primaryDispo = pickPrimaryDispo(dispos);
               const isToday = isSameDay(dateKey, toLocalIsoDay(new Date()));
+              const dayReservations = reservationsByDate.get(dateKey) || [];
+              const hasSelectedDispo = Boolean(selectedDispo && dispos.some((item) => item.id === selectedDispo.id));
+              const hasSelectedReservation = Boolean(selectedReservation && dayReservations.some((item) => item.id === selectedReservation.id));
 
               return (
                 <motion.button
@@ -353,7 +454,7 @@ export default function AdminCalendarView({
                     isCurrentMonth
                       ? "bg-white border-slate-200 hover:border-slate-300"
                       : "bg-slate-50 border-slate-100 text-slate-400"
-                  } ${isToday ? "ring-2 ring-offset-1" : ""}`}
+                  } ${isToday ? "ring-2 ring-offset-1" : ""} ${hasSelectedDispo || hasSelectedReservation ? "ring-2 ring-offset-1" : ""}`}
                   style={isToday ? ({ ["--tw-ring-color" as any]: BRAND_DEEP } as any) : undefined}
                 >
                   <div className="flex flex-col h-full">
@@ -366,6 +467,11 @@ export default function AdminCalendarView({
                           {primaryDispo.destination.split(" ")[0]}
                         </div>
                         {dispos.length > 1 && <div className="text-[9px] text-slate-500 px-1">{dispos.length} créneaux</div>}
+                      </div>
+                    )}
+                    {dayReservations.length > 0 && (
+                      <div className="mt-1 rounded-md border px-1 py-0.5 text-[9px] font-semibold truncate" style={{ borderColor: "#B8975F", backgroundColor: "#F9F2E5", color: "#5B3D14" }}>
+                        {dayReservations.length} résa{dayReservations.length > 1 ? "s" : ""}
                       </div>
                     )}
                   </div>
@@ -399,11 +505,12 @@ export default function AdminCalendarView({
         <motion.div
           initial={{ opacity: 0, x: 20 }}
           animate={{ opacity: 1, x: 0 }}
-          className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 h-fit sticky top-6"
+          className="rounded-xl border shadow-sm p-6 h-fit sticky top-6"
+          style={{ background: "linear-gradient(180deg,#ffffff 0%,#f6f9fa 55%,#f7f0e5 100%)", borderColor: "#D6E2E7" }}
         >
-          <h3 className="text-lg font-bold text-slate-900 mb-4 flex items-center gap-2">
-            <Calendar className="w-5 h-5" />
-            Détails du créneau
+          <h3 className="text-lg font-bold mb-4 flex items-center gap-2" style={{ color: BRAND_DEEP }}>
+            <Calendar className="w-5 h-5" style={{ color: BRAND_DEEP }} />
+            Détails réservation / créneau
           </h3>
 
           {selectedDispo ? (
@@ -415,7 +522,6 @@ export default function AdminCalendarView({
                 exit={{ opacity: 0 }}
                 className="space-y-4"
               >
-                {/* Statuts */}
                 <div className="flex gap-2 flex-wrap">
                   <span className={`px-3 py-1.5 rounded-full text-xs font-semibold border ${getStatutColor(selectedDispo.statut)}`}>
                     {getStatutLabel(selectedDispo.statut)}
@@ -427,6 +533,42 @@ export default function AdminCalendarView({
                     {getSlotTypeLabel(selectedDispo)}
                   </span>
                 </div>
+
+                {selectedDayReservations.length > 0 && (
+                  <div className="pt-3 border-t border-slate-200">
+                    <p className="text-xs uppercase font-semibold text-slate-500 mb-2">
+                      Réservations du jour ({selectedDayReservations.length})
+                    </p>
+                    <div className="space-y-2 max-h-40 overflow-y-auto pr-1">
+                      {selectedDayReservations.map((reservation) => {
+                        const active = selectedReservation?.id === reservation.id;
+                        return (
+                          <button
+                            key={reservation.id}
+                            onClick={() => handleSelectReservation(reservation, selectedDayKey || undefined)}
+                            className={`w-full text-left rounded-lg border px-3 py-2 transition-colors ${
+                              active ? "border-amber-400 bg-amber-50" : "border-slate-200 hover:bg-white"
+                            }`}
+                          >
+                            <div className="flex items-center justify-between gap-3">
+                              <p className="text-xs font-semibold text-slate-900 truncate">
+                                {reservation.prenomClient ? `${reservation.prenomClient} ` : ""}
+                                {reservation.nomClient}
+                              </p>
+                              <span className={`px-2 py-0.5 rounded-full border text-[10px] font-semibold ${getRequestStatusClass(reservation.requestStatus)}`}>
+                                {getRequestStatusLabel(reservation.requestStatus)}
+                              </span>
+                            </div>
+                            <p className="mt-1 text-[11px] text-slate-600 truncate">
+                              {new Date(reservation.dateDebut).toLocaleDateString("fr-FR", { timeZone: "UTC" })} →{" "}
+                              {new Date(reservation.dateFin).toLocaleDateString("fr-FR", { timeZone: "UTC" })}
+                            </p>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
 
                 {selectedDayDispos.length > 1 && (
                   <div className="pt-3 border-t border-slate-200">
@@ -520,7 +662,7 @@ export default function AdminCalendarView({
                     </div>
                   )}
 
-                  {/* Réservations */}
+                  {/* Réservations liées au créneau */}
                   {selectedDispoReservations.length > 0 && (
                     <div className="pt-3 border-t border-slate-200">
                       <p className="text-xs uppercase font-semibold text-slate-500 mb-2">
@@ -539,6 +681,97 @@ export default function AdminCalendarView({
                             </button>
                           </div>
                         ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {selectedReservation && (
+                    <div className="pt-3 border-t border-slate-200 space-y-3">
+                      <p className="text-xs uppercase font-semibold mb-1" style={{ color: BRAND_DEEP }}>
+                        Fiche réservation #{selectedReservation.id}
+                      </p>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        <div className="rounded-lg border p-2.5 bg-white/80 border-slate-200">
+                          <p className="text-[11px] uppercase font-semibold text-slate-500 flex items-center gap-1">
+                            <User className="w-3.5 h-3.5" /> Client
+                          </p>
+                          <p className="text-sm font-semibold text-slate-900 mt-1">
+                            {selectedReservation.prenomClient ? `${selectedReservation.prenomClient} ` : ""}
+                            {selectedReservation.nomClient}
+                          </p>
+                          {selectedReservation.emailClient && <p className="text-xs text-slate-600 mt-1">{selectedReservation.emailClient}</p>}
+                          {selectedReservation.telClient && <p className="text-xs text-slate-600">{selectedReservation.telClient}</p>}
+                        </div>
+                        <div className="rounded-lg border p-2.5 bg-white/80 border-slate-200">
+                          <p className="text-[11px] uppercase font-semibold text-slate-500 flex items-center gap-1">
+                            <Clock3 className="w-3.5 h-3.5" /> Dates / heures
+                          </p>
+                          <p className="text-sm font-semibold text-slate-900 mt-1">
+                            {new Date(selectedReservation.dateDebut).toLocaleDateString("fr-FR", { timeZone: "UTC" })} →{" "}
+                            {new Date(selectedReservation.dateFin).toLocaleDateString("fr-FR", { timeZone: "UTC" })}
+                          </p>
+                          <p className="text-xs text-slate-600 mt-1">{selectedReservation.typeReservation || "Type non renseigné"}</p>
+                        </div>
+                      </div>
+
+                      <div className="flex flex-wrap gap-2">
+                        <span className={`px-2.5 py-1 rounded-full border text-xs font-semibold ${getRequestStatusClass(selectedReservation.requestStatus)}`}>
+                          Demande: {getRequestStatusLabel(selectedReservation.requestStatus)}
+                        </span>
+                        <span className="px-2.5 py-1 rounded-full border text-xs font-semibold bg-blue-100 text-blue-900 border-blue-300">
+                          Workflow: {selectedReservation.workflowStatut || "demande"}
+                        </span>
+                        <span className={`px-2.5 py-1 rounded-full border text-xs font-semibold ${getPaymentStatusClass(selectedReservation.statutPaiement)}`}>
+                          Paiement: {getPaymentStatusLabel(selectedReservation.statutPaiement)}
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2">
+                        <div className="rounded-lg border p-2.5 border-slate-200 bg-white/80">
+                          <p className="text-[11px] uppercase font-semibold text-slate-500">Montant total</p>
+                          <p className="text-sm font-bold text-slate-900 mt-1">
+                            {(Number(selectedReservation.montantTotal || 0) / 100).toLocaleString("fr-FR")} €
+                          </p>
+                        </div>
+                        <div className="rounded-lg border p-2.5 border-slate-200 bg-white/80">
+                          <p className="text-[11px] uppercase font-semibold text-slate-500">Déjà payé</p>
+                          <p className="text-sm font-bold text-slate-900 mt-1">
+                            {(Number(selectedReservation.montantPaye || 0) / 100).toLocaleString("fr-FR")} €
+                          </p>
+                        </div>
+                        <div className="rounded-lg border p-2.5 border-slate-200 bg-white/80">
+                          <p className="text-[11px] uppercase font-semibold text-slate-500">Personnes / cabines</p>
+                          <p className="text-sm font-semibold text-slate-900 mt-1">
+                            {selectedReservation.nbPersonnes || 0} pers. • {selectedReservation.nbCabines || 0} cab.
+                          </p>
+                        </div>
+                        <div className="rounded-lg border p-2.5 border-slate-200 bg-white/80">
+                          <p className="text-[11px] uppercase font-semibold text-slate-500">Origine</p>
+                          <p className="text-sm font-semibold text-slate-900 mt-1">{getOriginLabel(selectedReservation.bookingOrigin)}</p>
+                        </div>
+                      </div>
+
+                      {selectedReservation.message && (
+                        <div className="rounded-lg border p-2.5" style={{ borderColor: BRAND_SAND, backgroundColor: "#FFF8EE" }}>
+                          <p className="text-[11px] uppercase font-semibold flex items-center gap-1" style={{ color: "#6D552A" }}>
+                            <Mail className="w-3.5 h-3.5" /> Message client
+                          </p>
+                          <p className="text-xs mt-1" style={{ color: "#5B3D14" }}>
+                            {selectedReservation.message}
+                          </p>
+                        </div>
+                      )}
+
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => onEditReservation(selectedReservation.id)}
+                          className="flex-1 inline-flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold text-white"
+                          style={{ backgroundColor: BRAND_DEEP }}
+                        >
+                          <Edit2 className="w-4 h-4" />
+                          Modifier la résa
+                        </button>
                       </div>
                     </div>
                   )}

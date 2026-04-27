@@ -471,13 +471,28 @@ export default function CharterCalendar() {
       <div className="charter-layout">
         <div className="charter-monthly-grid">
           <div className="charter-calendar-nav">
-            <button type="button" className="charter-btn charter-btn--ghost" onClick={() => setMonth(new Date(Date.UTC(year, monthIndex - 1, 1)))}>
-              Mois precedent
+            <button
+              type="button"
+              className="charter-btn charter-btn--ghost"
+              aria-label="Mois precedent"
+              onClick={() => setMonth(new Date(Date.UTC(year, monthIndex - 1, 1)))}
+            >
+              <span aria-hidden>←</span> Prec.
             </button>
             <h3>{selectedMonthLabel}</h3>
-            <button type="button" className="charter-btn charter-btn--ghost" onClick={() => setMonth(new Date(Date.UTC(year, monthIndex + 1, 1)))}>
-              Mois suivant
+            <button
+              type="button"
+              className="charter-btn charter-btn--ghost"
+              aria-label="Mois suivant"
+              onClick={() => setMonth(new Date(Date.UTC(year, monthIndex + 1, 1)))}
+            >
+              Suiv. <span aria-hidden>→</span>
             </button>
+          </div>
+          <div className="charter-selection-legend" aria-hidden>
+            <span className="charter-selection-pill charter-selection-pill--start">Debut</span>
+            <span className="charter-selection-pill charter-selection-pill--range">Plage</span>
+            <span className="charter-selection-pill charter-selection-pill--end">Fin</span>
           </div>
           <div className="charter-grid-head">
             {DAY_LABELS.map((day) => (
@@ -498,11 +513,23 @@ export default function CharterCalendar() {
               const isEnd = selectedEndDate === dayIso;
               const inRange = Boolean(rangeStart && rangeEnd && dayIso >= rangeStart && dayIso <= rangeEnd);
               const isSelected = isStart || isEnd || inRange;
+              const isToday = dayIso === todayIso;
               return (
                 <button
                   key={day.toISOString()}
                   type="button"
-                  className={`charter-day ${isSelected ? "is-selected" : ""} ${isPastDay ? "charter-day--past" : ""}`}
+                  className={[
+                    "charter-day",
+                    isSelected ? "is-selected" : "",
+                    isStart ? "is-start" : "",
+                    isEnd ? "is-end" : "",
+                    inRange ? "is-in-range" : "",
+                    isToday ? "charter-day--today" : "",
+                    isPastDay ? "charter-day--past" : "",
+                    isForcedBlocked ? "charter-day--disabled" : "",
+                  ]
+                    .filter(Boolean)
+                    .join(" ")}
                   disabled={isForcedBlocked || isPastDay}
                   onClick={() => {
                     handleDaySelect(day);
