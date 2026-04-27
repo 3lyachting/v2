@@ -88,6 +88,20 @@ type ReservationFormData = Partial<Reservation> & {
   heureFin?: string;
 };
 
+type DisponibiliteFormData = {
+  planningType: "charter" | "technical_stop" | "maintenance" | "blocked";
+  debut: string;
+  fin: string;
+  statut: "disponible" | "reserve" | "option" | "ferme";
+  destination: string;
+  tarif: number;
+  tarifCabine: number;
+  tarifJourPersonne: number;
+  tarifJourPriva: number;
+  note: string;
+  notePublique: string;
+};
+
 export default function Admin() {
   const [authChecked, setAuthChecked] = useState(false);
   const [authOk, setAuthOk] = useState(false);
@@ -139,6 +153,19 @@ export default function Admin() {
     workflowStatut: "demande",
     requestStatus: "nouvelle",
     internalComment: "",
+  });
+  const [dispoFormData, setDispoFormData] = useState<DisponibiliteFormData>({
+    planningType: "charter",
+    debut: "",
+    fin: "",
+    statut: "disponible",
+    destination: "La Ciotat",
+    tarif: 0,
+    tarifCabine: 0,
+    tarifJourPersonne: 0,
+    tarifJourPriva: 950,
+    note: "",
+    notePublique: "",
   });
 
   const redirectToLogin = () => {
@@ -293,7 +320,19 @@ export default function Admin() {
 
   const handleEdit = (dispo: Disponibilite) => {
     setEditingId(dispo.id);
-    setSearchDispo(dispo.destination);
+    setDispoFormData({
+      planningType: dispo.planningType || "charter",
+      debut: toDatePart(dispo.debut),
+      fin: toDatePart(dispo.fin),
+      statut: dispo.statut,
+      destination: dispo.destination,
+      tarif: Number(dispo.tarif || 0),
+      tarifCabine: Number(dispo.tarifCabine || 0),
+      tarifJourPersonne: Number(dispo.tarifJourPersonne || 0),
+      tarifJourPriva: Number(dispo.tarifJourPriva || 0),
+      note: dispo.note || "",
+      notePublique: dispo.notePublique || "",
+    });
     setShowForm(true);
     // Scroll to form if needed
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -301,8 +340,62 @@ export default function Admin() {
 
   const handleDelete = async (id: number) => {
     if (!confirm("Supprimer ce créneau ?")) return;
-    await fetch(`/api/disponibilites/${id}`, { method: "DELETE" });
+    await fetch(`/api/disponibilites/${id}`, { method: "DELETE", credentials: "include" });
     fetchData();
+  };
+
+  const resetDispoForm = () => {
+    setEditingId(null);
+    setDispoFormData({
+      planningType: "charter",
+      debut: "",
+      fin: "",
+      statut: "disponible",
+      destination: "La Ciotat",
+      tarif: 0,
+      tarifCabine: 0,
+      tarifJourPersonne: 0,
+      tarifJourPriva: 950,
+      note: "",
+      notePublique: "",
+    });
+  };
+
+  const submitDisponibilite = async () => {
+    if (!dispoFormData.debut || !dispoFormData.fin || !dispoFormData.destination) {
+      setReservationActionMessage("Date début, date fin et destination sont requis.");
+      return;
+    }
+    const payload = {
+      planningType: dispoFormData.planningType,
+      debut: `${dispoFormData.debut}T00:00:00.000Z`,
+      fin: `${dispoFormData.fin}T00:00:00.000Z`,
+      statut: dispoFormData.statut,
+      destination: dispoFormData.destination,
+      tarif: dispoFormData.tarif || null,
+      tarifCabine: dispoFormData.tarifCabine || null,
+      tarifJourPersonne: dispoFormData.tarifJourPersonne || null,
+      tarifJourPriva: dispoFormData.tarifJourPriva || null,
+      note: dispoFormData.note || null,
+      notePublique: dispoFormData.notePublique || null,
+    };
+    const url = editingId ? `/api/disponibilites/${editingId}` : "/api/disponibilites";
+    const method = editingId ? "PUT" : "POST";
+    const res = await fetch(url, {
+      method,
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      setReservationActionMessage(data?.error || "Impossible d'enregistrer le créneau.");
+      return;
+    }
+    setShowForm(false);
+    setReservationActionMessage("");
+    resetDispoForm();
+    await fetchData();
   };
 
   const readErrorMessage = async (response: Response, fallback: string) => {
@@ -553,7 +646,7 @@ export default function Admin() {
               </div>
               <button
                 onClick={() => {
-                  setEditingId(null);
+                  resetDispoForm();
                   setShowForm(true);
                 }}
                 className="flex items-center gap-2 bg-emerald-600 text-white px-5 py-2.5 rounded-xl font-bold hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-100"
@@ -763,6 +856,61 @@ export default function Admin() {
         {tab === "maintenance" && <BackofficeOps mode="maintenance" />}
         {tab === "pricing" && <SeasonPricingManager />}
         {tab === "documents" && <InventoryManager />}
+
+        {showForm && (
+          <div className="fixed inset-0 z-40 bg-black/40 flex items-center justify-center px-4">
+            <div className="w-full max-w-2xl rounded-2xl bg-white border border-slate-200 p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-bold text-slate-900">{editingId ? "Modifier le créneau" : "Nouveau créneau"}</h3>
+                <button
+                  onClick={() => {
+                    setShowForm(false);
+                    resetDispoForm();
+                  }}
+                  className="p-2 rounded-lg hover:bg-slate-100"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+              <div className="grid md:grid-cols-2 gap-3">
+                <input type="date" value={dispoFormData.debut} onChange={(e) => setDispoFormData((s) => ({ ...s, debut: e.target.value }))} className="px-3 py-2 border border-slate-300 rounded-lg text-sm" />
+                <input type="date" value={dispoFormData.fin} onChange={(e) => setDispoFormData((s) => ({ ...s, fin: e.target.value }))} className="px-3 py-2 border border-slate-300 rounded-lg text-sm" />
+                <select value={dispoFormData.planningType} onChange={(e) => setDispoFormData((s) => ({ ...s, planningType: e.target.value as any }))} className="px-3 py-2 border border-slate-300 rounded-lg text-sm">
+                  <option value="charter">Charter</option>
+                  <option value="technical_stop">Arrêt technique</option>
+                  <option value="maintenance">Maintenance</option>
+                  <option value="blocked">Bloqué</option>
+                </select>
+                <select value={dispoFormData.statut} onChange={(e) => setDispoFormData((s) => ({ ...s, statut: e.target.value as any }))} className="px-3 py-2 border border-slate-300 rounded-lg text-sm">
+                  <option value="disponible">Disponible</option>
+                  <option value="option">Option</option>
+                  <option value="reserve">Complet</option>
+                  <option value="ferme">Fermé</option>
+                </select>
+                <input value={dispoFormData.destination} onChange={(e) => setDispoFormData((s) => ({ ...s, destination: e.target.value }))} placeholder="Destination" className="px-3 py-2 border border-slate-300 rounded-lg text-sm md:col-span-2" />
+                <input type="number" min={0} value={dispoFormData.tarif} onChange={(e) => setDispoFormData((s) => ({ ...s, tarif: Number(e.target.value || 0) }))} placeholder="Tarif semaine (€)" className="px-3 py-2 border border-slate-300 rounded-lg text-sm" />
+                <input type="number" min={0} value={dispoFormData.tarifCabine} onChange={(e) => setDispoFormData((s) => ({ ...s, tarifCabine: Number(e.target.value || 0) }))} placeholder="Tarif cabine (€)" className="px-3 py-2 border border-slate-300 rounded-lg text-sm" />
+                <input type="number" min={0} value={dispoFormData.tarifJourPriva} onChange={(e) => setDispoFormData((s) => ({ ...s, tarifJourPriva: Number(e.target.value || 0) }))} placeholder="Tarif journée priva (€)" className="px-3 py-2 border border-slate-300 rounded-lg text-sm" />
+                <input type="number" min={0} value={dispoFormData.tarifJourPersonne} onChange={(e) => setDispoFormData((s) => ({ ...s, tarifJourPersonne: Number(e.target.value || 0) }))} placeholder="Tarif journée / pers (€)" className="px-3 py-2 border border-slate-300 rounded-lg text-sm" />
+                <input value={dispoFormData.notePublique} onChange={(e) => setDispoFormData((s) => ({ ...s, notePublique: e.target.value }))} placeholder="Note publique" className="px-3 py-2 border border-slate-300 rounded-lg text-sm md:col-span-2" />
+              </div>
+              <div className="mt-5 flex items-center justify-end gap-2">
+                <button
+                  onClick={() => {
+                    setShowForm(false);
+                    resetDispoForm();
+                  }}
+                  className="px-4 py-2 rounded-lg border border-slate-300"
+                >
+                  Annuler
+                </button>
+                <button onClick={submitDisponibilite} className="px-4 py-2 rounded-lg bg-blue-900 text-white font-semibold">
+                  {editingId ? "Enregistrer" : "Créer le créneau"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {showReservationForm && (
           <div className="fixed inset-0 z-40 bg-black/40 flex items-center justify-center px-4">
