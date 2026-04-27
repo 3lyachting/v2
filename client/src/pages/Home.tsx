@@ -13,7 +13,7 @@ import {
   Phone, Mail, Instagram, Facebook, ChevronDown,
   Ship, Compass, Fish, Sunset, ArrowRight, Menu, X, MessageCircle
 } from "lucide-react";
-const CalendrierDisponibilites = lazy(() => import("@/components/CalendrierDisponibilites"));
+const CharterCalendar = lazy(() => import("@/components/booking/CharterCalendar"));
 const AvisGoogle = lazy(() => import("@/components/AvisGoogle"));
 
 const BRAND_SAND = "#B58E6E";
@@ -1038,12 +1038,12 @@ function SectionCalendrier({ isEnglish = false }: { isEnglish?: boolean }) {
           <div className="text-center mb-14">
             <span className="editorial-kicker">{isEnglish ? "Availability & Rates" : "Disponibilités & Tarifs"}</span>
             <h2 className="editorial-title editorial-title-centered mt-4" style={{ fontFamily: "Cormorant Garamond, Times New Roman, serif" }}>
-              {isEnglish ? "Calendar 2025-2026" : "Calendrier 2025-2026"}
+              {isEnglish ? "Premium Charter Calendar" : "Calendrier Premium Charter"}
             </h2>
             <p className="editorial-lead max-w-2xl">
               {isEnglish
-                ? "Check weekly availability and rates. Click a week to view full details."
-                : "Consultez les disponibilités et tarifs semaine par semaine. Cliquez sur une semaine pour voir les détails."}
+                ? "Saturday departures only, private charter or cabin request, with live premium availability."
+                : "Départs samedi uniquement, demande en privatisation ou cabine, avec disponibilités premium en direct."}
             </p>
           </div>
         </Reveal>
@@ -1051,7 +1051,7 @@ function SectionCalendrier({ isEnglish = false }: { isEnglish?: boolean }) {
         <Reveal delay={0.1}>
           <div className="max-w-6xl mx-auto">
             <Suspense fallback={<div className="text-center text-sm text-[oklch(0.45_0.04_220)] py-10">{isEnglish ? "Loading calendar..." : "Chargement du calendrier..."}</div>}>
-              <CalendrierDisponibilites isEnglish={isEnglish} />
+              <CharterCalendar />
             </Suspense>
           </div>
         </Reveal>

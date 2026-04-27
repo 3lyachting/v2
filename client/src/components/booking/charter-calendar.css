@@ -1,0 +1,90 @@
+.charter-calendar {
+  border: 1px solid oklch(0.9 0.02 220);
+  border-radius: 1.5rem;
+  background: linear-gradient(180deg, oklch(0.99 0.005 95), #fff);
+  padding: 1.25rem;
+  box-shadow: 0 18px 34px rgba(6, 24, 38, 0.08);
+}
+
+.charter-calendar__header h2 {
+  margin: 0.5rem 0;
+  font-family: "Cormorant Garamond", "Times New Roman", Georgia, serif;
+  font-size: clamp(1.7rem, 3vw, 2.5rem);
+  color: oklch(0.19 0.06 240);
+}
+
+.charter-calendar__header p { color: oklch(0.45 0.03 240); max-width: 65ch; }
+.charter-layout { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1rem; margin-top: 1rem; }
+.charter-weeks { display: grid; gap: 1rem; }
+.charter-sidebar { display: none; }
+
+.charter-week-card {
+  border: 1px solid oklch(0.9 0.02 220);
+  border-radius: 1rem;
+  background: #fff;
+  padding: 1rem;
+}
+.charter-week-card.is-selected { border-color: oklch(0.28 0.08 240); box-shadow: 0 10px 20px rgba(0, 56, 74, 0.14); }
+.charter-week-card__head { display: flex; justify-content: space-between; gap: 0.75rem; align-items: center; }
+.charter-week-card__dates { margin: 0; font-weight: 700; color: oklch(0.2 0.06 240); }
+.charter-week-card__prices { margin: 0.8rem 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.6rem; }
+.charter-week-card__metrics { display: flex; flex-wrap: wrap; gap: 0.8rem; font-size: 0.92rem; color: oklch(0.42 0.04 240); margin-bottom: 0.8rem; }
+.charter-week-card__notice { margin: 0 0 0.7rem; color: #9a3412; font-size: 0.88rem; background: #fff7ed; border: 1px solid #fed7aa; border-radius: 0.7rem; padding: 0.4rem 0.55rem; }
+
+.charter-status { border-radius: 999px; padding: 0.24rem 0.68rem; font-size: 0.75rem; font-weight: 700; }
+.charter-status--available { background: #dcfce7; color: #166534; }
+.charter-status--option { background: #fef3c7; color: #92400e; }
+.charter-status--partial { background: #ffedd5; color: #9a3412; }
+.charter-status--reserved, .charter-status--private { background: #fee2e2; color: #991b1b; }
+.charter-status--blocked { background: #e2e8f0; color: #334155; }
+
+.charter-panel { border: 1px solid oklch(0.9 0.02 220); border-radius: 1rem; background: #fff; padding: 1rem; }
+.charter-panel h3 { margin: 0 0 0.3rem; font-size: 1.1rem; color: oklch(0.2 0.06 240); }
+.charter-panel-empty { border: 1px dashed oklch(0.86 0.02 220); border-radius: 1rem; padding: 1rem; color: oklch(0.45 0.03 240); background: #fff; }
+.charter-mode-switch { display: flex; gap: 0.5rem; margin: 0.8rem 0; }
+.charter-chip { border: 1px solid oklch(0.86 0.02 220); border-radius: 999px; padding: 0.44rem 0.8rem; background: #fff; font-weight: 600; }
+.charter-chip.is-active { background: oklch(0.2 0.06 240); border-color: oklch(0.2 0.06 240); color: #fff; }
+
+.charter-field { display: grid; gap: 0.3rem; margin-bottom: 0.6rem; }
+.charter-field span { font-size: 0.82rem; color: oklch(0.47 0.03 240); }
+.charter-field input, .charter-field textarea, .charter-admin-form input, .charter-admin-form select {
+  border: 1px solid oklch(0.88 0.02 220);
+  border-radius: 0.7rem;
+  padding: 0.54rem 0.7rem;
+  background: #fff;
+}
+
+.charter-estimate { display: flex; justify-content: space-between; align-items: center; border-radius: 0.8rem; padding: 0.64rem 0.8rem; background: #f8fafc; margin-bottom: 0.8rem; }
+.charter-estimate strong { font-family: "Cormorant Garamond", "Times New Roman", Georgia, serif; font-size: 1.3rem; }
+.charter-error { color: #b91c1c; font-size: 0.88rem; }
+.charter-success { color: #166534; font-size: 0.88rem; }
+.charter-muted { margin: 0; color: oklch(0.5 0.03 240); font-size: 0.9rem; }
+.charter-price { margin: 0.08rem 0 0; font-weight: 700; color: oklch(0.18 0.06 240); }
+
+.charter-btn { border-radius: 0.8rem; border: 0; padding: 0.62rem 0.85rem; font-weight: 700; }
+.charter-btn--primary { background: oklch(0.2 0.06 240); color: #fff; width: 100%; }
+.charter-btn--primary:disabled { opacity: 0.5; }
+.charter-btn--ghost { width: auto; background: transparent; border: 1px solid oklch(0.86 0.02 220); color: oklch(0.24 0.06 240); }
+
+.charter-mobile-cta { margin-top: 0.9rem; display: block; }
+.charter-modal-backdrop { position: fixed; inset: 0; z-index: 60; background: rgba(2, 15, 24, 0.42); display: grid; align-items: end; }
+.charter-modal { background: #fff; border-radius: 1.2rem 1.2rem 0 0; padding: 1rem; max-height: 86vh; overflow: auto; }
+.charter-modal-close { border: 0; background: transparent; color: oklch(0.4 0.03 240); font-size: 0.85rem; margin-bottom: 0.55rem; }
+
+.charter-admin-toggle { margin-top: 1rem; }
+.charter-admin { margin-top: 1rem; border-top: 1px solid oklch(0.9 0.02 220); padding-top: 1rem; }
+.charter-admin-grid { display: grid; grid-template-columns: 1fr; gap: 1rem; }
+.charter-admin-list { list-style: none; padding: 0; margin: 0; display: grid; gap: 0.55rem; }
+.charter-admin-list li { display: flex; justify-content: space-between; gap: 0.5rem; }
+.charter-admin-list button { border: 1px solid oklch(0.88 0.02 220); border-radius: 0.65rem; background: #fff; padding: 0.4rem 0.55rem; }
+.charter-admin-form { display: grid; grid-template-columns: 1fr 1fr; gap: 0.55rem; margin-bottom: 0.8rem; }
+.charter-admin-form label { display: grid; gap: 0.25rem; font-size: 0.82rem; color: oklch(0.47 0.03 240); }
+.charter-admin-requests article { border: 1px solid oklch(0.88 0.02 220); border-radius: 0.8rem; background: #fff; padding: 0.7rem; margin-bottom: 0.6rem; }
+.charter-admin-requests div { display: flex; gap: 0.45rem; }
+
+@media (min-width: 1024px) {
+  .charter-layout { grid-template-columns: minmax(0, 1.5fr) minmax(320px, 1fr); align-items: start; }
+  .charter-sidebar { display: block; position: sticky; top: 6.2rem; }
+  .charter-mobile-cta { display: none; }
+  .charter-admin-grid { grid-template-columns: 1fr 1.3fr; }
+}
