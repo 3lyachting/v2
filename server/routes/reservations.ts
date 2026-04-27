@@ -252,7 +252,8 @@ router.post("/request", async (req, res) => {
         ? await db.select().from(disponibilites).where(eq(disponibilites.id, parsedDisponibiliteIdRaw)).limit(1)
         : [];
     const effectiveDestination = destination || selectedDispoForPolicy[0]?.destination || "";
-    if (!isSimpleRequest) {
+    const isCalendarBoundRequest = !isSimpleRequest && parsedDisponibiliteIdRaw && Number.isFinite(parsedDisponibiliteIdRaw);
+    if (isCalendarBoundRequest) {
       const policyCheck = validateReservationPolicy({
         dateDebut,
         dateFin,
