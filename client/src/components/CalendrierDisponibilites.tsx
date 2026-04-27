@@ -141,8 +141,8 @@ export default function CalendrierDisponibilites({ isEnglish = false }: { isEngl
   const loadDisponibilites = useCallback(async () => {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 15000);
-    try {
-      setLoading(true);
+      try {
+        setLoading(true);
       setLoadError(null);
       const res = await fetch(`/api/disponibilites?t=${Date.now()}`, {
         cache: "no-store",
@@ -276,15 +276,15 @@ export default function CalendrierDisponibilites({ isEnglish = false }: { isEngl
           { id: "caraibes", label: isEnglish ? "Caribbean" : "Caraïbes" },
           { id: "journee", label: isEnglish ? "Day trips" : "Journées La Ciotat" },
         ].map((item) => (
-          <button
-            key={item.id}
+            <button
+              key={item.id}
             onClick={() => setFilter(item.id as Produit)}
             className={`rounded-full px-4 py-2 text-sm font-semibold border ${filter === item.id ? "text-white" : "bg-white"}`}
             style={filter === item.id ? { backgroundColor: BRAND_DEEP, borderColor: BRAND_DEEP } : { color: BRAND_DEEP, borderColor: "#dbc4aa" }}
-          >
-            {item.label}
-          </button>
-        ))}
+            >
+              {item.label}
+            </button>
+          ))}
       </div>
 
       {loading ? (
@@ -306,15 +306,15 @@ export default function CalendrierDisponibilites({ isEnglish = false }: { isEngl
             <div className="mb-4 flex items-center justify-between">
               <button onClick={() => setMonth(new Date(Date.UTC(year, monthIdx - 1, 1)))} className="rounded-lg p-2 hover:bg-slate-100">
                 <ChevronLeft className="h-5 w-5" style={{ color: BRAND_DEEP }} />
-              </button>
+                </button>
               <h3 className="text-xl font-bold" style={{ color: BRAND_DEEP }}>{MONTHS_FR[monthIdx]} {year}</h3>
               <button onClick={() => setMonth(new Date(Date.UTC(year, monthIdx + 1, 1)))} className="rounded-lg p-2 hover:bg-slate-100">
                 <ChevronRight className="h-5 w-5" style={{ color: BRAND_DEEP }} />
-              </button>
-            </div>
+                </button>
+              </div>
             <div className="mb-2 grid grid-cols-7 gap-2 text-center text-xs font-semibold text-slate-500">
               {["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"].map((d) => <div key={d}>{d}</div>)}
-            </div>
+                  </div>
             <div className="grid grid-cols-7 gap-2">
               {days.map((d, idx) => {
                 if (!d) return <div key={`empty-${idx}`} className="aspect-square min-h-[48px]" />;
@@ -332,8 +332,8 @@ export default function CalendrierDisponibilites({ isEnglish = false }: { isEngl
                     if (!sDate || !eDate) return false;
                     return sDate.getTime() <= d.getTime() && d.getTime() <= eDate.getTime();
                   })();
-                return (
-                  <button
+                  return (
+                    <button
                     key={iso}
                     onClick={() => slot && !isPastDay && setSelected(slot)}
                     disabled={isPastDay}
@@ -341,11 +341,11 @@ export default function CalendrierDisponibilites({ isEnglish = false }: { isEngl
                     style={selectedRange ? { ["--tw-ring-color" as any]: BRAND_DEEP } : undefined}
                   >
                     <span>{d.getUTCDate()}</span>
-                  </button>
-                );
-              })}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
-          </div>
 
           <div className="rounded-2xl border bg-white p-6" style={{ borderColor: "#dac2a7" }}>
             <h3 className="mb-4 text-xl font-bold" style={{ color: BRAND_DEEP }}>{isEnglish ? "Details" : "Détails"}</h3>
@@ -353,7 +353,7 @@ export default function CalendrierDisponibilites({ isEnglish = false }: { isEngl
               <div className="py-6 text-center text-slate-500">
                 <Info className="mx-auto mb-2 h-10 w-10 text-slate-300" />
                 {isEnglish ? "Select a date to see availability." : "Sélectionnez une date pour voir la disponibilité."}
-              </div>
+                  </div>
             ) : (
               <div className="space-y-3 text-sm">
                 <p>
@@ -392,7 +392,7 @@ export default function CalendrierDisponibilites({ isEnglish = false }: { isEngl
                           {isTransatSelected ? (isEnglish ? "Seat" : "Place") : (isEnglish ? "Cabin/seat" : "Cabine/place")}
                         </button>
                       )}
-                    </div>
+                      </div>
                     <p className="text-2xl font-bold" style={{ color: BRAND_DEEP }}>{price.toLocaleString("fr-FR")} €</p>
                     {isTransatSelected && (
                       <p className="text-xs text-slate-500">{isEnglish ? "3000€ per person · full transatlantic leg" : "3000€/personne · traversée complète automatique"}</p>
@@ -409,13 +409,13 @@ export default function CalendrierDisponibilites({ isEnglish = false }: { isEngl
                         style={{ backgroundColor: BRAND_DEEP }}
                       >
                         {isEnglish ? "Book now" : "Réserver"}
-                      </a>
-                    )}
+                    </a>
+                  )}
                   </>
                 )}
-              </div>
-            )}
-          </div>
+                </div>
+              )}
+            </div>
         </div>
       )}
     </div>

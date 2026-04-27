@@ -1002,26 +1002,154 @@ export default function Admin() {
                 </button>
               </div>
               <div className="grid md:grid-cols-2 gap-3">
-                <input type="date" value={dispoFormData.debut} onChange={(e) => setDispoFormData((s) => ({ ...s, debut: e.target.value }))} className="px-3 py-2 border border-slate-300 rounded-lg text-sm" />
-                <input type="date" value={dispoFormData.fin} onChange={(e) => setDispoFormData((s) => ({ ...s, fin: e.target.value }))} className="px-3 py-2 border border-slate-300 rounded-lg text-sm" />
-                <select value={dispoFormData.planningType} onChange={(e) => setDispoFormData((s) => ({ ...s, planningType: e.target.value as any }))} className="px-3 py-2 border border-slate-300 rounded-lg text-sm">
-                  <option value="charter">Charter</option>
-                  <option value="technical_stop">Arrêt technique</option>
-                  <option value="maintenance">Maintenance</option>
-                  <option value="blocked">Bloqué</option>
-                </select>
-                <select value={dispoFormData.statut} onChange={(e) => setDispoFormData((s) => ({ ...s, statut: e.target.value as any }))} className="px-3 py-2 border border-slate-300 rounded-lg text-sm">
-                  <option value="disponible">Disponible</option>
-                  <option value="option">Option</option>
-                  <option value="reserve">Complet</option>
-                  <option value="ferme">Fermé</option>
-                </select>
-                <input value={dispoFormData.destination} onChange={(e) => setDispoFormData((s) => ({ ...s, destination: e.target.value }))} placeholder="Destination" className="px-3 py-2 border border-slate-300 rounded-lg text-sm md:col-span-2" />
-                <input type="number" min={0} value={dispoFormData.tarif} onChange={(e) => setDispoFormData((s) => ({ ...s, tarif: Number(e.target.value || 0) }))} placeholder="Tarif semaine (€)" className="px-3 py-2 border border-slate-300 rounded-lg text-sm" />
-                <input type="number" min={0} value={dispoFormData.tarifCabine} onChange={(e) => setDispoFormData((s) => ({ ...s, tarifCabine: Number(e.target.value || 0) }))} placeholder="Tarif cabine (€)" className="px-3 py-2 border border-slate-300 rounded-lg text-sm" />
-                <input type="number" min={0} value={dispoFormData.tarifJourPriva} onChange={(e) => setDispoFormData((s) => ({ ...s, tarifJourPriva: Number(e.target.value || 0) }))} placeholder="Tarif journée priva (€)" className="px-3 py-2 border border-slate-300 rounded-lg text-sm" />
-                <input type="number" min={0} value={dispoFormData.tarifJourPersonne} onChange={(e) => setDispoFormData((s) => ({ ...s, tarifJourPersonne: Number(e.target.value || 0) }))} placeholder="Tarif journée / pers (€)" className="px-3 py-2 border border-slate-300 rounded-lg text-sm" />
-                <input value={dispoFormData.notePublique} onChange={(e) => setDispoFormData((s) => ({ ...s, notePublique: e.target.value }))} placeholder="Note publique" className="px-3 py-2 border border-slate-300 rounded-lg text-sm md:col-span-2" />
+                <div className="space-y-1">
+                  <label htmlFor="dispo-debut" className="block text-xs font-semibold text-slate-600">
+                    Date de début
+                  </label>
+                  <input
+                    id="dispo-debut"
+                    type="date"
+                    value={dispoFormData.debut}
+                    onChange={(e) => setDispoFormData((s) => ({ ...s, debut: e.target.value }))}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label htmlFor="dispo-fin" className="block text-xs font-semibold text-slate-600">
+                    Date de fin
+                  </label>
+                  <input
+                    id="dispo-fin"
+                    type="date"
+                    value={dispoFormData.fin}
+                    onChange={(e) => setDispoFormData((s) => ({ ...s, fin: e.target.value }))}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label htmlFor="dispo-planning-type" className="block text-xs font-semibold text-slate-600">
+                    Type de planning
+                  </label>
+                  <select
+                    id="dispo-planning-type"
+                    value={dispoFormData.planningType}
+                    onChange={(e) => setDispoFormData((s) => ({ ...s, planningType: e.target.value as any }))}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
+                  >
+                    <option value="charter">Charter</option>
+                    <option value="technical_stop">Arrêt technique</option>
+                    <option value="maintenance">Maintenance</option>
+                    <option value="blocked">Bloqué</option>
+                  </select>
+                </div>
+                <div className="space-y-1">
+                  <label htmlFor="dispo-statut" className="block text-xs font-semibold text-slate-600">
+                    Statut du créneau
+                  </label>
+                  <select
+                    id="dispo-statut"
+                    value={dispoFormData.statut}
+                    onChange={(e) => setDispoFormData((s) => ({ ...s, statut: e.target.value as any }))}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
+                  >
+                    <option value="disponible">Disponible</option>
+                    <option value="option">Option</option>
+                    <option value="reserve">Complet</option>
+                    <option value="ferme">Fermé</option>
+                  </select>
+                </div>
+                <div className="space-y-1 md:col-span-2">
+                  <label htmlFor="dispo-destination" className="block text-xs font-semibold text-slate-600">
+                    Destination
+                  </label>
+                  <input
+                    id="dispo-destination"
+                    value={dispoFormData.destination}
+                    onChange={(e) => setDispoFormData((s) => ({ ...s, destination: e.target.value }))}
+                    placeholder="Ex: La Ciotat"
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label htmlFor="dispo-tarif-priva-semaine" className="block text-xs font-semibold text-slate-600">
+                    Tarif privatif semaine (EUR)
+                  </label>
+                  <input
+                    id="dispo-tarif-priva-semaine"
+                    type="number"
+                    min={0}
+                    value={dispoFormData.tarif}
+                    onChange={(e) => setDispoFormData((s) => ({ ...s, tarif: Number(e.target.value || 0) }))}
+                    placeholder="Ex: 4900"
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label htmlFor="dispo-tarif-cabine" className="block text-xs font-semibold text-slate-600">
+                    Tarif cabine (EUR)
+                  </label>
+                  <input
+                    id="dispo-tarif-cabine"
+                    type="number"
+                    min={0}
+                    value={dispoFormData.tarifCabine}
+                    onChange={(e) => setDispoFormData((s) => ({ ...s, tarifCabine: Number(e.target.value || 0) }))}
+                    placeholder="Ex: 790"
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label htmlFor="dispo-tarif-priva-jour" className="block text-xs font-semibold text-slate-600">
+                    Tarif privatisation journée (EUR)
+                  </label>
+                  <input
+                    id="dispo-tarif-priva-jour"
+                    type="number"
+                    min={0}
+                    value={dispoFormData.tarifJourPriva}
+                    onChange={(e) => setDispoFormData((s) => ({ ...s, tarifJourPriva: Number(e.target.value || 0) }))}
+                    placeholder="Tarif privatisation journée en EUR"
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label htmlFor="dispo-tarif-jour-pers" className="block text-xs font-semibold text-slate-600">
+                    Tarif journée par personne (EUR)
+                  </label>
+                  <input
+                    id="dispo-tarif-jour-pers"
+                    type="number"
+                    min={0}
+                    value={dispoFormData.tarifJourPersonne}
+                    onChange={(e) => setDispoFormData((s) => ({ ...s, tarifJourPersonne: Number(e.target.value || 0) }))}
+                    placeholder="Ex: 130"
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
+                  />
+                </div>
+                <div className="space-y-1 md:col-span-2">
+                  <label htmlFor="dispo-note-interne" className="block text-xs font-semibold text-slate-600">
+                    Note interne (non visible client)
+                  </label>
+                  <input
+                    id="dispo-note-interne"
+                    value={dispoFormData.note}
+                    onChange={(e) => setDispoFormData((s) => ({ ...s, note: e.target.value }))}
+                    placeholder="Ex: Prévoir nettoyage cabine 2 avant embarquement"
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
+                  />
+                </div>
+                <div className="space-y-1 md:col-span-2">
+                  <label htmlFor="dispo-note-publique" className="block text-xs font-semibold text-slate-600">
+                    Note publique (visible client)
+                  </label>
+                  <input
+                    id="dispo-note-publique"
+                    value={dispoFormData.notePublique}
+                    onChange={(e) => setDispoFormData((s) => ({ ...s, notePublique: e.target.value }))}
+                    placeholder="Ex: Itinéraire adaptable selon météo"
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
+                  />
+                </div>
               </div>
               <div className="mt-5 flex items-center justify-end gap-2">
                 <button

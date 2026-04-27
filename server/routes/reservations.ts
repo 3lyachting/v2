@@ -175,9 +175,11 @@ router.post("/request", async (req, res) => {
       message,
       disponibiliteId,
       bookingOrigin,
+      simpleRequest,
     } = req.body;
 
-    if (!nomClient || !emailClient || !montantTotal || !formule || !destination) {
+    const isSimpleRequest = Boolean(simpleRequest);
+    if (!nomClient || !emailClient || !dateDebut || !dateFin) {
       return res.status(400).json({ error: "Données manquantes" });
     }
 
@@ -245,24 +247,28 @@ router.post("/request", async (req, res) => {
         ? await db.select().from(disponibilites).where(eq(disponibilites.id, parsedDisponibiliteIdRaw)).limit(1)
         : [];
     const effectiveDestination = destination || selectedDispoForPolicy[0]?.destination || "";
-    const policyCheck = validateReservationPolicy({
-      dateDebut,
-      dateFin,
-      destination: effectiveDestination,
-      typeReservation: normalizedTypeReservation,
-      nbCabines: normalizedTypeReservation === "cabine" ? computedNbCabines : null,
-    });
-    if (!policyCheck.ok) {
-      return res.status(400).json({ error: policyCheck.reason });
+    if (!isSimpleRequest) {
+      const policyCheck = validateReservationPolicy({
+        dateDebut,
+        dateFin,
+        destination: effectiveDestination,
+        typeReservation: normalizedTypeReservation,
+        nbCabines: normalizedTypeReservation === "cabine" ? computedNbCabines : null,
+      });
+      if (!policyCheck.ok) {
+        return res.status(400).json({ error: policyCheck.reason });
+      }
     }
     const normalizedSchedule = applyHighSeasonCheckinCheckout(dateDebut, dateFin);
     const resolvedBookingOrigin = inferBookingOriginFromRequest({ bookingOrigin, emailClient, message });
 
-    const parsedDisponibiliteId = await resolveDisponibiliteIdForReservation(db, {
-      disponibiliteId: parsedDisponibiliteIdRaw,
-      dateDebut,
-      dateFin,
-    });
+    const parsedDisponibiliteId = isSimpleRequest
+      ? null
+      : await resolveDisponibiliteIdForReservation(db, {
+          disponibiliteId: parsedDisponibiliteIdRaw,
+          dateDebut,
+          dateFin,
+        });
 
     let isAdminRequester = false;
     try {
@@ -271,6 +277,11 @@ router.post("/request", async (req, res) => {
     } catch {
       isAdminRequester = false;
     }
+
+    const finalFormule = String(formule || (isSimpleRequest ? "semaine" : "")).trim();
+    const finalDestination = String(destination || (isSimpleRequest ? "A définir" : "")).trim();
+    const parsedMontantTotal = Number(montantTotal);
+    const finalMontantTotal = Number.isFinite(parsedMontantTotal) && parsedMontantTotal > 0 ? parsedMontantTotal : 100;
 
     let reservationId: number | undefined;
     await db.transaction(async (tx: any) => {
@@ -316,11 +327,11 @@ router.post("/request", async (req, res) => {
         customerId: customerId || null,
         telClient: telClient || null,
         nbPersonnes: parsedNbPersonnes,
-        formule,
-        destination,
-        dateDebut: normalizedSchedule.startDate,
-        dateFin: normalizedSchedule.endDate,
-        montantTotal,
+        formule: finalFormule,
+        destination: finalDestination,
+        dateDebut: isSimpleRequest ? new Date(dateDebut) : normalizedSchedule.startDate,
+        dateFin: isSimpleRequest ? new Date(dateFin) : normalizedSchedule.endDate,
+        montantTotal: finalMontantTotal,
         typePaiement: "acompte",
         montantPaye: 0,
         typeReservation: normalizedTypeReservation,
@@ -376,11 +387,11 @@ Nouvelle demande reçue :
 **Nombre de personnes:** ${nbPersonnes}
 
 **Croisière:**
-- Destination: ${destination}
-- Formule: ${formuleLabels[formule] || formule}
+- Destination: ${finalDestination}
+- Formule: ${formuleLabels[finalFormule] || finalFormule}
 - Type: ${typeResLabel}
 - Dates: ${new Date(dateDebut).toLocaleDateString("fr-FR")} → ${new Date(dateFin).toLocaleDateString("fr-FR")}
-- Montant estimé: ${(montantTotal / 100).toLocaleString("fr-FR")} €
+- Montant estimé: ${(finalMontantTotal / 100).toLocaleString("fr-FR")} €
 
 **Message:** ${message || "Aucun message"}
 

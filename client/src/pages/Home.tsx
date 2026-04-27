@@ -13,7 +13,6 @@ import {
   Phone, Mail, Instagram, Facebook, ChevronDown,
   Ship, Compass, Fish, Sunset, ArrowRight, Menu, X, MessageCircle
 } from "lucide-react";
-const CharterCalendar = lazy(() => import("@/components/booking/CharterCalendar"));
 const AvisGoogle = lazy(() => import("@/components/AvisGoogle"));
 
 const BRAND_SAND = "#B58E6E";
@@ -1031,6 +1030,102 @@ function SectionEquipage({ isEnglish = false }: { isEnglish?: boolean }) {
 
 // ── Section Calendrier ────────────────────────────────────────────────────────
 function SectionCalendrier({ isEnglish = false }: { isEnglish?: boolean }) {
+  const [form, setForm] = useState({
+    dateDebut: "",
+    dateFin: "",
+    nbPersonnes: 2,
+    nomClient: "",
+    emailClient: "",
+    telClient: "",
+    typeDemande: "privatisation",
+    destination: "",
+    message: "",
+  });
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [submitSuccess, setSubmitSuccess] = useState<string | null>(null);
+
+  const isValidEmail = (value: string) => /^\S+@\S+\.\S+$/.test(value);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSubmitError(null);
+    setSubmitSuccess(null);
+
+    if (!form.dateDebut || !form.dateFin || !form.nomClient.trim() || !form.emailClient.trim()) {
+      setSubmitError(isEnglish ? "Please fill in required fields." : "Merci de remplir les champs obligatoires.");
+      return;
+    }
+    if (form.dateFin < form.dateDebut) {
+      setSubmitError(isEnglish ? "End date must be after start date." : "La date de fin doit être postérieure à la date de début.");
+      return;
+    }
+    if (!isValidEmail(form.emailClient)) {
+      setSubmitError(isEnglish ? "Please enter a valid email." : "Merci de saisir un email valide.");
+      return;
+    }
+    if (!Number.isFinite(form.nbPersonnes) || form.nbPersonnes < 1) {
+      setSubmitError(isEnglish ? "Passengers must be at least 1." : "Le nombre de passagers doit être au moins de 1.");
+      return;
+    }
+
+    const typeReservation = form.typeDemande === "cabine" ? "cabine" : "bateau_entier";
+    const formule =
+      form.typeDemande === "journee"
+        ? "journee"
+        : form.typeDemande === "semaine"
+          ? "semaine"
+          : "semaine";
+
+    setSubmitting(true);
+    try {
+      const response = await fetch("/api/reservations/request", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          simpleRequest: true,
+          nomClient: form.nomClient.trim(),
+          prenomClient: "",
+          emailClient: form.emailClient.trim(),
+          telClient: form.telClient.trim(),
+          nbPersonnes: form.nbPersonnes,
+          formule,
+          destination: form.destination.trim() || "A définir",
+          dateDebut: `${form.dateDebut}T00:00:00.000Z`,
+          dateFin: `${form.dateFin}T00:00:00.000Z`,
+          montantTotal: 100,
+          typeReservation,
+          nbCabines: typeReservation === "cabine" ? Math.max(1, Math.ceil(form.nbPersonnes / 2)) : 1,
+          message: form.message.trim() || (isEnglish ? "Website reservation request form." : "Demande via formulaire site web."),
+        }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(payload?.error || (isEnglish ? "Unable to send request." : "Impossible d'envoyer la demande."));
+      }
+      setSubmitSuccess(
+        isEnglish
+          ? "Request sent successfully. We will contact you shortly."
+          : "Demande envoyée avec succès. Nous vous recontactons rapidement."
+      );
+      setForm({
+        dateDebut: "",
+        dateFin: "",
+        nbPersonnes: 2,
+        nomClient: "",
+        emailClient: "",
+        telClient: "",
+        typeDemande: "privatisation",
+        destination: "",
+        message: "",
+      });
+    } catch (error: any) {
+      setSubmitError(error?.message || (isEnglish ? "Error while sending request." : "Erreur lors de l'envoi de la demande."));
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   return (
     <section id="calendrier" className="editorial-section bg-[oklch(0.985_0.004_95)]">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -1038,21 +1133,151 @@ function SectionCalendrier({ isEnglish = false }: { isEnglish?: boolean }) {
           <div className="text-center mb-14">
             <span className="editorial-kicker">{isEnglish ? "Availability & Rates" : "Disponibilités & Tarifs"}</span>
             <h2 className="editorial-title editorial-title-centered mt-4" style={{ fontFamily: "Cormorant Garamond, Times New Roman, serif" }}>
-              {isEnglish ? "Charter Calendar" : "Calendrier Charter"}
+              {isEnglish ? "Reservation Request" : "Demande de réservation"}
             </h2>
             <p className="editorial-lead max-w-2xl">
               {isEnglish
-                ? "Saturday departures only, private charter or cabin request, with live availability."
-                : "Departs samedi uniquement, demande en privatisation ou cabine, avec disponibilites en direct."}
+                ? "Tell us your project and preferred dates. We will confirm availability quickly."
+                : "Indiquez votre projet et vos dates souhaitées. Nous confirmons la disponibilité rapidement."}
             </p>
           </div>
         </Reveal>
 
         <Reveal delay={0.1}>
-          <div className="max-w-6xl mx-auto">
-            <Suspense fallback={<div className="text-center text-sm text-[oklch(0.45_0.04_220)] py-10">{isEnglish ? "Loading calendar..." : "Chargement du calendrier..."}</div>}>
-              <CharterCalendar />
-            </Suspense>
+          <div className="max-w-4xl mx-auto rounded-3xl border border-[#d8bf91]/40 bg-white p-6 sm:p-8 shadow-[0_14px_30px_rgba(39,28,14,0.1)]">
+            <form onSubmit={handleSubmit} className="grid md:grid-cols-2 gap-4">
+              <div>
+                <label className="text-xs uppercase tracking-[0.08em] text-[oklch(0.48_0.03_240)]">
+                  {isEnglish ? "Start date *" : "Date début *"}
+                </label>
+                <input
+                  type="date"
+                  required
+                  value={form.dateDebut}
+                  onChange={(e) => setForm((prev) => ({ ...prev, dateDebut: e.target.value }))}
+                  className="mt-1 w-full rounded-xl border border-[oklch(0.88_0.02_220)] px-3 py-2.5 text-sm text-[oklch(0.2_0.06_240)]"
+                />
+              </div>
+              <div>
+                <label className="text-xs uppercase tracking-[0.08em] text-[oklch(0.48_0.03_240)]">
+                  {isEnglish ? "End date *" : "Date fin *"}
+                </label>
+                <input
+                  type="date"
+                  required
+                  value={form.dateFin}
+                  onChange={(e) => setForm((prev) => ({ ...prev, dateFin: e.target.value }))}
+                  className="mt-1 w-full rounded-xl border border-[oklch(0.88_0.02_220)] px-3 py-2.5 text-sm text-[oklch(0.2_0.06_240)]"
+                />
+              </div>
+              <div>
+                <label className="text-xs uppercase tracking-[0.08em] text-[oklch(0.48_0.03_240)]">
+                  {isEnglish ? "Passengers *" : "Passagers *"}
+                </label>
+                <input
+                  type="number"
+                  min={1}
+                  max={12}
+                  required
+                  value={form.nbPersonnes}
+                  onChange={(e) => setForm((prev) => ({ ...prev, nbPersonnes: Number(e.target.value || 1) }))}
+                  className="mt-1 w-full rounded-xl border border-[oklch(0.88_0.02_220)] px-3 py-2.5 text-sm text-[oklch(0.2_0.06_240)]"
+                />
+              </div>
+              <div>
+                <label className="text-xs uppercase tracking-[0.08em] text-[oklch(0.48_0.03_240)]">
+                  {isEnglish ? "Request type *" : "Type de demande *"}
+                </label>
+                <select
+                  value={form.typeDemande}
+                  onChange={(e) => setForm((prev) => ({ ...prev, typeDemande: e.target.value }))}
+                  className="mt-1 w-full rounded-xl border border-[oklch(0.88_0.02_220)] px-3 py-2.5 text-sm text-[oklch(0.2_0.06_240)]"
+                >
+                  <option value="journee">{isEnglish ? "Day trip" : "Journée"}</option>
+                  <option value="semaine">{isEnglish ? "Week" : "Semaine"}</option>
+                  <option value="privatisation">{isEnglish ? "Private charter" : "Privatisation"}</option>
+                  <option value="cabine">{isEnglish ? "Cabin" : "Cabine"}</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-xs uppercase tracking-[0.08em] text-[oklch(0.48_0.03_240)]">
+                  {isEnglish ? "Name *" : "Nom *"}
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={form.nomClient}
+                  onChange={(e) => setForm((prev) => ({ ...prev, nomClient: e.target.value }))}
+                  className="mt-1 w-full rounded-xl border border-[oklch(0.88_0.02_220)] px-3 py-2.5 text-sm text-[oklch(0.2_0.06_240)]"
+                />
+              </div>
+              <div>
+                <label className="text-xs uppercase tracking-[0.08em] text-[oklch(0.48_0.03_240)]">
+                  {isEnglish ? "Email *" : "Email *"}
+                </label>
+                <input
+                  type="email"
+                  required
+                  value={form.emailClient}
+                  onChange={(e) => setForm((prev) => ({ ...prev, emailClient: e.target.value }))}
+                  className="mt-1 w-full rounded-xl border border-[oklch(0.88_0.02_220)] px-3 py-2.5 text-sm text-[oklch(0.2_0.06_240)]"
+                />
+              </div>
+              <div>
+                <label className="text-xs uppercase tracking-[0.08em] text-[oklch(0.48_0.03_240)]">
+                  {isEnglish ? "Phone" : "Téléphone"}
+                </label>
+                <input
+                  type="tel"
+                  value={form.telClient}
+                  onChange={(e) => setForm((prev) => ({ ...prev, telClient: e.target.value }))}
+                  className="mt-1 w-full rounded-xl border border-[oklch(0.88_0.02_220)] px-3 py-2.5 text-sm text-[oklch(0.2_0.06_240)]"
+                />
+              </div>
+              <div>
+                <label className="text-xs uppercase tracking-[0.08em] text-[oklch(0.48_0.03_240)]">
+                  {isEnglish ? "Destination" : "Destination"}
+                </label>
+                <input
+                  type="text"
+                  value={form.destination}
+                  onChange={(e) => setForm((prev) => ({ ...prev, destination: e.target.value }))}
+                  placeholder={isEnglish ? "Ex: Corsica, Caribbean..." : "Ex: Corse, Caraïbes..."}
+                  className="mt-1 w-full rounded-xl border border-[oklch(0.88_0.02_220)] px-3 py-2.5 text-sm text-[oklch(0.2_0.06_240)]"
+                />
+              </div>
+              <div className="md:col-span-2">
+                <label className="text-xs uppercase tracking-[0.08em] text-[oklch(0.48_0.03_240)]">
+                  {isEnglish ? "Message (optional)" : "Message (optionnel)"}
+                </label>
+                <textarea
+                  rows={4}
+                  value={form.message}
+                  onChange={(e) => setForm((prev) => ({ ...prev, message: e.target.value }))}
+                  className="mt-1 w-full rounded-xl border border-[oklch(0.88_0.02_220)] px-3 py-2.5 text-sm text-[oklch(0.2_0.06_240)] resize-none"
+                />
+              </div>
+              {submitError && (
+                <p className="md:col-span-2 text-sm text-rose-700 bg-rose-50 border border-rose-200 rounded-xl px-3 py-2">
+                  {submitError}
+                </p>
+              )}
+              {submitSuccess && (
+                <p className="md:col-span-2 text-sm text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2">
+                  {submitSuccess}
+                </p>
+              )}
+              <div className="md:col-span-2">
+                <button
+                  type="submit"
+                  disabled={submitting}
+                  className="w-full sm:w-auto rounded-full px-7 py-3 text-sm font-bold text-white transition-all hover:scale-[1.01] disabled:opacity-60"
+                  style={{ backgroundColor: BRAND_DEEP }}
+                >
+                  {submitting ? (isEnglish ? "Sending..." : "Envoi...") : (isEnglish ? "Send my request" : "Envoyer ma demande")}
+                </button>
+              </div>
+            </form>
           </div>
         </Reveal>
       </div>

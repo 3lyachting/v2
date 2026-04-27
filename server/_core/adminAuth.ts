@@ -28,6 +28,10 @@ export async function hashAdminPassword(password: string): Promise<string> {
 }
 
 export function registerAdminAuthRoutes(app: Express) {
+  const isDevAdminBypass =
+    process.env.NODE_ENV === "development" &&
+    process.env.ADMIN_AUTH_BYPASS === "true";
+
   app.post("/api/admin-auth/local-login", async (req: Request, res: Response) => {
     try {
       const configuredEmail = normalizeEmail(process.env.ADMIN_EMAIL);
@@ -78,6 +82,15 @@ export function registerAdminAuthRoutes(app: Express) {
   });
 
   app.get("/api/admin-auth/me", async (req: Request, res: Response) => {
+    if (isDevAdminBypass) {
+      return res.json({
+        id: "local-admin",
+        openId: "local-admin",
+        name: "Admin Local",
+        email: String(process.env.ADMIN_EMAIL || "admin@local.test"),
+        role: "admin",
+      });
+    }
     try {
       const user = await sdk.authenticateRequest(req);
       if (user.role !== "admin") {

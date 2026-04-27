@@ -598,13 +598,20 @@ export async function runBookingConsistencyAudit(db: BookingDb) {
   };
 }
 
-export async function syncDisponibilitesFromReservations(db: BookingDb) {
+type SyncDisponibilitesOptions = {
+  allowAutoCreateSlots?: boolean;
+};
+
+export async function syncDisponibilitesFromReservations(db: BookingDb, options: SyncDisponibilitesOptions = {}) {
+  const allowAutoCreateSlots = false;
   const allReservations = await listReservationsLite(db);
   const reservationYears = allReservations
     .map((r: any) => new Date(r.dateDebut).getUTCFullYear())
     .filter((y: any) => Number.isFinite(y)) as number[];
   const currentYear = new Date().getUTCFullYear();
-  await ensureSeasonAvailabilitySlots(db, [currentYear - 1, currentYear, currentYear + 1, ...reservationYears]);
+  void options;
+  void reservationYears;
+  void currentYear;
   await normalizeCommercialSlots(db);
 
   const allDisposAfterSeed = await db.select().from(disponibilites);
@@ -615,24 +622,9 @@ export async function syncDisponibilitesFromReservations(db: BookingDb) {
     let bestId = await resolveDisponibiliteIdForReservation(db, r);
     const isBlockingByWorkflow = BLOCKING_WORKFLOW_STATUSES.includes(String(r.workflowStatut || "") as any);
     const isBlockingByRequest = String(r?.requestStatus || "") === "validee";
-    if (!bestId && (isBlockingByWorkflow || isBlockingByRequest)) {
-      // Si une réservation est déjà en phase bloquante (option/confirmée) mais ne matche aucun créneau,
-      // on crée un créneau dédié pour que le calendrier client/backoffice reflète bien l'occupation.
-      const created = await db
-        .insert(disponibilites)
-        .values({
-          planningType: "charter",
-          debut: new Date(r.dateDebut),
-          fin: new Date(r.dateFin),
-          statut: CONFIRMED_WORKFLOW_STATUSES.includes(String(r.workflowStatut || "") as any) ? "reserve" : "option",
-          destination: r.destination || "La Ciotat",
-          notePublique: "Créneau créé automatiquement depuis réservation",
-          capaciteTotale: String(r.formule || "") === "journee" ? 6 : 4,
-        })
-        .returning({ id: disponibilites.id });
-      bestId = created[0]?.id || null;
-      if (bestId) createdDispoIds.push(bestId);
-    }
+    void allowAutoCreateSlots;
+    void isBlockingByWorkflow;
+    void isBlockingByRequest;
     if (bestId) linkedDispoIds.add(bestId);
     if (r.disponibiliteId) linkedDispoIds.add(r.disponibiliteId);
     if (bestId && r.disponibiliteId !== bestId) {

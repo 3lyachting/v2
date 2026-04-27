@@ -321,7 +321,7 @@ async function main() {
         .where(inArray(disponibilites.id, pastBookableIds));
     }
 
-    await syncDisponibilitesFromReservations(db);
+    await syncDisponibilitesFromReservations(db, { allowAutoCreateSlots: true });
 
     const refreshedDispos = await db.select({ id: disponibilites.id }).from(disponibilites);
     for (const d of refreshedDispos) {

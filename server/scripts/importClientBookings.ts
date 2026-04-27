@@ -541,7 +541,7 @@ async function main() {
     }
   }
 
-  await syncDisponibilitesFromReservations(db);
+  await syncDisponibilitesFromReservations(db, { allowAutoCreateSlots: true });
   console.log("[import-client-bookings] Import terminé.");
 }
 

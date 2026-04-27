@@ -8,9 +8,8 @@ import { ThemeProvider } from "./contexts/ThemeContext";
 import Home from "./pages/Home";
 import Admin from "./pages/Admin";
 import AdminLogin from "./pages/AdminLogin";
-import Reservation from "./pages/Reservation";
-import { ReservationSucces, ReservationAnnule } from "./pages/ReservationResultat";
 import CustomerPortal from "./pages/CustomerPortal";
+import CalendarRebuild from "./pages/CalendarRebuild";
 
 function Router() {
   return (
@@ -21,9 +20,9 @@ function Router() {
         <Route path="/en/:rest*" component={Home} />
         <Route path="/admin/login" component={AdminLogin} />
         <Route path="/admin" component={Admin} />
-        <Route path="/reservation" component={Reservation} />
-        <Route path="/reservation/succes" component={ReservationSucces} />
-        <Route path="/reservation/annule" component={ReservationAnnule} />
+        <Route path="/reservation" component={CalendarRebuild} />
+        <Route path="/reservation/succes" component={CalendarRebuild} />
+        <Route path="/reservation/annule" component={CalendarRebuild} />
         <Route path="/espace-client" component={CustomerPortal} />
         <Route path="/404" component={NotFound} />
         <Route component={NotFound} />

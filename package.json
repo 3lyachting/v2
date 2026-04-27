@@ -14,7 +14,9 @@
     "booking:reset": "tsx server/scripts/resetBookingData.ts",
     "booking:regenerate": "tsx server/scripts/regenerateDisponibilites.ts",
     "booking:audit": "tsx server/scripts/auditDisponibilitesConsistency.ts",
-    "booking:audit:apply": "tsx server/scripts/auditDisponibilitesConsistency.ts --apply"
+    "booking:audit:apply": "tsx server/scripts/auditDisponibilitesConsistency.ts --apply",
+    "booking:cleanup:caraibes": "tsx server/scripts/cleanupCaraibesParasites.ts",
+    "booking:cleanup:caraibes:apply": "tsx server/scripts/cleanupCaraibesParasites.ts --apply"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.693.0",
