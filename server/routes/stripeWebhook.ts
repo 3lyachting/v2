@@ -4,6 +4,7 @@ import { getDb } from "../db";
 import { reservations } from "../../drizzle/schema";
 import { eq } from "drizzle-orm";
 import { notifyOwner } from "../_core/notification";
+import { listReservationsByIdSafe } from "../_core/reservationsSafe";
 
 const router = Router();
 
@@ -68,7 +69,7 @@ router.post("/", async (req: Request, res: Response) => {
                 stripePaymentIntentId: session.payment_intent as string,
               })
               .where(eq(reservations.id, parseInt(reservationId)));
-            const [r] = await db.select().from(reservations).where(eq(reservations.id, parseInt(reservationId)));
+            const [r] = await listReservationsByIdSafe(db, parseInt(reservationId));
             resv = r;
           }
           console.log(`[Webhook] Paiement confirmé pour réservation #${reservationId}`);

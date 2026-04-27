@@ -6,6 +6,7 @@ import { getDb } from "../db";
 import { customers, documents, reservations } from "../../drizzle/schema";
 import { ENV } from "../_core/env";
 import { storagePut } from "../storage";
+import { listReservationsByEmailSafe, listReservationsByIdSafe } from "../_core/reservationsSafe";
 
 const router = Router();
 const CUSTOMER_COOKIE = "customer_session_id";
@@ -30,7 +31,7 @@ router.get("/reservations", async (req, res) => {
     if (!email) return res.status(401).json({ error: "Non connecté" });
     const db = await getDb();
     if (!db) return res.status(500).json({ error: "Base de données non disponible" });
-    const rows = await db.select().from(reservations).where(eq(reservations.emailClient, email));
+    const rows = await listReservationsByEmailSafe(db, email);
     return res.json(rows);
   } catch (error: any) {
     return res.status(500).json({ error: error?.message || "Erreur chargement réservations" });
@@ -76,11 +77,9 @@ router.post("/documents/upload", async (req, res) => {
     const customerId = customer[0].id;
 
     if (reservationId) {
-      const ownedReservation = await db
-        .select()
-        .from(reservations)
-        .where(and(eq(reservations.id, reservationId), eq(reservations.emailClient, email)))
-        .limit(1);
+      const ownedReservation = (await listReservationsByIdSafe(db, reservationId)).filter(
+        (r: any) => String(r.emailClient || "").toLowerCase() === String(email || "").toLowerCase()
+      );
       if (!ownedReservation.length) return res.status(403).json({ error: "Réservation non autorisée" });
     }
 

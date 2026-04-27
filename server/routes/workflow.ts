@@ -20,6 +20,7 @@ import {
   resolveDisponibiliteIdForReservation,
   refreshDisponibiliteBookingState,
 } from "../_core/bookingRules";
+import { listReservationsByIdSafe } from "../_core/reservationsSafe";
 
 const router = Router();
 
@@ -37,7 +38,7 @@ router.post("/reservations/:id/owner-validate", requireAdmin, async (req, res) =
     const db = await getDb();
     if (!db) return res.status(500).json({ error: "Base de données non disponible" });
 
-    const existing = await db.select().from(reservations).where(eq(reservations.id, reservationId));
+    const existing = await listReservationsByIdSafe(db, reservationId);
     if (!existing.length) return res.status(404).json({ error: "Réservation introuvable" });
     const r = existing[0];
     const optionExpiresAt = new Date();
@@ -176,7 +177,7 @@ router.post("/reservations/:id/send-contract", requireAdmin, async (req, res) =>
     const db = await getDb();
     if (!db) return res.status(500).json({ error: "Base de données non disponible" });
 
-    const existing = await db.select().from(reservations).where(eq(reservations.id, reservationId));
+    const existing = await listReservationsByIdSafe(db, reservationId);
     if (!existing.length) return res.status(404).json({ error: "Réservation introuvable" });
     const r = existing[0];
 
@@ -275,7 +276,7 @@ router.post("/reservations/:id/acompte-received", requireAdmin, async (req, res)
     const db = await getDb();
     if (!db) return res.status(500).json({ error: "Base de données non disponible" });
 
-    const existing = await db.select().from(reservations).where(eq(reservations.id, reservationId));
+    const existing = await listReservationsByIdSafe(db, reservationId);
     if (!existing.length) return res.status(404).json({ error: "Réservation introuvable" });
     const r = existing[0];
 
@@ -384,7 +385,7 @@ router.post("/reservations/:id/contract-signed", requireAdmin, async (req, res) 
     const db = await getDb();
     if (!db) return res.status(500).json({ error: "Base de données non disponible" });
 
-    const existing = await db.select().from(reservations).where(eq(reservations.id, reservationId));
+    const existing = await listReservationsByIdSafe(db, reservationId);
     if (!existing.length) return res.status(404).json({ error: "Réservation introuvable" });
     const r = existing[0];
     const linkedDisponibiliteId = await resolveDisponibiliteIdForReservation(db, r);
@@ -420,7 +421,7 @@ router.post("/reservations/:id/solde-received", requireAdmin, async (req, res) =
     const db = await getDb();
     if (!db) return res.status(500).json({ error: "Base de données non disponible" });
 
-    const existing = await db.select().from(reservations).where(eq(reservations.id, reservationId));
+    const existing = await listReservationsByIdSafe(db, reservationId);
     if (!existing.length) return res.status(404).json({ error: "Réservation introuvable" });
     const r = existing[0];
 
@@ -617,7 +618,7 @@ router.post("/esign/webhook", async (req, res) => {
       const linked = await db.select().from(contracts).where(eq(contracts.id, resolvedContractId));
       const reservationId = linked[0]?.reservationId;
       if (reservationId) {
-        const current = await db.select().from(reservations).where(eq(reservations.id, reservationId));
+        const current = await listReservationsByIdSafe(db, reservationId);
         const previous = current[0];
         await db
           .update(reservations)

@@ -14,6 +14,11 @@ import {
   refreshDisponibiliteBookingState,
   resolveDisponibiliteIdForReservation,
 } from "../_core/bookingRules";
+import {
+  listReservationsByDisponibiliteSafe,
+  listReservationsByIdSafe,
+  listReservationsSafe,
+} from "../_core/reservationsSafe";
 import { validateReservationPolicy } from "@shared/reservationPolicy";
 
 const router = Router();
@@ -293,10 +298,7 @@ router.post("/request", async (req, res) => {
         const isTransat = String(selectedDispo[0]?.destination || "").toLowerCase().includes("transat");
         const maxPeople = isTransat ? 4 : isDayTrip ? 12 : 8;
         if (parsedNbPersonnes > maxPeople) throw new Error(`Maximum ${maxPeople} personnes sur ce créneau.`);
-        const sameSlotReservations = await tx
-          .select()
-          .from(reservations)
-          .where(eq(reservations.disponibiliteId, parsedDisponibiliteId));
+        const sameSlotReservations = await listReservationsByDisponibiliteSafe(tx, parsedDisponibiliteId);
         const activeReservations = isAdminRequester
           ? sameSlotReservations.filter((r: any) => isActiveReservationForCapacity(r))
           : sameSlotReservations.filter((r: any) => CAPACITY_BLOCKING_WORKFLOW.includes(String(r.workflowStatut || "")));
@@ -426,7 +428,7 @@ router.get("/", requireAdmin, async (req, res) => {
     if (!db) {
       return res.status(500).json({ error: "Base de données non disponible" });
     }
-    const all = await db.select().from(reservations).orderBy(reservations.createdAt);
+    const all = await listReservationsSafe(db);
     res.json(all);
   } catch (error: any) {
     res.status(500).json({ error: error.message });
@@ -439,7 +441,7 @@ router.get("/origins-summary", requireAdmin, async (_req, res) => {
     if (!db) {
       return res.status(500).json({ error: "Base de données non disponible" });
     }
-    const all = await db.select().from(reservations);
+    const all = await listReservationsSafe(db);
     const totals: Record<BookingOrigin, { count: number; revenueCents: number; source: "local" | "clicknboat_api" }> = {
       direct: { count: 0, revenueCents: 0, source: "local" },
       clicknboat: { count: 0, revenueCents: 0, source: "local" },
@@ -482,9 +484,7 @@ router.get("/:id", requireAdmin, async (req, res) => {
     if (!db) {
       return res.status(500).json({ error: "Base de données non disponible" });
     }
-    const reservation = await db.select().from(reservations).where(
-      eq(reservations.id, parseInt(id))
-    );
+    const reservation = await listReservationsByIdSafe(db, parseInt(id));
     if (!reservation.length) {
       return res.status(404).json({ error: "Réservation non trouvée" });
     }
@@ -527,9 +527,7 @@ router.put("/:id", requireAdmin, async (req, res) => {
     }
 
     // Vérifier que la réservation existe
-    const existing = await db.select().from(reservations).where(
-      eq(reservations.id, parseInt(id))
-    );
+    const existing = await listReservationsByIdSafe(db, parseInt(id));
     if (!existing.length) {
       return res.status(404).json({ error: "Réservation non trouvée" });
     }
@@ -625,10 +623,7 @@ router.put("/:id", requireAdmin, async (req, res) => {
         const isTransat = String(selectedDispo[0]?.destination || "").toLowerCase().includes("transat");
         const maxPeople = isTransat ? 4 : isDayTrip ? 12 : 8;
         if (parsedNbPersonnes > maxPeople) throw new Error(`Maximum ${maxPeople} personnes sur ce créneau.`);
-        const sameSlotReservations = await tx
-          .select()
-          .from(reservations)
-          .where(eq(reservations.disponibiliteId, resolvedDisponibiliteId));
+        const sameSlotReservations = await listReservationsByDisponibiliteSafe(tx, resolvedDisponibiliteId);
         const otherActiveReservations = sameSlotReservations.filter((r: any) => r.id !== existing[0].id && isActiveReservationForCapacity(r));
         const hasPrivate = otherActiveReservations.some((r: any) => r.typeReservation === "bateau_entier");
         const reservedUnits = hasPrivate
@@ -687,9 +682,7 @@ router.post("/send-confirmation", requireAdmin, async (req, res) => {
       return res.status(500).json({ error: "Base de données non disponible" });
     }
 
-    const reservation = await db.select().from(reservations).where(
-      eq(reservations.id, parseInt(reservationId))
-    );
+    const reservation = await listReservationsByIdSafe(db, parseInt(reservationId));
     if (!reservation.length) {
       return res.status(404).json({ error: "Réservation non trouvée" });
     }
@@ -735,9 +728,7 @@ router.delete("/:id", requireAdmin, async (req, res) => {
     }
 
     // Vérifier que la réservation existe
-    const existing = await db.select().from(reservations).where(
-      eq(reservations.id, parseInt(id))
-    );
+    const existing = await listReservationsByIdSafe(db, parseInt(id));
     if (!existing.length) {
       return res.status(404).json({ error: "Réservation non trouvée" });
     }

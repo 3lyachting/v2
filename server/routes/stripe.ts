@@ -4,6 +4,7 @@ import { getDb } from "../db";
 import { reservations } from "../../drizzle/schema";
 import { eq } from "drizzle-orm";
 import { validateReservationPolicy } from "@shared/reservationPolicy";
+import { listReservationsSafe } from "../_core/reservationsSafe";
 
 const router = Router();
 
@@ -193,7 +194,7 @@ router.get("/reservations", async (req, res) => {
     if (!db) {
       return res.status(500).json({ error: "Base de données non disponible" });
     }
-    const all = await db.select().from(reservations).orderBy(reservations.createdAt);
+    const all = await listReservationsSafe(db);
     res.json(all);
   } catch (error: any) {
     res.status(500).json({ error: error.message });
