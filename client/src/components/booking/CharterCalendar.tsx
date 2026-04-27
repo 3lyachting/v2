@@ -55,6 +55,19 @@ function mapStatus(statut: ApiDisponibilite["statut"], booked: number, total: nu
   return "available";
 }
 
+function statusPriority(status: BookingStatus) {
+  // Most constraining states must win when multiple slots overlap a day.
+  const priorities: Record<BookingStatus, number> = {
+    blocked: 0,
+    private: 1,
+    reserved: 2,
+    option: 3,
+    partial: 4,
+    available: 5,
+  };
+  return priorities[status];
+}
+
 function toBookingWeek(row: ApiDisponibilite): BookingWeek | null {
   const startDate = toIsoDay(row.debut);
   const endDate = toIsoDay(row.fin);
@@ -145,9 +158,23 @@ export default function CharterCalendar() {
         .map(toBookingWeek)
         .filter((week): week is BookingWeek => Boolean(week))
         .sort((a, b) => a.startDate.localeCompare(b.startDate));
-      setWeeks(mapped);
+      // Deduplicate exact same range+destination while preserving the most
+      // constraining status so client calendar matches real occupancy.
+      const deduped = Array.from(
+        mapped
+          .reduce((acc, week) => {
+            const key = `${week.startDate}|${week.endDate}|${week.destination || ""}`;
+            const existing = acc.get(key);
+            if (!existing || statusPriority(week.status) < statusPriority(existing.status)) {
+              acc.set(key, week);
+            }
+            return acc;
+          }, new Map<string, BookingWeek>())
+          .values(),
+      ).sort((a, b) => a.startDate.localeCompare(b.startDate));
+      setWeeks(deduped);
       if (!selectedStartDate && mapped[0]) {
-        setSelectedStartDate(mapped[0].startDate);
+        setSelectedStartDate(deduped[0].startDate);
       }
     } catch {
       if (DEV_FALLBACK_ENABLED) {
@@ -174,8 +201,7 @@ export default function CharterCalendar() {
     const iso = date.toISOString().slice(0, 10);
     const candidates = weeksByDay.get(iso) || [];
     if (!candidates.length) return null;
-    const order: BookingStatus[] = ["available", "option", "partial", "reserved", "private", "blocked"];
-    return [...candidates].sort((a, b) => order.indexOf(a.status) - order.indexOf(b.status))[0];
+    return [...candidates].sort((a, b) => statusPriority(a.status) - statusPriority(b.status))[0];
   };
 
   const selectedRange = useMemo<BookingRangeSelection | null>(() => {
