@@ -1,3 +1,4 @@
+import { isValidCharterHighSeasonSpan } from "@shared/charterWeekPolicy";
 import type { BookingMode, BookingRangeSelection, BookingRequest, BookingStatus, BookingWeek } from "./bookingTypes";
 
 const dateFormatter = new Intl.DateTimeFormat("fr-FR", {
@@ -82,8 +83,8 @@ export function canBookWeek(week: BookingWeek): boolean {
 export function validateBookingRules(week: BookingWeek, mode: BookingMode, peopleCount: number): string | null {
   const { cabinsRemaining, peopleRemaining, privateAllowed } = getAvailability(week);
 
-  if (requiresSaturdayToSaturday(week) && !isSaturdayToSaturday(week)) {
-    return "Cette période doit respecter les règles de réservation en haute saison.";
+  if (requiresSaturdayToSaturday(week) && !isValidCharterHighSeasonSpan(week.startDate, week.endDate)) {
+    return "Cette période doit respecter les règles de réservation en haute saison (samedi 16h au samedi 9h, semaine(s) entière(s)).";
   }
   if (!canBookWeek(week)) return "Cette semaine n'accepte plus de réservation.";
 

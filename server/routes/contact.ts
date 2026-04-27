@@ -1,5 +1,6 @@
 import { Router } from "express";
 import nodemailer from "nodemailer";
+import { getCharterHighSeasonErrorForForm } from "@shared/charterWeekPolicy";
 import { requireAdmin } from "../_core/authz";
 
 const router = Router();
@@ -65,6 +66,15 @@ router.post("/", async (req, res) => {
 
     if (!required(nom) || !required(email) || !required(message)) {
       return res.status(400).json({ error: "Nom, email et message sont requis." });
+    }
+
+    const charterDateErr = getCharterHighSeasonErrorForForm(
+      typeof dateDebut === "string" ? dateDebut : "",
+      typeof dateFin === "string" ? dateFin : "",
+      false
+    );
+    if (charterDateErr) {
+      return res.status(400).json({ error: charterDateErr });
     }
 
     const host = (process.env.SMTP_HOST || "").trim();

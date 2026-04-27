@@ -5,10 +5,12 @@
  * Typo: Serif élégante (titres) + DM Sans (corps)
  */
 
-import { Suspense, lazy, useCallback, useEffect, useRef, useState } from "react";
+import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import AirbnbCalendarMvp from "@/components/booking/AirbnbCalendarMvp";
-import { addDays, format } from "date-fns";
+import { addDays, format, subDays } from "date-fns";
 import { CHARTER_PRODUCT_LABELS, CHARTER_PRODUCTS, type CharterProductCode } from "@shared/charterProduct";
+import { getCharterHighSeasonErrorForForm } from "@shared/charterWeekPolicy";
+import { useLocation } from "wouter";
 import { motion, useInView } from "framer-motion";
 import { withBasePath } from "@/lib/basePath";
 import { apiUrl } from "@/lib/apiBase";
@@ -1032,8 +1034,26 @@ function SectionEquipage({ isEnglish = false }: { isEnglish?: boolean }) {
   );
 }
 
+function expandCharterSlotDays(debut: unknown, fin: unknown): string[] {
+  const a = String(debut ?? "").slice(0, 10);
+  const b = String(fin ?? "").slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(a) || !/^\d{4}-\d{2}-\d{2}$/.test(b)) {
+    return [];
+  }
+  if (a > b) return [];
+  const out: string[] = [];
+  let cur = a;
+  for (;;) {
+    out.push(cur);
+    if (cur >= b) break;
+    cur = format(addDays(new Date(`${cur}T12:00:00`), 1), "yyyy-MM-dd");
+  }
+  return out;
+}
+
 // ── Section Calendrier ────────────────────────────────────────────────────────
 function SectionCalendrier({ isEnglish = false }: { isEnglish?: boolean }) {
+  const [location] = useLocation();
   const [product, setProduct] = useState<CharterProductCode>("med");
   const [dayAvailability, setDayAvailability] = useState<Set<string> | null>(null);
   const [form, setForm] = useState({
@@ -1052,52 +1072,51 @@ function SectionCalendrier({ isEnglish = false }: { isEnglish?: boolean }) {
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
-  const expandSlotDays = (debut: string, fin: string) => {
-    const a = debut.slice(0, 10);
-    const b = fin.slice(0, 10);
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(a) || !/^\d{4}-\d{2}-\d{2}$/.test(b)) {
-      return [];
-    }
-    if (a > b) return [];
-    const out: string[] = [];
-    let cur = a;
-    for (;;) {
-      out.push(cur);
-      if (cur >= b) break;
-      cur = format(addDays(new Date(`${cur}T12:00:00`), 1), "yyyy-MM-dd");
-    }
-    return out;
-  };
+  const charterSeasonError = useMemo(
+    () => getCharterHighSeasonErrorForForm(form.dateDebut, form.dateFin, isEnglish),
+    [form.dateDebut, form.dateFin, isEnglish]
+  );
 
-  useEffect(() => {
-    const loadSlots = async () => {
-      try {
-        setDayAvailability(null);
-        const from = format(new Date(), "yyyy-MM-dd");
-        const to = format(addDays(new Date(), 540), "yyyy-MM-dd");
-        const res = await fetch(
-          `${apiUrl("/api/charter-slots")}?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}&product=${encodeURIComponent(
-            product
-          )}`
-        );
-        if (!res.ok) {
-          setDayAvailability(null);
-          return;
-        }
-        const rows = (await res.json()) as { debut: string; fin: string; active: boolean }[];
-        const s = new Set<string>();
-        for (const r of rows) {
-          if (r.active === false) continue;
-          for (const d of expandSlotDays(r.debut, r.fin)) s.add(d);
-        }
-        // Aucun creneau public => pas de contrainte (dates toujours cliquables)
-        setDayAvailability(s.size > 0 ? s : null);
-      } catch {
-        setDayAvailability(null);
+  const loadSlots = useCallback(async () => {
+    try {
+      // Plage large: overlap avec toutes les fenetres de creneau affichables (sinon un mois sans
+      // cellule du Set reste entierement grise tant qu'au moins un creneau existe ailleurs).
+      const from = format(subDays(new Date(), 400), "yyyy-MM-dd");
+      const to = format(addDays(new Date(), 800), "yyyy-MM-dd");
+      const res = await fetch(
+        `${apiUrl("/api/charter-slots")}?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}&product=${encodeURIComponent(
+          product
+        )}`
+      );
+      if (!res.ok) {
+        return;
       }
-    };
-    void loadSlots();
+      const rows = (await res.json()) as { debut: string; fin: string; active: boolean }[];
+      const s = new Set<string>();
+      for (const r of rows) {
+        if (r.active === false) continue;
+        for (const d of expandCharterSlotDays(r.debut, r.fin)) s.add(d);
+      }
+      // Aucun creneau public => pas de contrainte (dates toujours cliquables)
+      setDayAvailability(s.size > 0 ? s : null);
+    } catch {
+      // Erreur reseau: ne pas ecraser un Set valide deja en memoire
+    }
   }, [product]);
+
+  // location: retour /admin (ou autre) vers l'accueil declenche un rechargement des creneaux
+  useEffect(() => {
+    void loadSlots();
+  }, [loadSlots, location]);
+
+  // Autre onglet (ex. admin) puis retour: recharger
+  useEffect(() => {
+    const onVis = () => {
+      if (document.visibilityState === "visible") void loadSlots();
+    };
+    document.addEventListener("visibilitychange", onVis);
+    return () => document.removeEventListener("visibilitychange", onVis);
+  }, [loadSlots]);
 
   const handleProductChange = (p: CharterProductCode) => {
     setProduct(p);
@@ -1109,12 +1128,19 @@ function SectionCalendrier({ isEnglish = false }: { isEnglish?: boolean }) {
       setForm((f) => ({ ...f, dateDebut: "", dateFin: "" }));
       return;
     }
-    const end = endIso || startIso;
-    setForm((f) => ({ ...f, dateDebut: startIso, dateFin: end, produit: f.produit, destination: f.destination }));
+    if (endIso == null || endIso === "") {
+      setForm((f) => ({ ...f, dateDebut: startIso, dateFin: "", produit: f.produit, destination: f.destination }));
+      return;
+    }
+    setForm((f) => ({ ...f, dateDebut: startIso, dateFin: endIso, produit: f.produit, destination: f.destination }));
   }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (charterSeasonError) {
+      setSubmitError(charterSeasonError);
+      return;
+    }
     setSubmitting(true);
     setSubmitError(null);
     try {
@@ -1229,7 +1255,12 @@ function SectionCalendrier({ isEnglish = false }: { isEnglish?: boolean }) {
                   <input value={form.typeDemande} onChange={(e) => setForm((f) => ({ ...f, typeDemande: e.target.value }))} placeholder={isEnglish ? "Request type" : "Type de demande"} className="w-full rounded-xl border border-[oklch(0.88_0.02_220)] px-4 py-2.5 text-sm" />
                 </div>
                 <textarea required rows={4} value={form.message} onChange={(e) => setForm((f) => ({ ...f, message: e.target.value }))} placeholder={isEnglish ? "Message*" : "Message*"} className="w-full rounded-xl border border-[oklch(0.88_0.02_220)] px-4 py-2.5 text-sm resize-none" />
-                <button type="submit" disabled={submitting} className="w-full rounded-xl bg-[oklch(0.2_0.06_240)] px-4 py-3 text-sm font-bold text-white hover:bg-[oklch(0.16_0.05_240)]">
+                {charterSeasonError && <p className="text-center text-xs text-red-600">{charterSeasonError}</p>}
+                <button
+                  type="submit"
+                  disabled={submitting || !!charterSeasonError}
+                  className="w-full rounded-xl bg-[oklch(0.2_0.06_240)] px-4 py-3 text-sm font-bold text-white hover:bg-[oklch(0.16_0.05_240)] disabled:cursor-not-allowed disabled:opacity-50"
+                >
                   {submitting ? (isEnglish ? "Sending..." : "Envoi...") : (isEnglish ? "Send request" : "Envoyer la demande")}
                 </button>
                 {submitError && <p className="text-center text-xs text-red-600">{submitError}</p>}
