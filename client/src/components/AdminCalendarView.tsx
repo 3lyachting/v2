@@ -126,12 +126,14 @@ export default function AdminCalendarView({
   reservations,
   onEdit,
   onDelete,
+  onEditReservation,
   loading,
 }: {
   disponibilites: Disponibilite[];
   reservations: Reservation[];
   onEdit: (dispo: Disponibilite) => void;
   onDelete: (id: number) => void;
+  onEditReservation: (reservationId: number) => void;
   loading: boolean;
 }) {
   const [currentMonth, setCurrentMonth] = useState(new Date());
@@ -472,6 +474,12 @@ export default function AdminCalendarView({
                           <div key={r.id} className="p-2 bg-slate-50 rounded border border-slate-200">
                             <p className="text-xs font-semibold text-slate-900">{r.nomClient}</p>
                             <p className="text-xs text-slate-600 mt-0.5">{r.workflowStatut || "demande"}</p>
+                            <button
+                              onClick={() => onEditReservation(r.id)}
+                              className="mt-2 px-2 py-1 rounded-md text-[11px] font-semibold border border-slate-300 text-slate-700 hover:bg-white"
+                            >
+                              Modifier la résa
+                            </button>
                           </div>
                         ))}
                       </div>

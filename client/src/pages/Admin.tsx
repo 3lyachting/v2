@@ -6,7 +6,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
-import { Plus, Edit2, Trash2, Calendar, LogOut, Anchor, CreditCard, Check, Clock, X, Link2, FileText, Users, Wrench, ChevronLeft, ChevronRight, MapPinned } from "lucide-react";
+import { Plus, Edit2, Trash2, Calendar, LogOut, CreditCard, Check, Clock, X, Link2, FileText, Wrench } from "lucide-react";
 import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import ConfigIcal from "@/components/ConfigIcal";
 import BackofficeOps from "@/components/BackofficeOps";
@@ -105,7 +105,7 @@ type DisponibiliteFormData = {
 export default function Admin() {
   const [authChecked, setAuthChecked] = useState(false);
   const [authOk, setAuthOk] = useState(false);
-  const [tab, setTab] = useState<"disponibilites" | "reservations" | "finances" | "config" | "documents" | "equipage" | "maintenance" | "pricing" | string>("disponibilites");
+  const [tab, setTab] = useState<"disponibilites" | "finances" | "config" | "documents" | "equipage" | "maintenance" | "pricing" | string>("disponibilites");
   const [reservations, setReservations] = useState<Reservation[]>([]);
   const [disponibilites, setDisponibilites] = useState<Disponibilite[]>([]);
   const [cabinesMap, setCabinesMap] = useState<Record<number, CabinesReservees>>({});
@@ -527,10 +527,6 @@ export default function Admin() {
     });
   }, [disponibilites, searchDispo, filterStatut, filterPlanningType]);
 
-  const sortedReservations = useMemo(() => {
-    return reservations.slice().sort((a, b) => new Date(b.dateDebut).getTime() - new Date(a.dateDebut).getTime());
-  }, [reservations]);
-
   const financeStats = useMemo(() => {
     const totalCents = reservations.reduce((sum, r) => sum + Number(r.montantTotal || 0), 0);
     const validated = reservations.filter(
@@ -655,7 +651,6 @@ export default function Admin() {
         <div className="flex flex-wrap gap-2 mb-8 bg-white p-1 rounded-xl border border-slate-200 shadow-sm w-fit">
           {[
             { id: "disponibilites", label: "Calendrier", icon: Calendar },
-            { id: "reservations", label: "Réservations", icon: Anchor },
             { id: "finances", label: "Finances", icon: CreditCard },
             { id: "pricing", label: "Tarifs saison", icon: CreditCard },
             { id: "documents", label: "Documents", icon: FileText },
@@ -698,16 +693,25 @@ export default function Admin() {
                   </button>
                 </div>
               </div>
-              <button
-                onClick={() => {
-                  resetDispoForm();
-                  setShowForm(true);
-                }}
-                className="flex items-center gap-2 bg-emerald-600 text-white px-5 py-2.5 rounded-xl font-bold hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-100"
-              >
-                <Plus className="w-5 h-5" />
-                Nouveau créneau
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={openManualReservationForm}
+                  className="flex items-center gap-2 bg-blue-900 text-white px-5 py-2.5 rounded-xl font-bold hover:bg-blue-800 transition-all shadow-lg shadow-blue-100"
+                >
+                  <Plus className="w-5 h-5" />
+                  Nouvelle résa
+                </button>
+                <button
+                  onClick={() => {
+                    resetDispoForm();
+                    setShowForm(true);
+                  }}
+                  className="flex items-center gap-2 bg-emerald-600 text-white px-5 py-2.5 rounded-xl font-bold hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-100"
+                >
+                  <Plus className="w-5 h-5" />
+                  Nouveau créneau
+                </button>
+              </div>
             </div>
 
             {calendarViewMode === "calendar" ? (
@@ -716,6 +720,10 @@ export default function Admin() {
                 reservations={reservations}
                 onEdit={handleEdit}
                 onDelete={handleDelete}
+                onEditReservation={(reservationId) => {
+                  const target = reservations.find((r) => r.id === reservationId);
+                  if (target) openEditReservationForm(target);
+                }}
                 loading={loading}
               />
             ) : (
@@ -756,161 +764,6 @@ export default function Admin() {
               </div>
             )}
           </>
-        )}
-
-        {tab === "reservations" && (
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <h2 className="text-2xl font-bold text-slate-900">Réservations</h2>
-                <p className="text-sm text-slate-600">Gestion des demandes et ajout manuel.</p>
-              </div>
-              <button
-                onClick={openManualReservationForm}
-                className="flex items-center gap-2 bg-blue-900 text-white px-4 py-2.5 rounded-xl font-semibold hover:bg-blue-800"
-              >
-                <Plus className="w-4 h-4" />
-                Ajouter une réservation manuelle
-              </button>
-            </div>
-            {!!reservationActionMessage && (
-              <div className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-800">
-                {reservationActionMessage}
-              </div>
-            )}
-            <div className="grid gap-3">
-              {sortedReservations.map((reservation) => (
-                <div key={reservation.id} className="bg-white rounded-lg border border-slate-200 p-4">
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div>
-                      <p className="font-semibold text-slate-900">{reservation.nomClient}</p>
-                      <p className="text-xs text-slate-600">{reservation.emailClient}</p>
-                      <p className="text-xs text-slate-600">
-                        {new Date(reservation.dateDebut).toLocaleDateString("fr-FR", { timeZone: "UTC" })} →{" "}
-                        {new Date(reservation.dateFin).toLocaleDateString("fr-FR", { timeZone: "UTC" })}
-                      </p>
-                    </div>
-                    <div className="text-right">
-                      <span className={`px-2 py-1 rounded-full text-xs font-semibold ${getRequestStatusColor(reservation.requestStatus)}`}>
-                        {getRequestStatusLabel(reservation.requestStatus)}
-                      </span>
-                      <div className="mt-2">
-                        <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-semibold ${getWorkflowBadge(reservation.workflowStatut).className}`}>
-                          {["acompte_confirme", "solde_confirme"].includes(reservation.workflowStatut || "") ? (
-                            <Check className="w-3 h-3" />
-                          ) : reservation.workflowStatut === "validee_owner" ||
-                            reservation.workflowStatut === "contrat_envoye" ||
-                            reservation.workflowStatut === "contrat_signe" ? (
-                            <FileText className="w-3 h-3" />
-                          ) : (
-                            <Clock className="w-3 h-3" />
-                          )}
-                          {getWorkflowBadge(reservation.workflowStatut).label}
-                        </span>
-                      </div>
-                      <p className="text-xs text-slate-600 mt-2">
-                        {(reservation.montantTotal / 100).toLocaleString("fr-FR")} €
-                      </p>
-                    </div>
-                  </div>
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    <button
-                      onClick={() => openEditReservationForm(reservation)}
-                      className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-slate-300 text-slate-700 hover:bg-slate-50"
-                      title="Modifier la réservation"
-                    >
-                      Modifier résa
-                    </button>
-                    <button
-                      onClick={() => generateQuoteAndContract(reservation.id)}
-                      disabled={reservationActionLoadingId === reservation.id}
-                      className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-blue-200 text-blue-700 bg-blue-50 hover:bg-blue-100 disabled:opacity-60"
-                      title="Générer devis + contrat"
-                    >
-                      Devis + contrat
-                    </button>
-                    <button
-                      onClick={() =>
-                        performReservationAction(
-                          reservation.id,
-                          () =>
-                            fetch(`/api/workflow/reservations/${reservation.id}/send-contract`, {
-                              method: "POST",
-                              credentials: "include",
-                            }),
-                          "Contrat envoyé au client."
-                        )
-                      }
-                      disabled={reservationActionLoadingId === reservation.id}
-                      className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-slate-300 text-slate-700 hover:bg-slate-50 disabled:opacity-60"
-                      title="Envoyer le contrat au client"
-                    >
-                      Envoyer contrat
-                    </button>
-                    <button
-                      onClick={() =>
-                        performReservationAction(
-                          reservation.id,
-                          () =>
-                            fetch(`/api/workflow/reservations/${reservation.id}/acompte-received`, {
-                              method: "POST",
-                              credentials: "include",
-                            }),
-                          "Acompte confirmé."
-                        )
-                      }
-                      disabled={reservationActionLoadingId === reservation.id}
-                      className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-emerald-200 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 disabled:opacity-60"
-                      title="Confirmer acompte reçu"
-                    >
-                      Acompte reçu
-                    </button>
-                    <button
-                      onClick={() =>
-                        performReservationAction(
-                          reservation.id,
-                          () =>
-                            fetch(`/api/workflow/reservations/${reservation.id}/contract-signed`, {
-                              method: "POST",
-                              credentials: "include",
-                            }),
-                          "Contrat marqué comme signé."
-                        )
-                      }
-                      disabled={reservationActionLoadingId === reservation.id}
-                      className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-indigo-200 text-indigo-700 bg-indigo-50 hover:bg-indigo-100 disabled:opacity-60"
-                      title="Valider contrat signé"
-                    >
-                      Contrat signé
-                    </button>
-                    <button
-                      onClick={() =>
-                        performReservationAction(
-                          reservation.id,
-                          () =>
-                            fetch(`/api/workflow/reservations/${reservation.id}/solde-received`, {
-                              method: "POST",
-                              credentials: "include",
-                            }),
-                          "Solde confirmé."
-                        )
-                      }
-                      disabled={reservationActionLoadingId === reservation.id}
-                      className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-purple-200 text-purple-700 bg-purple-50 hover:bg-purple-100 disabled:opacity-60"
-                      title="Confirmer solde reçu"
-                    >
-                      Solde reçu
-                    </button>
-                  </div>
-                </div>
-              ))}
-              {!sortedReservations.length && (
-                <div className="bg-white rounded-lg border border-slate-200 p-6 text-sm text-slate-600">
-                  Aucune réservation enregistrée.
-                </div>
-              )}
-            </div>
-          </div>
         )}
 
         {tab === "finances" && (
