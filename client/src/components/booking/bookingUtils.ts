@@ -73,8 +73,18 @@ export function calculateEstimatedTotal(week: BookingWeek, mode: BookingMode, pe
 }
 
 export function calculateEstimatedRangeTotal(selection: BookingRangeSelection, mode: BookingMode, peopleCount: number): number {
-  const dailySum = selection.days.reduce((acc, day) => acc + (mode === "private" ? day.pricePrivate : day.pricePerPerson * peopleCount), 0);
-  return Math.max(0, Math.round(dailySum));
+  // Avoid billing the same availability slot once per day when a range spans
+  // multiple days of the exact same slot (ex: one week selected on calendar).
+  const uniqueSlots = Array.from(
+    new Map(
+      selection.days.map((day) => [
+        `${day.disponibiliteId ?? day.id}-${day.startDate}-${day.endDate}`,
+        day,
+      ]),
+    ).values(),
+  );
+  const slotSum = uniqueSlots.reduce((acc, slot) => acc + (mode === "private" ? slot.pricePrivate : slot.pricePerPerson * peopleCount), 0);
+  return Math.max(0, Math.round(slotSum));
 }
 
 export function applyAcceptedRequest(week: BookingWeek, request: BookingRequest): BookingWeek {
