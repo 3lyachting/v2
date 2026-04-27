@@ -20,6 +20,7 @@ export function CharterBookingPanel({ selection, onSubmit, submitting = false, s
     if (!selection) return 0;
     return calculateEstimatedRangeTotal(selection, mode, form.peopleCount);
   }, [form.peopleCount, mode, selection]);
+  const isSingleDaySelection = Boolean(selection && selection.startDate === selection.endDate);
 
   if (!selection) {
     return <div className="charter-panel-empty">Selectionnez une date de depart puis une date de retour pour afficher votre devis.</div>;
@@ -52,6 +53,7 @@ export function CharterBookingPanel({ selection, onSubmit, submitting = false, s
     <div className="charter-panel">
       <h3>Votre sélection</h3>
       <p className="charter-muted">{formatDateRangeFr(selection.startDate, selection.endDate)}</p>
+      {isSingleDaySelection && <p className="charter-muted">Journée sélectionnée</p>}
       <p className="charter-muted">
         {selection.billingDays} jour{selection.billingDays > 1 ? "s" : ""} facturé{selection.billingDays > 1 ? "s" : ""}
       </p>
