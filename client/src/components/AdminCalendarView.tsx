@@ -109,7 +109,7 @@ function toLocalIsoDay(date: Date): string {
 }
 
 function isSameDay(date1: string, date2: string): boolean {
-  return new Date(date1).toISOString().slice(0, 10) === new Date(date2).toISOString().slice(0, 10);
+  return date1 === date2;
 }
 
 function getDaysInMonth(date: Date): number {
@@ -117,7 +117,8 @@ function getDaysInMonth(date: Date): number {
 }
 
 function getFirstDayOfMonth(date: Date): number {
-  return new Date(date.getFullYear(), date.getMonth(), 1).getDay();
+  // Align calendar grid with Monday-first headers (Lun -> Dim).
+  return (new Date(date.getFullYear(), date.getMonth(), 1).getDay() + 6) % 7;
 }
 
 export default function AdminCalendarView({
