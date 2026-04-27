@@ -13,12 +13,15 @@ services:
     plan: free
     region: frankfurt
     runtime: node
-    # pnpm sert au build (lockfile). Le démarrage utilise `npm start` (Node fournit toujours npm).
-    buildCommand: npm install -g pnpm@10.4.1 && pnpm install --frozen-lockfile && pnpm run build && pnpm run db:migrate
+    # pnpm via npx uniquement: pas de `corepack enable` ni de `npm i -g` (EROFS en lecture seule sur Render).
+    buildCommand: npx pnpm@10.4.1 install --frozen-lockfile && npx pnpm@10.4.1 run build && npx pnpm@10.4.1 run db:migrate
     startCommand: npm start
     healthCheckPath: /
     autoDeploy: true
     envVars:
+      # Epingler Node 20 LTS (evite un Node majeur "latest" imprevisible sur Render)
+      - key: NODE_VERSION
+        value: "20.18.0"
       - key: NODE_ENV
         value: production
       - key: DATABASE_URL
