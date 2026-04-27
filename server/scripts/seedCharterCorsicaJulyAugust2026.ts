@@ -4,12 +4,16 @@ import { charterSlots } from "../../drizzle/schema";
 
 /**
  * Créneaux juillet-août 2026 — Méditerranée (Corse), texte public pour le site.
+ * Semaine type: embarquement samedi 16h, débarquement samedi 9h (7 nuits samedi → samedi).
+ * Chaque plage (debut/fin) couvre le séjour côté jours de calendrier (sans chevauchement)
+ * d’un samedi 00:00 au vendredi 23:59, soit la période entre les deux samedi.
  *
  *   pnpm exec tsx server/scripts/seedCharterCorsicaJulyAugust2026.ts
  * (avoir DATABASE_URL pointant sur la base prod ou locale)
  */
-const PUBLIC_NOTE = "Croisière Corse au départ d'Ajaccio";
-const NOTE_INTERNAL = "Corsica: juil.-août 2026 (seed)";
+const PUBLIC_NOTE =
+  "Semaine samedi – samedi: embarquement samedi 16h, débarquement samedi 9h. Croisière Corse au départ d'Ajaccio.";
+const NOTE_INTERNAL = "Corsica 2026 (seed) · embarquem. sam. 16h00 / débarquem. sam. 09h00";
 
 function parseYmdUtcStart(iso: string) {
   const [y, m, d] = iso.split("-").map(Number);
@@ -21,6 +25,7 @@ function parseYmdUtcEndOfDay(iso: string) {
   return new Date(Date.UTC(y, m - 1, d, 23, 59, 59, 999));
 }
 
+/** 9 semaines, chaque samedi au samedi suivant (7 nuits) : début samedi calendaire, fin le vendredi suivant inclus. */
 const WEEKS_2026: { debut: string; fin: string }[] = [
   { debut: "2026-07-04", fin: "2026-07-10" },
   { debut: "2026-07-11", fin: "2026-07-17" },
