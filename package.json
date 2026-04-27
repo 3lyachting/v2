@@ -7,6 +7,7 @@
     "dev": "NODE_ENV=development tsx watch server/_core/index.ts",
     "build": "vite build && esbuild server/_core/index.ts --platform=node --packages=external --bundle --format=esm --outdir=dist",
     "db:migrate": "drizzle-kit migrate",
+    "db:seed:corsica-2026": "tsx server/scripts/seedCharterCorsicaJulyAugust2026.ts",
     "start": "NODE_ENV=production node dist/index.js",
     "check": "tsc --noEmit",
     "format": "prettier --write .",
