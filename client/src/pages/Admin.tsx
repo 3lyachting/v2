@@ -531,6 +531,41 @@ export default function Admin() {
     return reservations.slice().sort((a, b) => new Date(b.dateDebut).getTime() - new Date(a.dateDebut).getTime());
   }, [reservations]);
 
+  const financeStats = useMemo(() => {
+    const totalCents = reservations.reduce((sum, r) => sum + Number(r.montantTotal || 0), 0);
+    const validated = reservations.filter(
+      (r) =>
+        r.requestStatus === "validee" ||
+        ["validee_owner", "contrat_envoye", "contrat_signe", "acompte_confirme", "solde_confirme"].includes(String(r.workflowStatut || "")),
+    );
+    const pending = reservations.filter((r) => r.requestStatus !== "validee" && r.requestStatus !== "refusee" && r.requestStatus !== "archivee");
+    const paidCents = reservations
+      .filter((r) => r.statutPaiement === "paye" || r.workflowStatut === "solde_confirme")
+      .reduce((sum, r) => sum + Number(r.montantTotal || 0), 0);
+
+    const byMonthMap = new Map<string, number>();
+    reservations.forEach((r) => {
+      const d = new Date(r.dateDebut);
+      if (Number.isNaN(d.getTime())) return;
+      const key = d.toLocaleDateString("fr-FR", { month: "short", year: "numeric", timeZone: "UTC" });
+      byMonthMap.set(key, (byMonthMap.get(key) || 0) + Number(r.montantTotal || 0));
+    });
+
+    const monthly = Array.from(byMonthMap.entries()).map(([month, cents]) => ({
+      month,
+      total: Math.round(cents / 100),
+    }));
+
+    return {
+      totalCents,
+      totalEuros: Math.round(totalCents / 100),
+      paidEuros: Math.round(paidCents / 100),
+      validatedCount: validated.length,
+      pendingCount: pending.length,
+      monthly,
+    };
+  }, [reservations]);
+
   const openManualReservationForm = () => {
     setEditingReservation(null);
     setReservationFormData(getDefaultReservationFormData());
@@ -847,6 +882,54 @@ export default function Admin() {
                 <div className="bg-white rounded-lg border border-slate-200 p-6 text-sm text-slate-600">
                   Aucune réservation enregistrée.
                 </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {tab === "finances" && (
+          <div className="space-y-6">
+            <div>
+              <h2 className="text-2xl font-bold text-slate-900">Finances</h2>
+              <p className="text-sm text-slate-600">Vue globale des montants de réservation.</p>
+            </div>
+
+            <div className="grid md:grid-cols-2 xl:grid-cols-4 gap-4">
+              <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
+                <p className="text-xs uppercase font-semibold text-slate-500">Total réservations</p>
+                <p className="mt-2 text-2xl font-bold text-slate-900">{financeStats.totalEuros.toLocaleString("fr-FR")} €</p>
+              </div>
+              <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
+                <p className="text-xs uppercase font-semibold text-slate-500">Total encaissé</p>
+                <p className="mt-2 text-2xl font-bold text-emerald-700">{financeStats.paidEuros.toLocaleString("fr-FR")} €</p>
+              </div>
+              <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
+                <p className="text-xs uppercase font-semibold text-slate-500">Réservations validées</p>
+                <p className="mt-2 text-2xl font-bold text-blue-900">{financeStats.validatedCount}</p>
+              </div>
+              <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
+                <p className="text-xs uppercase font-semibold text-slate-500">Demandes en cours</p>
+                <p className="mt-2 text-2xl font-bold text-amber-700">{financeStats.pendingCount}</p>
+              </div>
+            </div>
+
+            <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
+              <h3 className="text-sm font-bold text-slate-800 mb-3">Chiffre d'affaires par mois (€)</h3>
+              {financeStats.monthly.length ? (
+                <div className="h-64">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={financeStats.monthly}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                      <XAxis dataKey="month" tick={{ fontSize: 12 }} />
+                      <YAxis tick={{ fontSize: 12 }} />
+                      <Tooltip formatter={(value: any) => `${Number(value).toLocaleString("fr-FR")} €`} />
+                      <Legend />
+                      <Bar dataKey="total" name="Total (€)" fill="#0f3b53" radius={[6, 6, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              ) : (
+                <p className="text-sm text-slate-600">Aucune donnée financière disponible.</p>
               )}
             </div>
           </div>
