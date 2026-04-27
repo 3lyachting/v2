@@ -27,6 +27,45 @@ function isActiveReservationForCapacity(r: any) {
   return requestStatus !== "refusee" && requestStatus !== "archivee";
 }
 
+function toIsoDay(value: string | Date) {
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return null;
+  return d.toISOString().slice(0, 10);
+}
+
+function isSaturdayIso(isoDay: string) {
+  return new Date(`${isoDay}T00:00:00.000Z`).getUTCDay() === 6;
+}
+
+function diffDays(startIso: string, endIso: string) {
+  const start = new Date(`${startIso}T00:00:00.000Z`).getTime();
+  const end = new Date(`${endIso}T00:00:00.000Z`).getTime();
+  return Math.round((end - start) / 86400000);
+}
+
+function isHighSeasonMonth(month: number) {
+  // Février, Juillet, Août, Décembre
+  return month === 2 || month === 7 || month === 8 || month === 12;
+}
+
+function applyHighSeasonCheckinCheckout(dateDebut: string | Date, dateFin: string | Date) {
+  const startIso = toIsoDay(dateDebut);
+  const endIso = toIsoDay(dateFin);
+  if (!startIso || !endIso) {
+    return { startDate: new Date(dateDebut), endDate: new Date(dateFin) };
+  }
+  const highSeason = isHighSeasonMonth(Number(startIso.slice(5, 7))) || isHighSeasonMonth(Number(endIso.slice(5, 7)));
+  const weeklySaturday = isSaturdayIso(startIso) && isSaturdayIso(endIso) && diffDays(startIso, endIso) === 7;
+  if (!highSeason || !weeklySaturday) {
+    return { startDate: new Date(dateDebut), endDate: new Date(dateFin) };
+  }
+  // Haute saison: check-in samedi 15:00, check-out samedi 10:00
+  return {
+    startDate: new Date(`${startIso}T15:00:00.000Z`),
+    endDate: new Date(`${endIso}T10:00:00.000Z`),
+  };
+}
+
 
 async function signCustomerSession(email: string) {
   const secret = new TextEncoder().encode(ENV.cookieSecret || "dev-secret");
@@ -135,6 +174,7 @@ router.post("/request", async (req, res) => {
     if (!policyCheck.ok) {
       return res.status(400).json({ error: policyCheck.reason });
     }
+    const normalizedSchedule = applyHighSeasonCheckinCheckout(dateDebut, dateFin);
 
     const parsedDisponibiliteId = await resolveDisponibiliteIdForReservation(db, {
       disponibiliteId: parsedDisponibiliteIdRaw,
@@ -202,8 +242,8 @@ router.post("/request", async (req, res) => {
       nbPersonnes: parsedNbPersonnes,
       formule,
       destination,
-      dateDebut: new Date(dateDebut),
-      dateFin: new Date(dateFin),
+      dateDebut: normalizedSchedule.startDate,
+      dateFin: normalizedSchedule.endDate,
       montantTotal,
       typePaiement: "acompte", // Par défaut acompte
       montantPaye: 0, // Sera défini lors du devis
@@ -395,6 +435,7 @@ router.put("/:id", requireAdmin, async (req, res) => {
     if (!policyCheck.ok) {
       return res.status(400).json({ error: policyCheck.reason });
     }
+    const normalizedSchedule = applyHighSeasonCheckinCheckout(effectiveDateDebut, effectiveDateFin);
 
     if (resolvedDisponibiliteId) {
       const { totalUnits } = await getConfirmedBookingUsage(db, resolvedDisponibiliteId);
@@ -446,8 +487,8 @@ router.put("/:id", requireAdmin, async (req, res) => {
       nbPersonnes: parsedNbPersonnes,
       formule: formule || existing[0].formule,
       destination: destination || existing[0].destination,
-      dateDebut: dateDebut ? new Date(dateDebut) : existing[0].dateDebut,
-      dateFin: dateFin ? new Date(dateFin) : existing[0].dateFin,
+      dateDebut: dateDebut ? normalizedSchedule.startDate : existing[0].dateDebut,
+      dateFin: dateFin ? normalizedSchedule.endDate : existing[0].dateFin,
       montantTotal: montantTotal !== undefined ? montantTotal : existing[0].montantTotal,
       typeReservation: typeReservation || existing[0].typeReservation,
       nbCabines: nbCabines !== undefined ? parseInt(nbCabines) : existing[0].nbCabines,
