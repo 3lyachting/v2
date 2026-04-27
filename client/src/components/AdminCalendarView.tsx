@@ -136,6 +136,7 @@ export default function AdminCalendarView({
 }) {
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedDispo, setSelectedDispo] = useState<Disponibilite | null>(null);
+  const [selectedDayKey, setSelectedDayKey] = useState<string | null>(null);
   const [showDetails, setShowDetails] = useState(false);
 
   const monthLabel = useMemo(() => {
@@ -190,6 +191,16 @@ export default function AdminCalendarView({
     return disposByDate.get(dateKey) || [];
   };
 
+  const statusPriority: Record<Disponibilite["statut"], number> = {
+    reserve: 0,
+    option: 1,
+    ferme: 2,
+    disponible: 3,
+  };
+
+  const pickPrimaryDispo = (items: Disponibilite[]) =>
+    [...items].sort((a, b) => statusPriority[a.statut] - statusPriority[b.statut])[0] || null;
+
   const handlePrevMonth = () => {
     setCurrentMonth((prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1));
   };
@@ -198,15 +209,22 @@ export default function AdminCalendarView({
     setCurrentMonth((prev) => new Date(prev.getFullYear(), prev.getMonth() + 1, 1));
   };
 
-  const handleSelectDispo = (dispo: Disponibilite) => {
+  const handleSelectDispo = (dispo: Disponibilite, dayKey?: string) => {
     setSelectedDispo(dispo);
+    if (dayKey) setSelectedDayKey(dayKey);
     setShowDetails(true);
   };
 
+  const selectedDayDispos = useMemo(() => {
+    if (!selectedDayKey) return selectedDispo ? [selectedDispo] : [];
+    return disposByDate.get(selectedDayKey) || [];
+  }, [disposByDate, selectedDayKey, selectedDispo]);
+
   const selectedDispoReservations = useMemo(() => {
-    if (!selectedDispo) return [];
-    return reservations.filter((r) => r.disponibiliteId === selectedDispo.id);
-  }, [selectedDispo, reservations]);
+    if (!selectedDayDispos.length) return [];
+    const dispoIds = new Set(selectedDayDispos.map((d) => d.id));
+    return reservations.filter((r) => r.disponibiliteId && dispoIds.has(r.disponibiliteId));
+  }, [selectedDayDispos, reservations]);
 
   if (loading) {
     return (
@@ -263,6 +281,7 @@ export default function AdminCalendarView({
               const isCurrentMonth = day.getMonth() === currentMonth.getMonth();
               const dateKey = toLocalIsoDay(day);
               const dispos = getDispoForDate(day);
+              const primaryDispo = pickPrimaryDispo(dispos);
               const isToday = isSameDay(dateKey, toLocalIsoDay(new Date()));
 
               return (
@@ -270,7 +289,7 @@ export default function AdminCalendarView({
                   key={dateKey}
                   whileHover={{ scale: 1.05 }}
                   whileTap={{ scale: 0.95 }}
-                  onClick={() => dispos.length > 0 && handleSelectDispo(dispos[0])}
+                  onClick={() => primaryDispo && handleSelectDispo(primaryDispo, dateKey)}
                   className={`aspect-square rounded-lg border-2 p-1 transition-all relative group ${
                     isCurrentMonth
                       ? "bg-white border-slate-200 hover:border-slate-300"
@@ -282,19 +301,12 @@ export default function AdminCalendarView({
                     <span className={`text-xs font-semibold ${isCurrentMonth ? "text-slate-900" : "text-slate-400"}`}>
                       {day.getDate()}
                     </span>
-                    {dispos.length > 0 && (
+                    {primaryDispo && (
                       <div className="flex-1 flex flex-col gap-0.5 mt-0.5 min-w-0">
-                        {dispos.slice(0, 2).map((d) => (
-                          <div
-                            key={d.id}
-                            className={`text-[9px] font-semibold px-1 py-0.5 rounded truncate border ${getStatutColor(d.statut)}`}
-                          >
-                            {d.destination.split(" ")[0]}
-                          </div>
-                        ))}
-                        {dispos.length > 2 && (
-                          <div className="text-[9px] text-slate-500 px-1">+{dispos.length - 2}</div>
-                        )}
+                        <div className={`text-[9px] font-semibold px-1 py-0.5 rounded truncate border ${getStatutColor(primaryDispo.statut)}`}>
+                          {primaryDispo.destination.split(" ")[0]}
+                        </div>
+                        {dispos.length > 1 && <div className="text-[9px] text-slate-500 px-1">{dispos.length} créneaux</div>}
                       </div>
                     )}
                   </div>
@@ -356,6 +368,30 @@ export default function AdminCalendarView({
                     {getSlotTypeLabel(selectedDispo)}
                   </span>
                 </div>
+
+                {selectedDayDispos.length > 1 && (
+                  <div className="pt-3 border-t border-slate-200">
+                    <p className="text-xs uppercase font-semibold text-slate-500 mb-2">Créneaux du jour ({selectedDayDispos.length})</p>
+                    <div className="space-y-2">
+                      {selectedDayDispos.map((d) => (
+                        <button
+                          key={d.id}
+                          onClick={() => setSelectedDispo(d)}
+                          className={`w-full text-left p-2 rounded border transition-colors ${
+                            selectedDispo?.id === d.id ? "border-blue-300 bg-blue-50" : "border-slate-200 hover:bg-slate-50"
+                          }`}
+                        >
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs font-semibold text-slate-800">{d.destination}</span>
+                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border ${getStatutColor(d.statut)}`}>
+                              {getStatutLabel(d.statut)}
+                            </span>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
                 {/* Infos principales */}
                 <div className="space-y-3 text-sm">
