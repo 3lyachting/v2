@@ -12,7 +12,6 @@ import {
   reservationStatusHistory,
   reservations,
 } from "../../drizzle/schema";
-import { syncDisponibilitesFromReservations } from "../_core/bookingRules";
 
 async function main() {
   const db = await getDb();
@@ -30,17 +29,9 @@ async function main() {
     await tx.delete(reservationStatusHistory);
     await tx.delete(reservations);
     await tx.delete(cabinesReservees);
-
-    await tx
-      .update(disponibilites)
-      .set({
-        statut: "disponible",
-        cabinesReservees: 0,
-        updatedAt: new Date(),
-      });
+    await tx.delete(disponibilites);
   });
 
-  await syncDisponibilitesFromReservations(db);
   console.log("[reset-booking-data] Reset terminé.");
 }
 

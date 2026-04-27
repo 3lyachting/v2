@@ -31,11 +31,35 @@ export function formatEuro(value: number): string {
 }
 
 export function isSaturday(dateIso: string): boolean {
-  return new Date(dateIso).getUTCDay() === 6;
+  return new Date(`${dateIso}T00:00:00.000Z`).getUTCDay() === 6;
 }
 
 export function isSaturdayToSaturday(week: BookingWeek): boolean {
   return isSaturday(week.startDate) && isSaturday(week.endDate);
+}
+
+function monthFromIso(dateIso: string): number {
+  return Number(dateIso.slice(5, 7));
+}
+
+function isHighSeasonMonth(month: number): boolean {
+  return month === 2 || month === 7 || month === 8 || month === 12;
+}
+
+function requiresSaturdayToSaturday(week: BookingWeek): boolean {
+  const start = new Date(`${week.startDate}T00:00:00.000Z`);
+  const end = new Date(`${week.endDate}T00:00:00.000Z`);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return false;
+  const from = start <= end ? start : end;
+  const to = end >= start ? end : start;
+  const cursor = new Date(from);
+  while (cursor <= to) {
+    if (isHighSeasonMonth(monthFromIso(cursor.toISOString().slice(0, 10)))) {
+      return true;
+    }
+    cursor.setUTCDate(cursor.getUTCDate() + 1);
+  }
+  return false;
 }
 
 export function getAvailability(week: BookingWeek) {
@@ -52,7 +76,9 @@ export function canBookWeek(week: BookingWeek): boolean {
 export function validateBookingRules(week: BookingWeek, mode: BookingMode, peopleCount: number): string | null {
   const { cabinsRemaining, peopleRemaining, privateAllowed } = getAvailability(week);
 
-  if (!isSaturdayToSaturday(week)) return "Cette semaine n'est pas configurée en format samedi-samedi.";
+  if (requiresSaturdayToSaturday(week) && !isSaturdayToSaturday(week)) {
+    return "Cette période doit respecter les règles de réservation en haute saison.";
+  }
   if (!canBookWeek(week)) return "Cette semaine n'accepte plus de réservation.";
 
   if (mode === "private") {

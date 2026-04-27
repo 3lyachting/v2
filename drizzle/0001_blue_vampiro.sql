@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX "disponibilites_uniq_range_destination_idx" ON "disponibilites" USING btree ("debut","fin","destination");

@@ -19,6 +19,59 @@ import { validateReservationPolicy } from "@shared/reservationPolicy";
 const router = Router();
 const CUSTOMER_COOKIE = "customer_session_id";
 const CAPACITY_BLOCKING_WORKFLOW = ["validee_owner", "contrat_envoye", "contrat_signe", "acompte_confirme", "solde_confirme"];
+const BOOKING_ORIGINS = ["direct", "clicknboat", "skippair", "samboat"] as const;
+type BookingOrigin = typeof BOOKING_ORIGINS[number];
+
+function normalizeBookingOrigin(value: unknown): BookingOrigin {
+  const normalized = String(value || "").trim().toLowerCase();
+  if (normalized === "click&boat" || normalized === "click_and_boat") return "clicknboat";
+  if ((BOOKING_ORIGINS as readonly string[]).includes(normalized)) return normalized as BookingOrigin;
+  return "direct";
+}
+
+function inferBookingOriginFromRequest(payload: { bookingOrigin?: unknown; emailClient?: unknown; message?: unknown }): BookingOrigin {
+  const explicit = normalizeBookingOrigin(payload.bookingOrigin);
+  if (explicit !== "direct") return explicit;
+  const haystack = `${String(payload.emailClient || "")} ${String(payload.message || "")}`.toLowerCase();
+  if (haystack.includes("clicknboat") || haystack.includes("click&boat")) return "clicknboat";
+  if (haystack.includes("skippair")) return "skippair";
+  if (haystack.includes("samboat")) return "samboat";
+  return "direct";
+}
+
+async function fetchClicknboatSummary() {
+  if (!ENV.clicknboatApiBaseUrl || !ENV.clicknboatApiToken) {
+    return { enabled: false as const, data: null, warning: null };
+  }
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), Math.max(1000, ENV.clicknboatApiTimeoutMs || 3500));
+  try {
+    const base = ENV.clicknboatApiBaseUrl.replace(/\/+$/, "");
+    const response = await fetch(`${base}/finance/summary`, {
+      headers: {
+        Authorization: `Bearer ${ENV.clicknboatApiToken}`,
+        Accept: "application/json",
+      },
+      signal: controller.signal,
+    });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const payload: any = await response.json();
+    const count = Number(payload?.count ?? payload?.reservations ?? payload?.bookings ?? 0);
+    const revenueCents = Number(payload?.revenueCents ?? payload?.revenue_centimes ?? payload?.amountCents ?? 0);
+    return {
+      enabled: true as const,
+      data: {
+        count: Number.isFinite(count) ? Math.max(0, Math.round(count)) : 0,
+        revenueCents: Number.isFinite(revenueCents) ? Math.max(0, Math.round(revenueCents)) : 0,
+      },
+      warning: null,
+    };
+  } catch (error: any) {
+    return { enabled: true as const, data: null, warning: error?.message || "Click&Boat API indisponible" };
+  } finally {
+    clearTimeout(timeout);
+  }
+}
 
 function isActiveReservationForCapacity(r: any) {
   const requestStatus = String(r?.requestStatus || "nouvelle");
@@ -94,6 +147,7 @@ router.post("/request", async (req, res) => {
       nbCabines, // nombre de cabines ou places réservées
       message,
       disponibiliteId,
+      bookingOrigin,
     } = req.body;
 
     if (!nomClient || !emailClient || !montantTotal || !formule || !destination) {
@@ -175,6 +229,7 @@ router.post("/request", async (req, res) => {
       return res.status(400).json({ error: policyCheck.reason });
     }
     const normalizedSchedule = applyHighSeasonCheckinCheckout(dateDebut, dateFin);
+    const resolvedBookingOrigin = inferBookingOriginFromRequest({ bookingOrigin, emailClient, message });
 
     const parsedDisponibiliteId = await resolveDisponibiliteIdForReservation(db, {
       disponibiliteId: parsedDisponibiliteIdRaw,
@@ -250,6 +305,7 @@ router.post("/request", async (req, res) => {
       typeReservation: normalizedTypeReservation,
       nbCabines: computedNbCabines,
       message: message || null,
+      bookingOrigin: resolvedBookingOrigin,
       requestStatus: isAdminRequester ? "validee" : "nouvelle",
       disponibiliteId: parsedDisponibiliteId || null,
       statutPaiement: "en_attente", // En attente de devis
@@ -333,6 +389,47 @@ router.get("/", requireAdmin, async (req, res) => {
   }
 });
 
+router.get("/origins-summary", requireAdmin, async (_req, res) => {
+  try {
+    const db = await getDb();
+    if (!db) {
+      return res.status(500).json({ error: "Base de données non disponible" });
+    }
+    const all = await db.select().from(reservations);
+    const totals: Record<BookingOrigin, { count: number; revenueCents: number; source: "local" | "clicknboat_api" }> = {
+      direct: { count: 0, revenueCents: 0, source: "local" },
+      clicknboat: { count: 0, revenueCents: 0, source: "local" },
+      skippair: { count: 0, revenueCents: 0, source: "local" },
+      samboat: { count: 0, revenueCents: 0, source: "local" },
+    };
+    all.forEach((r: any) => {
+      const origin = normalizeBookingOrigin(r.bookingOrigin);
+      totals[origin].count += 1;
+      totals[origin].revenueCents += Number(r.montantTotal || 0);
+    });
+
+    const clicknboat = await fetchClicknboatSummary();
+    if (clicknboat.data) {
+      totals.clicknboat = {
+        count: clicknboat.data.count,
+        revenueCents: clicknboat.data.revenueCents,
+        source: "clicknboat_api",
+      };
+    }
+
+    return res.json({
+      origins: totals,
+      clicknboatIntegration: {
+        enabled: clicknboat.enabled,
+        usingLiveData: Boolean(clicknboat.data),
+        warning: clicknboat.warning,
+      },
+    });
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message || "Erreur lors du calcul des origines" });
+  }
+});
+
 // Récupérer une réservation par ID
 router.get("/:id", requireAdmin, async (req, res) => {
   try {
@@ -372,6 +469,7 @@ router.put("/:id", requireAdmin, async (req, res) => {
       nbCabines,
       message,
       disponibiliteId,
+      bookingOrigin,
       statutPaiement,
       workflowStatut,
       requestStatus,
@@ -493,6 +591,7 @@ router.put("/:id", requireAdmin, async (req, res) => {
       typeReservation: typeReservation || existing[0].typeReservation,
       nbCabines: nbCabines !== undefined ? parseInt(nbCabines) : existing[0].nbCabines,
       message: message !== undefined ? message : existing[0].message,
+      bookingOrigin: bookingOrigin !== undefined ? normalizeBookingOrigin(bookingOrigin) : (existing[0] as any).bookingOrigin || "direct",
       disponibiliteId: resolvedDisponibiliteId,
       statutPaiement: statutPaiement || existing[0].statutPaiement,
       workflowStatut: workflowStatut || existing[0].workflowStatut,

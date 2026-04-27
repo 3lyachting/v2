@@ -32,6 +32,7 @@ interface Reservation {
   montantTotal: number;
   workflowStatut?: string;
   typeReservation?: string;
+  requestStatus?: "nouvelle" | "en_cours" | "validee" | "refusee" | "archivee";
 }
 
 const BRAND_DEEP = "#00384A";
@@ -126,16 +127,19 @@ export default function AdminCalendarView({
   reservations,
   onEdit,
   onDelete,
+  onCreateSlot,
   onEditReservation,
   loading,
 }: {
   disponibilites: Disponibilite[];
   reservations: Reservation[];
   onEdit: (dispo: Disponibilite) => void;
-  onDelete: (id: number) => void;
+  onDelete: (id: number) => Promise<boolean>;
+  onCreateSlot: () => void;
   onEditReservation: (reservationId: number) => void;
   loading: boolean;
 }) {
+  const [calendarFilterMode, setCalendarFilterMode] = useState<"all" | "booking_only">("all");
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedDispo, setSelectedDispo] = useState<Disponibilite | null>(null);
   const [selectedDayKey, setSelectedDayKey] = useState<string | null>(null);
@@ -172,13 +176,37 @@ export default function AdminCalendarView({
     return days;
   }, [currentMonth]);
 
+  const isReservationOrRequest = (reservation: Reservation) => {
+    const request = reservation.requestStatus;
+    const workflow = String(reservation.workflowStatut || "");
+    const isRequest = request === "nouvelle" || request === "en_cours" || workflow === "demande";
+    const isReservation =
+      request === "validee" ||
+      ["validee_owner", "devis_accepte", "contrat_envoye", "contrat_signe", "acompte_confirme", "solde_confirme"].includes(workflow);
+    return isRequest || isReservation;
+  };
+
+  const filteredReservations = useMemo(
+    () => (calendarFilterMode === "all" ? reservations : reservations.filter(isReservationOrRequest)),
+    [reservations, calendarFilterMode],
+  );
+
+  const filteredDisponibilites = useMemo(() => {
+    if (calendarFilterMode === "all") return disponibilites;
+    const reservationLinkedIds = new Set(
+      filteredReservations.map((r) => r.disponibiliteId).filter((id): id is number => typeof id === "number"),
+    );
+    return disponibilites.filter((d) => d.statut === "reserve" || d.statut === "option" || reservationLinkedIds.has(d.id));
+  }, [disponibilites, filteredReservations, calendarFilterMode]);
+
   const disposByDate = useMemo(() => {
     const map = new Map<string, Disponibilite[]>();
-    disponibilites.forEach((d) => {
+    filteredDisponibilites.forEach((d) => {
       const start = new Date(d.debut).toISOString().slice(0, 10);
       const end = new Date(d.fin).toISOString().slice(0, 10);
+      const isSingleDay = start === end;
       let current = new Date(start);
-      while (current.toISOString().slice(0, 10) <= end) {
+      while (current.toISOString().slice(0, 10) < end || (isSingleDay && current.toISOString().slice(0, 10) === end)) {
         const dateKey = current.toISOString().slice(0, 10);
         if (!map.has(dateKey)) map.set(dateKey, []);
         map.get(dateKey)!.push(d);
@@ -186,7 +214,7 @@ export default function AdminCalendarView({
       }
     });
     return map;
-  }, [disponibilites]);
+  }, [filteredDisponibilites]);
 
   const getDispoForDate = (date: Date) => {
     const dateKey = toLocalIsoDay(date);
@@ -225,8 +253,8 @@ export default function AdminCalendarView({
   const selectedDispoReservations = useMemo(() => {
     if (!selectedDayDispos.length) return [];
     const dispoIds = new Set(selectedDayDispos.map((d) => d.id));
-    return reservations.filter((r) => r.disponibiliteId && dispoIds.has(r.disponibiliteId));
-  }, [selectedDayDispos, reservations]);
+    return filteredReservations.filter((r) => r.disponibiliteId && dispoIds.has(r.disponibiliteId));
+  }, [selectedDayDispos, filteredReservations]);
 
   if (loading) {
     return (
@@ -246,24 +274,53 @@ export default function AdminCalendarView({
           className="bg-white rounded-xl border border-slate-200 shadow-sm p-6"
         >
           {/* En-tête du calendrier */}
-          <div className="flex items-center justify-between mb-6">
-            <motion.button
-              whileHover={{ scale: 1.1 }}
-              whileTap={{ scale: 0.95 }}
-              onClick={handlePrevMonth}
-              className="p-2 rounded-lg hover:bg-slate-100 transition-colors"
-            >
-              <ChevronLeft className="w-5 h-5 text-slate-700" />
-            </motion.button>
-            <h2 className="text-xl font-bold text-slate-900 capitalize">{monthLabel}</h2>
-            <motion.button
-              whileHover={{ scale: 1.1 }}
-              whileTap={{ scale: 0.95 }}
-              onClick={handleNextMonth}
-              className="p-2 rounded-lg hover:bg-slate-100 transition-colors"
-            >
-              <ChevronRight className="w-5 h-5 text-slate-700" />
-            </motion.button>
+          <div className="mb-6 space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="inline-flex rounded-xl border border-slate-200 bg-slate-50 p-1">
+                <button
+                  onClick={() => setCalendarFilterMode("all")}
+                  className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${
+                    calendarFilterMode === "all" ? "bg-blue-900 text-white shadow-sm" : "text-slate-600 hover:bg-white"
+                  }`}
+                >
+                  Tout
+                </button>
+                <button
+                  onClick={() => setCalendarFilterMode("booking_only")}
+                  className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${
+                    calendarFilterMode === "booking_only" ? "bg-blue-900 text-white shadow-sm" : "text-slate-600 hover:bg-white"
+                  }`}
+                >
+                  Réservations + demandes
+                </button>
+              </div>
+              <button
+                onClick={onCreateSlot}
+                className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2 text-sm font-bold text-white transition-all hover:bg-emerald-700"
+              >
+                <Plus className="h-4 w-4" />
+                Nouveau créneau
+              </button>
+            </div>
+            <div className="flex items-center justify-between">
+              <motion.button
+                whileHover={{ scale: 1.1 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={handlePrevMonth}
+                className="p-2 rounded-lg hover:bg-slate-100 transition-colors"
+              >
+                <ChevronLeft className="w-5 h-5 text-slate-700" />
+              </motion.button>
+              <h2 className="text-xl font-bold text-slate-900 capitalize">{monthLabel}</h2>
+              <motion.button
+                whileHover={{ scale: 1.1 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={handleNextMonth}
+                className="p-2 rounded-lg hover:bg-slate-100 transition-colors"
+              >
+                <ChevronRight className="w-5 h-5 text-slate-700" />
+              </motion.button>
+            </div>
           </div>
 
           {/* Jours de la semaine */}
@@ -501,9 +558,9 @@ export default function AdminCalendarView({
                   <motion.button
                     whileHover={{ scale: 1.05 }}
                     whileTap={{ scale: 0.95 }}
-                    onClick={() => {
-                      onDelete(selectedDispo.id);
-                      setSelectedDispo(null);
+                    onClick={async () => {
+                      const deleted = await onDelete(selectedDispo.id);
+                      if (deleted) setSelectedDispo(null);
                     }}
                     className="flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-red-50 text-red-700 hover:bg-red-100 transition-colors text-sm font-semibold"
                   >

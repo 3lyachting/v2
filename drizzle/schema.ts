@@ -1,4 +1,4 @@
-import { boolean, integer, pgEnum, pgTable, serial, text, timestamp, varchar } from "drizzle-orm/pg-core";
+import { boolean, integer, pgEnum, pgTable, serial, text, timestamp, uniqueIndex, varchar } from "drizzle-orm/pg-core";
 
 /**
  * Core user table backing auth flow.
@@ -33,6 +33,7 @@ export const reservationRequestStatusEnum = pgEnum("reservation_request_status",
   "refusee",
   "archivee",
 ]);
+export const bookingOriginEnum = pgEnum("booking_origin", ["direct", "clicknboat", "skippair", "samboat"]);
 export const documentCategoryEnum = pgEnum("document_category", ["identity", "reservation", "boat"]);
 export const esignProviderEnum = pgEnum("esign_provider", ["yousign", "docusign", "other"]);
 
@@ -73,7 +74,13 @@ export const disponibilites = pgTable("disponibilites", {
   notePublique: text("notePublique"), // texte affiché sur le site public
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().notNull(),
-});
+}, (table) => ({
+  uniqRangeDestination: uniqueIndex("disponibilites_uniq_range_destination_idx").on(
+    table.debut,
+    table.fin,
+    table.destination,
+  ),
+}));
 
 export type Disponibilite = typeof disponibilites.$inferSelect;
 export type InsertDisponibilite = typeof disponibilites.$inferInsert;
@@ -128,6 +135,7 @@ export const reservations = pgTable("reservations", {
   // Infos croisière
   disponibiliteId: integer("disponibiliteId"), // Lien vers la semaine réservée
   formule: varchar("formule", { length: 50 }).notNull(), // "semaine", "weekend", "journee", "traversee"
+  bookingOrigin: bookingOriginEnum("bookingOrigin").default("direct").notNull(),
   typeReservation: typeReservationEnum("typeReservation").default("bateau_entier").notNull(),
   nbCabines: integer("nbCabines").default(1).notNull(), // nb cabines (Med/Caraïbes) ou nb places (transat)
   destination: varchar("destination", { length: 255 }).notNull(),

@@ -7,9 +7,22 @@ import { runBookingConsistencyAudit, syncDisponibilitesFromReservations } from "
 
 const router = Router();
 const SYNC_SOFT_TIMEOUT_MS = 4000;
+let activeSyncPromise: Promise<void> | null = null;
+
+async function runSyncSafely(db: any) {
+  if (activeSyncPromise) return activeSyncPromise;
+  activeSyncPromise = (async () => {
+    try {
+      await syncDisponibilitesFromReservations(db);
+    } finally {
+      activeSyncPromise = null;
+    }
+  })();
+  return activeSyncPromise;
+}
 
 async function runSyncWithSoftTimeout(db: any) {
-  const syncPromise = syncDisponibilitesFromReservations(db).catch((error: any) => {
+  const syncPromise = runSyncSafely(db).catch((error: any) => {
     console.error("[Disponibilites] Sync failed:", error?.message || error);
   });
   const timeoutPromise = new Promise<void>((resolve) => {

@@ -37,8 +37,54 @@ function isHighSeasonIso(isoDay: string) {
   return month === 2 || month === 7 || month === 8 || month === 12;
 }
 
-function isSaturdayIso(isoDay: string) {
-  return new Date(`${isoDay}T00:00:00.000Z`).getUTCDay() === 6;
+function isAprilMayIso(isoDay: string) {
+  const month = monthFromIso(isoDay);
+  return month === 4 || month === 5;
+}
+
+function isWinterBlockedIso(isoDay: string) {
+  const year = Number(isoDay.slice(0, 4));
+  const month = monthFromIso(isoDay);
+  return year === 2026 && (month === 1 || month === 2 || month === 3);
+}
+
+function isCaribbeanDestination(value?: string | null) {
+  const normalized = normalizeForMatch(value);
+  return normalized.includes("caraibe") || normalized.includes("antille");
+}
+
+function shouldHideCaribbeanInSpring2026(week: BookingWeek) {
+  if (!isCaribbeanDestination(week.destination) && !isCaribbeanDestination(week.internalNote)) return false;
+  const start = new Date(`${week.startDate}T00:00:00.000Z`);
+  const end = new Date(`${week.endDate}T00:00:00.000Z`);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return false;
+  const from = start <= end ? start : end;
+  const to = end >= start ? end : start;
+  const cursor = new Date(from);
+  while (cursor <= to) {
+    const year = cursor.getUTCFullYear();
+    const month = cursor.getUTCMonth() + 1;
+    if (year === 2026 && (month === 3 || month === 4)) {
+      return true;
+    }
+    cursor.setUTCDate(cursor.getUTCDate() + 1);
+  }
+  return false;
+}
+
+function getUtcWeekBoundsFromIso(isoDay: string) {
+  const clicked = new Date(`${isoDay}T00:00:00.000Z`);
+  if (Number.isNaN(clicked.getTime())) return null;
+  const dayOfWeek = clicked.getUTCDay();
+  const daysSinceSaturday = (dayOfWeek + 1) % 7;
+  const weekStart = new Date(clicked);
+  weekStart.setUTCDate(weekStart.getUTCDate() - daysSinceSaturday);
+  const weekEnd = new Date(weekStart);
+  weekEnd.setUTCDate(weekEnd.getUTCDate() + 7);
+  return {
+    startIso: weekStart.toISOString().slice(0, 10),
+    endIso: weekEnd.toISOString().slice(0, 10),
+  };
 }
 
 function toIsoDay(dateInput: string) {
@@ -137,8 +183,9 @@ export default function CharterCalendar() {
     for (const week of filteredWeeks) {
       const start = new Date(`${week.startDate}T00:00:00.000Z`);
       const end = new Date(`${week.endDate}T00:00:00.000Z`);
+      const isSingleDay = week.startDate === week.endDate;
       const cursor = new Date(start);
-      while (cursor <= end) {
+      while (cursor < end || (isSingleDay && cursor.getTime() === end.getTime())) {
         const key = cursor.toISOString().slice(0, 10);
         map.set(key, [...(map.get(key) || []), week]);
         cursor.setUTCDate(cursor.getUTCDate() + 1);
@@ -157,6 +204,7 @@ export default function CharterCalendar() {
       const mapped = rows
         .map(toBookingWeek)
         .filter((week): week is BookingWeek => Boolean(week))
+        .filter((week) => !shouldHideCaribbeanInSpring2026(week))
         .sort((a, b) => a.startDate.localeCompare(b.startDate));
       // Deduplicate exact same range+destination while preserving the most
       // constraining status so client calendar matches real occupancy.
@@ -262,6 +310,8 @@ export default function CharterCalendar() {
     setSubmitting(true);
     setSubmitError(null);
     if (!selectedRange) return;
+    const isAprilMaySingleDay =
+      selectedRange.startDate === selectedRange.endDate && isAprilMayIso(selectedRange.startDate);
     const amountInCents = Math.max(0, Math.round(request.estimatedTotal * 100));
     const payload = {
       nomClient: request.fullName,
@@ -282,6 +332,26 @@ export default function CharterCalendar() {
       disponibiliteId: selectedRange.disponibiliteId ?? request.disponibiliteId,
     };
     try {
+      if (isAprilMaySingleDay) {
+        const stripePayload = {
+          ...payload,
+          formule: "journee",
+          typePaiement: "complet",
+          dateDebut: selectedRange.startDate,
+          dateFin: selectedRange.endDate,
+        };
+        const checkoutResponse = await fetch("/api/stripe/create-checkout-session", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(stripePayload),
+        });
+        const checkoutData = await checkoutResponse.json().catch(() => ({}));
+        if (!checkoutResponse.ok || !checkoutData?.url) {
+          throw new Error(checkoutData?.error || "Impossible d'ouvrir le paiement sécurisé.");
+        }
+        window.location.assign(checkoutData.url);
+        return;
+      }
       const response = await fetch("/api/reservations/request", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -330,43 +400,32 @@ export default function CharterCalendar() {
 
   const handleDaySelect = (date: Date) => {
     const iso = date.toISOString().slice(0, 10);
+    if (isWinterBlockedIso(iso)) return;
     const week = getDayWeek(date);
     if (!week || !canBookWeek(week)) return;
     setSelectionError(null);
-    if (!selectedStartDate || (selectedStartDate && selectedEndDate)) {
-      if (isHighSeasonIso(iso) && !isSaturdayIso(iso)) {
-        setSelectionError("En haute saison (juillet, août, décembre, février), le départ doit être un samedi.");
+    if (isHighSeasonIso(iso)) {
+      const weekBounds = getUtcWeekBoundsFromIso(iso);
+      if (!weekBounds) {
+        setSelectionError("Impossible de calculer la semaine selectionnee.");
         return;
       }
+      setSelectedStartDate(weekBounds.startIso);
+      setSelectedEndDate(weekBounds.endIso);
+      return;
+    }
+    if (!selectedStartDate || (selectedStartDate && selectedEndDate)) {
       setSelectedStartDate(iso);
       setSelectedEndDate(null);
       return;
     }
     if (iso === selectedStartDate) {
-      if (isHighSeasonIso(iso)) {
-        setSelectionError("En haute saison, la sélection doit être du samedi au samedi.");
-        return;
-      }
       // 2nd click on same day => single-day range (start = end)
       setSelectedStartDate(iso);
       setSelectedEndDate(iso);
       return;
     }
     const start = selectedStartDate;
-    const end = iso < selectedStartDate ? selectedStartDate : iso;
-    const startCandidate = iso < selectedStartDate ? iso : selectedStartDate;
-    const highSeasonRange = isHighSeasonIso(startCandidate) || isHighSeasonIso(end);
-    if (highSeasonRange) {
-      const startSaturday = isSaturdayIso(startCandidate);
-      const endSaturday = isSaturdayIso(end);
-      const spanDays = Math.round(
-        (new Date(`${end}T00:00:00.000Z`).getTime() - new Date(`${startCandidate}T00:00:00.000Z`).getTime()) / 86400000,
-      );
-      if (!startSaturday || !endSaturday || spanDays !== 7) {
-        setSelectionError("En haute saison (juillet, août, décembre, février), la sélection doit être du samedi au samedi.");
-        return;
-      }
-    }
     if (iso < selectedStartDate) {
       setSelectedStartDate(iso);
       setSelectedEndDate(start);
@@ -381,7 +440,7 @@ export default function CharterCalendar() {
     <section className="charter-calendar" aria-label="Calendrier de reservation">
       <header className="charter-calendar__header">
         <span className="editorial-kicker">Calendrier des disponibilites</span>
-        <h2>Reservation samedi vers samedi</h2>
+        <h2>Disponibilites et tarifs</h2>
         <p>Privatisation du catamaran ou reservation cabine, avec disponibilites en direct.</p>
       </header>
 
@@ -428,6 +487,8 @@ export default function CharterCalendar() {
               if (!day) return <div key={`empty-${index}`} className="charter-day charter-day--empty" />;
               const week = getDayWeek(day);
               const dayIso = day.toISOString().slice(0, 10);
+              const isForcedBlocked = isWinterBlockedIso(dayIso);
+              const displayStatus: BookingStatus | null = isForcedBlocked ? "blocked" : week?.status || null;
               const rangeStart = selectedStartDate && selectedEndDate ? (selectedStartDate <= selectedEndDate ? selectedStartDate : selectedEndDate) : selectedStartDate;
               const rangeEnd = selectedStartDate && selectedEndDate ? (selectedStartDate >= selectedEndDate ? selectedStartDate : selectedEndDate) : selectedEndDate;
               const isStart = selectedStartDate === dayIso;
@@ -439,13 +500,14 @@ export default function CharterCalendar() {
                   key={day.toISOString()}
                   type="button"
                   className={`charter-day ${isSelected ? "is-selected" : ""}`}
+                  disabled={isForcedBlocked}
                   onClick={() => {
                     handleDaySelect(day);
                   }}
                 >
                   <span className="charter-day__number">{day.getUTCDate()}</span>
-                  {week ? (
-                    <span className={getStatusClass(week.status)}>{STATUS_LABELS_FR[week.status]}</span>
+                  {displayStatus ? (
+                    <span className={getStatusClass(displayStatus)}>{STATUS_LABELS_FR[displayStatus]}</span>
                   ) : (
                     <span className="charter-day__empty">-</span>
                   )}

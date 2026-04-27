@@ -13,4 +13,7 @@ export const ENV = {
   eSignDocusignAccountId: process.env.ESIGN_DOCUSIGN_ACCOUNT_ID ?? "",
   eSignDocusignAccessToken: process.env.ESIGN_DOCUSIGN_ACCESS_TOKEN ?? "",
   eSignDocusignBasePath: process.env.ESIGN_DOCUSIGN_BASE_PATH ?? "",
+  clicknboatApiBaseUrl: process.env.CLICKNBOAT_API_BASE_URL ?? "",
+  clicknboatApiToken: process.env.CLICKNBOAT_API_TOKEN ?? "",
+  clicknboatApiTimeoutMs: Number(process.env.CLICKNBOAT_API_TIMEOUT_MS || 3500),
 };

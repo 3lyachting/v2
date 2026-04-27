@@ -195,8 +195,9 @@ export default function CalendrierDisponibilites({ isEnglish = false }: { isEngl
       const start = toIsoDayUtc(d.debut);
       const end = toIsoDayUtc(d.fin);
       if (!start || !end) continue;
+      const isSingleDay = start === end;
       let cursor = start;
-      while (cursor <= end) {
+      while (cursor < end || (isSingleDay && cursor === end)) {
         const current = map.get(cursor) || [];
         current.push(d);
         map.set(cursor, current);

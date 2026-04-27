@@ -40,6 +40,10 @@ function saturdaysBetween(startIso: string, endIso: string) {
   return result;
 }
 
+function rangesOverlap(startA: string, endA: string, startB: string, endB: string) {
+  return startA <= endB && endA >= startB;
+}
+
 async function upsertSlot(slot: SlotInput) {
   const db = await getDb();
   if (!db) throw new Error("Base de données non disponible.");
@@ -116,8 +120,14 @@ async function main() {
   // 2) Semaines vendables ensuite (samedi -> samedi)
   const weekStart = `${year}-07-01`;
   const weekEnd = `${year}-12-31`;
+  const transatOutboundStart = `${year}-11-05`;
+  const transatOutboundEnd = `${year}-12-05`;
   for (const saturday of saturdaysBetween(weekStart, weekEnd)) {
     const end = addDays(saturday, 7);
+    // Do not generate Med/Corse weekly slots overlapping the transat window.
+    if (rangesOverlap(saturday, end, transatOutboundStart, transatOutboundEnd)) {
+      continue;
+    }
     await upsertSlot({
       debut: toUtcDate(saturday),
       fin: toUtcDate(end),

@@ -21,6 +21,7 @@ export function CharterBookingPanel({ selection, onSubmit, submitting = false, s
     return calculateEstimatedRangeTotal(selection, mode, form.peopleCount);
   }, [form.peopleCount, mode, selection]);
   const isSingleDaySelection = Boolean(selection && selection.startDate === selection.endDate);
+  const isAprilMaySingleDay = Boolean(isSingleDaySelection && selection && (selection.startDate.slice(5, 7) === "04" || selection.startDate.slice(5, 7) === "05"));
 
   if (!selection) {
     return <div className="charter-panel-empty">Selectionnez une date de depart puis une date de retour pour afficher votre devis.</div>;
@@ -54,6 +55,11 @@ export function CharterBookingPanel({ selection, onSubmit, submitting = false, s
       <h3>Votre sélection</h3>
       <p className="charter-muted">{formatDateRangeFr(selection.startDate, selection.endDate)}</p>
       {isSingleDaySelection && <p className="charter-muted">Journée sélectionnée</p>}
+      {isAprilMaySingleDay && (
+        <p className="charter-muted">
+          Offre journée avril/mai: sortie privative au départ de La Ciotat, navigation vers les calanques et retour en fin de journée.
+        </p>
+      )}
       <p className="charter-muted">
         {selection.billingDays} jour{selection.billingDays > 1 ? "s" : ""} facturé{selection.billingDays > 1 ? "s" : ""}
       </p>
@@ -132,7 +138,7 @@ export function CharterBookingPanel({ selection, onSubmit, submitting = false, s
         {localSuccess && <p className="charter-success">Demande envoyée avec succès. Nous revenons vers vous rapidement.</p>}
 
         <button className="charter-btn charter-btn--primary" type="submit" disabled={!canSubmit || submitting}>
-          {submitting ? "Envoi en cours..." : "Envoyer la demande"}
+          {submitting ? "Traitement en cours..." : isAprilMaySingleDay ? "Réserver et payer" : "Envoyer la demande"}
         </button>
       </form>
     </div>

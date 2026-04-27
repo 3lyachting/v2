@@ -30,6 +30,7 @@ interface Reservation {
   montantTotal: number;
   montantPaye: number;
   typeReservation?: "bateau_entier" | "cabine" | "place";
+  bookingOrigin?: BookingOrigin;
   nbCabines?: number;
   typePaiement: "acompte" | "complet";
   statutPaiement: "en_attente" | "paye" | "echec" | "rembourse";
@@ -88,6 +89,8 @@ type ReservationFormData = Partial<Reservation> & {
   heureFin?: string;
 };
 
+type BookingOrigin = "direct" | "clicknboat" | "skippair" | "samboat";
+
 type DisponibiliteFormData = {
   planningType: "charter" | "technical_stop" | "maintenance" | "blocked";
   debut: string;
@@ -133,6 +136,23 @@ export default function Admin() {
   const [reservationDocsMap, setReservationDocsMap] = useState<
     Record<number, { quoteUrl: string | null; contractUrl: string | null }>
   >({});
+  const [originSummary, setOriginSummary] = useState<
+    Record<BookingOrigin, { count: number; revenueCents: number; source: "local" | "clicknboat_api" }>
+  >({
+    direct: { count: 0, revenueCents: 0, source: "local" },
+    clicknboat: { count: 0, revenueCents: 0, source: "local" },
+    skippair: { count: 0, revenueCents: 0, source: "local" },
+    samboat: { count: 0, revenueCents: 0, source: "local" },
+  });
+  const [originIntegrationInfo, setOriginIntegrationInfo] = useState<{
+    enabled: boolean;
+    usingLiveData: boolean;
+    warning: string | null;
+  }>({
+    enabled: false,
+    usingLiveData: false,
+    warning: null,
+  });
   const [cabinesFormData, setCabinesFormData] = useState({ nbReservees: 0, nbTotal: 4, notes: "" });
   const [reservationFormData, setReservationFormData] = useState<ReservationFormData>({
     nomClient: "",
@@ -146,6 +166,7 @@ export default function Admin() {
     dateFin: "",
     montantTotal: 0,
     typeReservation: "cabine",
+    bookingOrigin: "direct",
     nbCabines: 1,
     heureDebut: "00:00",
     heureFin: "00:00",
@@ -183,6 +204,7 @@ export default function Admin() {
     dateFin: "",
     montantTotal: 0,
     typeReservation: "bateau_entier",
+    bookingOrigin: "direct",
     nbCabines: 1,
     heureDebut: "09:00",
     heureFin: "17:00",
@@ -293,6 +315,17 @@ export default function Admin() {
         cmap[c.disponibiliteId] = c;
       });
       setCabinesMap(cmap);
+
+      try {
+        const originResponse = await fetch("/api/reservations/origins-summary", { credentials: "include" });
+        if (originResponse.ok) {
+          const payload = await originResponse.json();
+          if (payload?.origins) setOriginSummary(payload.origins);
+          if (payload?.clicknboatIntegration) setOriginIntegrationInfo(payload.clicknboatIntegration);
+        }
+      } catch {
+        // Do not block admin UI if third-party stats are unavailable.
+      }
     } catch (err) {
       console.error(err);
     } finally {
@@ -339,9 +372,20 @@ export default function Admin() {
   };
 
   const handleDelete = async (id: number) => {
-    if (!confirm("Supprimer ce créneau ?")) return;
-    await fetch(`/api/disponibilites/${id}`, { method: "DELETE", credentials: "include" });
-    fetchData();
+    if (!confirm("Supprimer ce créneau ?")) return false;
+    try {
+      const res = await fetch(`/api/disponibilites/${id}`, { method: "DELETE", credentials: "include" });
+      if (!res.ok) {
+        setReservationActionMessage("Impossible de supprimer ce créneau.");
+        return false;
+      }
+      await fetchData();
+      setReservationActionMessage("Créneau supprimé.");
+      return true;
+    } catch {
+      setReservationActionMessage("Erreur réseau lors de la suppression.");
+      return false;
+    }
   };
 
   const resetDispoForm = () => {
@@ -364,6 +408,10 @@ export default function Admin() {
   const submitDisponibilite = async () => {
     if (!dispoFormData.debut || !dispoFormData.fin || !dispoFormData.destination) {
       setReservationActionMessage("Date début, date fin et destination sont requis.");
+      return;
+    }
+    if (new Date(dispoFormData.fin).getTime() < new Date(dispoFormData.debut).getTime()) {
+      setReservationActionMessage("La date de fin doit être égale ou postérieure à la date de début.");
       return;
     }
     const payload = {
@@ -552,6 +600,31 @@ export default function Admin() {
       total: Math.round(cents / 100),
     }));
 
+    const localOrigins: Record<BookingOrigin, { count: number; revenueCents: number }> = {
+      direct: { count: 0, revenueCents: 0 },
+      clicknboat: { count: 0, revenueCents: 0 },
+      skippair: { count: 0, revenueCents: 0 },
+      samboat: { count: 0, revenueCents: 0 },
+    };
+    reservations.forEach((r) => {
+      const origin = (r.bookingOrigin || "direct") as BookingOrigin;
+      if (!localOrigins[origin]) return;
+      localOrigins[origin].count += 1;
+      localOrigins[origin].revenueCents += Number(r.montantTotal || 0);
+    });
+
+    const originBreakdown: Record<BookingOrigin, { count: number; revenueCents: number; source: "local" | "clicknboat_api" }> = {
+      direct: { ...localOrigins.direct, source: "local" },
+      clicknboat: { ...localOrigins.clicknboat, source: "local" },
+      skippair: { ...localOrigins.skippair, source: "local" },
+      samboat: { ...localOrigins.samboat, source: "local" },
+    };
+    (["direct", "clicknboat", "skippair", "samboat"] as BookingOrigin[]).forEach((origin) => {
+      if (originSummary[origin]) {
+        originBreakdown[origin] = originSummary[origin];
+      }
+    });
+
     return {
       totalCents,
       totalEuros: Math.round(totalCents / 100),
@@ -559,8 +632,9 @@ export default function Admin() {
       validatedCount: validated.length,
       pendingCount: pending.length,
       monthly,
+      originBreakdown,
     };
-  }, [reservations]);
+  }, [reservations, originSummary]);
 
   const openManualReservationForm = () => {
     setEditingReservation(null);
@@ -597,6 +671,7 @@ export default function Admin() {
       dateFin: `${reservationFormData.dateFin}T00:00:00.000Z`,
       montantTotal: Number(reservationFormData.montantTotal || 0),
       typeReservation: reservationFormData.typeReservation || "bateau_entier",
+      bookingOrigin: reservationFormData.bookingOrigin || "direct",
       nbCabines: Number(reservationFormData.nbCabines || 1),
       message: reservationFormData.message || "Ajout manuel backoffice",
       disponibiliteId: reservationFormData.disponibiliteId || null,
@@ -720,6 +795,11 @@ export default function Admin() {
                 reservations={reservations}
                 onEdit={handleEdit}
                 onDelete={handleDelete}
+                onCreateSlot={() => {
+                  resetDispoForm();
+                  setShowForm(true);
+                  setReservationActionMessage("");
+                }}
                 onEditReservation={(reservationId) => {
                   const target = reservations.find((r) => r.id === reservationId);
                   if (target) openEditReservationForm(target);
@@ -811,6 +891,41 @@ export default function Admin() {
                 <p className="text-sm text-slate-600">Aucune donnée financière disponible.</p>
               )}
             </div>
+
+            <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
+              <div className="flex items-center justify-between gap-3 mb-3">
+                <h3 className="text-sm font-bold text-slate-800">Origine des réservations</h3>
+                {originIntegrationInfo.usingLiveData && (
+                  <span className="text-xs font-semibold text-blue-700 bg-blue-50 px-2 py-1 rounded-full">
+                    Click&Boat API active
+                  </span>
+                )}
+              </div>
+              <div className="grid md:grid-cols-2 xl:grid-cols-4 gap-3">
+                {[
+                  { key: "direct", label: "Direct" },
+                  { key: "clicknboat", label: "Clicknboat" },
+                  { key: "skippair", label: "Skippair" },
+                  { key: "samboat", label: "Samboat" },
+                ].map((item) => {
+                  const stat = financeStats.originBreakdown[item.key as BookingOrigin];
+                  return (
+                    <div key={item.key} className="rounded-lg border border-slate-200 p-3 bg-slate-50">
+                      <p className="text-xs uppercase font-semibold text-slate-500">{item.label}</p>
+                      <p className="mt-2 text-xl font-bold text-slate-900">{stat.count}</p>
+                      <p className="text-sm font-semibold text-slate-700">
+                        {(Math.round(stat.revenueCents / 100)).toLocaleString("fr-FR")} €
+                      </p>
+                    </div>
+                  );
+                })}
+              </div>
+              {originIntegrationInfo.warning && (
+                <p className="mt-3 text-xs text-amber-700">
+                  Click&Boat API indisponible: affichage local conservé ({originIntegrationInfo.warning}).
+                </p>
+              )}
+            </div>
           </div>
         )}
 
@@ -894,6 +1009,12 @@ export default function Admin() {
                 <select value={reservationFormData.typeReservation || "bateau_entier"} onChange={(e) => setReservationFormData((s) => ({ ...s, typeReservation: e.target.value as any }))} className="px-3 py-2 border border-slate-300 rounded-lg text-sm">
                   <option value="bateau_entier">Privatif</option>
                   <option value="cabine">Cabine</option>
+                </select>
+                <select value={reservationFormData.bookingOrigin || "direct"} onChange={(e) => setReservationFormData((s) => ({ ...s, bookingOrigin: e.target.value as BookingOrigin }))} className="px-3 py-2 border border-slate-300 rounded-lg text-sm">
+                  <option value="direct">Direct</option>
+                  <option value="clicknboat">Clicknboat</option>
+                  <option value="skippair">Skippair</option>
+                  <option value="samboat">Samboat</option>
                 </select>
                 <input type="number" min={1} max={8} value={reservationFormData.nbPersonnes || 1} onChange={(e) => setReservationFormData((s) => ({ ...s, nbPersonnes: Number(e.target.value || 1) }))} placeholder="Nb personnes" className="px-3 py-2 border border-slate-300 rounded-lg text-sm" />
                 <input type="number" min={1} max={4} value={reservationFormData.nbCabines || 1} onChange={(e) => setReservationFormData((s) => ({ ...s, nbCabines: Number(e.target.value || 1) }))} placeholder="Nb cabines" className="px-3 py-2 border border-slate-300 rounded-lg text-sm" />
