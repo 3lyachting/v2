@@ -28,6 +28,19 @@ const DEV_FALLBACK_ENABLED =
   import.meta.env.DEV &&
   String(import.meta.env.VITE_ENABLE_BOOKING_DEV_FALLBACK || "").toLowerCase() === "true";
 
+function monthFromIso(isoDay: string) {
+  return Number(isoDay.slice(5, 7));
+}
+
+function isHighSeasonIso(isoDay: string) {
+  const month = monthFromIso(isoDay);
+  return month === 2 || month === 7 || month === 8 || month === 12;
+}
+
+function isSaturdayIso(isoDay: string) {
+  return new Date(`${isoDay}T00:00:00.000Z`).getUTCDay() === 6;
+}
+
 function toIsoDay(dateInput: string) {
   const date = new Date(dateInput);
   if (Number.isNaN(date.getTime())) return null;
@@ -93,6 +106,7 @@ export default function CharterCalendar() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [selectionError, setSelectionError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [selectedStartDate, setSelectedStartDate] = useState<string | null>(null);
   const [selectedEndDate, setSelectedEndDate] = useState<string | null>(null);
@@ -292,20 +306,44 @@ export default function CharterCalendar() {
     const iso = date.toISOString().slice(0, 10);
     const week = getDayWeek(date);
     if (!week || !canBookWeek(week)) return;
+    setSelectionError(null);
     if (!selectedStartDate || (selectedStartDate && selectedEndDate)) {
+      if (isHighSeasonIso(iso) && !isSaturdayIso(iso)) {
+        setSelectionError("En haute saison (juillet, août, décembre, février), le départ doit être un samedi.");
+        return;
+      }
       setSelectedStartDate(iso);
       setSelectedEndDate(null);
       return;
     }
     if (iso === selectedStartDate) {
+      if (isHighSeasonIso(iso)) {
+        setSelectionError("En haute saison, la sélection doit être du samedi au samedi.");
+        return;
+      }
       // 2nd click on same day => single-day range (start = end)
       setSelectedStartDate(iso);
       setSelectedEndDate(iso);
       return;
     }
+    const start = selectedStartDate;
+    const end = iso < selectedStartDate ? selectedStartDate : iso;
+    const startCandidate = iso < selectedStartDate ? iso : selectedStartDate;
+    const highSeasonRange = isHighSeasonIso(startCandidate) || isHighSeasonIso(end);
+    if (highSeasonRange) {
+      const startSaturday = isSaturdayIso(startCandidate);
+      const endSaturday = isSaturdayIso(end);
+      const spanDays = Math.round(
+        (new Date(`${end}T00:00:00.000Z`).getTime() - new Date(`${startCandidate}T00:00:00.000Z`).getTime()) / 86400000,
+      );
+      if (!startSaturday || !endSaturday || spanDays !== 7) {
+        setSelectionError("En haute saison (juillet, août, décembre, février), la sélection doit être du samedi au samedi.");
+        return;
+      }
+    }
     if (iso < selectedStartDate) {
       setSelectedStartDate(iso);
-      setSelectedEndDate(selectedStartDate);
+      setSelectedEndDate(start);
     } else {
       setSelectedEndDate(iso);
     }
@@ -322,6 +360,7 @@ export default function CharterCalendar() {
       </header>
 
       {loadError && <p className="charter-calendar__warning">{loadError}</p>}
+      {selectionError && <p className="charter-calendar__warning">{selectionError}</p>}
 
       <div className="charter-product-filter" role="tablist" aria-label="Filtrer les offres">
         {[

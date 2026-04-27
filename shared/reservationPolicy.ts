@@ -28,6 +28,11 @@ function diffDays(startIso: string, endIso: string) {
   return Math.round((end - start) / 86400000);
 }
 
+function isHighSeasonMonth(month: number) {
+  // Février(2), Juillet(7), Août(8), Décembre(12)
+  return month === 2 || month === 7 || month === 8 || month === 12;
+}
+
 function isLaCiotatDestination(destination?: string | null) {
   if (!destination) return true;
   return destination.toLowerCase().includes("ciotat");
@@ -49,6 +54,8 @@ export function validateReservationPolicy(input: {
   const endIsoRaw = toIsoDay(input.dateFin);
   if (!startIso || !endIsoRaw) return { ok: false, reason: "Dates invalides." };
   const endIso = endIsoRaw < startIso ? startIso : endIsoRaw;
+  const startMonth = Number(startIso.slice(5, 7));
+  const endMonth = Number(endIso.slice(5, 7));
   const startYear = Number(startIso.slice(0, 4));
   const transatReturnStart = `${startYear}-04-05`;
   const transatReturnEnd = `${startYear}-05-15`;
@@ -103,6 +110,20 @@ export function validateReservationPolicy(input: {
       }
     }
     return { ok: true, policy: "summer_weekly_private_or_cabine" };
+  }
+
+  // Haute saison stricte: février, juillet, août, décembre => samedi -> samedi (7 jours)
+  if (isHighSeasonMonth(startMonth) || isHighSeasonMonth(endMonth)) {
+    const startSaturday = dayOfWeekIso(startIso) === 6;
+    const endSaturday = dayOfWeekIso(endIso) === 6;
+    const weeklySpan = diffDays(startIso, endIso) === 7;
+    if (!startSaturday || !endSaturday || !weeklySpan) {
+      return {
+        ok: false,
+        reason: "En haute saison (juillet, août, décembre, février), les réservations sont obligatoirement du samedi au samedi.",
+      };
+    }
+    return { ok: true, policy: "weekly_saturday" };
   }
 
   const startSaturday = dayOfWeekIso(startIso) === 6;

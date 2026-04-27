@@ -65,6 +65,35 @@ describe("reservation policy", () => {
     expect(juneWeekly).toEqual({ ok: true, policy: "summer_weekly_private_or_cabine" });
   });
 
+  it("enforces saturday-to-saturday in december and february", () => {
+    const decemberRejected = validateReservationPolicy({
+      dateDebut: "2026-12-10T00:00:00.000Z",
+      dateFin: "2026-12-17T00:00:00.000Z",
+      destination: "Antilles",
+      typeReservation: "cabine",
+      nbCabines: 2,
+    });
+    expect(decemberRejected.ok).toBe(false);
+
+    const februaryRejected = validateReservationPolicy({
+      dateDebut: "2026-02-07T00:00:00.000Z",
+      dateFin: "2026-02-10T00:00:00.000Z",
+      destination: "Antilles",
+      typeReservation: "cabine",
+      nbCabines: 2,
+    });
+    expect(februaryRejected.ok).toBe(false);
+
+    const februaryAccepted = validateReservationPolicy({
+      dateDebut: "2026-02-07T00:00:00.000Z",
+      dateFin: "2026-02-14T00:00:00.000Z",
+      destination: "Antilles",
+      typeReservation: "cabine",
+      nbCabines: 2,
+    });
+    expect(februaryAccepted.ok).toBe(true);
+  });
+
   it("accepts only transat windows", () => {
     const transatWindow = validateReservationPolicy({
       dateDebut: "2026-11-10T00:00:00.000Z",
