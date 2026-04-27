@@ -1,6 +1,5 @@
 import { useMemo, useState } from "react";
 import { bookingInitialRequests, bookingInitialWeeks } from "./bookingMockData";
-import { AdminBookingPanel } from "./AdminBookingPanel";
 import { CharterBookingPanel } from "./CharterBookingPanel";
 import { CharterRequestModal } from "./CharterRequestModal";
 import { CharterWeekCard } from "./CharterWeekCard";
@@ -9,10 +8,9 @@ import "./charter-calendar.css";
 
 export default function CharterCalendar() {
   const [weeks, setWeeks] = useState<BookingWeek[]>(bookingInitialWeeks);
-  const [requests, setRequests] = useState<BookingRequest[]>(bookingInitialRequests);
+  const [, setRequests] = useState<BookingRequest[]>(bookingInitialRequests);
   const [selectedWeekId, setSelectedWeekId] = useState<string | null>(weeks[0]?.id ?? null);
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [showAdmin, setShowAdmin] = useState(false);
 
   const selectedWeek = useMemo(() => weeks.find((week) => week.id === selectedWeekId) ?? null, [selectedWeekId, weeks]);
 
@@ -67,21 +65,6 @@ export default function CharterCalendar() {
       </div>
 
       <CharterRequestModal open={mobileOpen} week={selectedWeek} onClose={() => setMobileOpen(false)} onSubmit={handleRequestSubmit} />
-
-      <div className="charter-admin-toggle">
-        <button type="button" className="charter-btn charter-btn--ghost" onClick={() => setShowAdmin((value) => !value)}>
-          {showAdmin ? "Masquer le backoffice" : "Afficher le backoffice mock"}
-        </button>
-      </div>
-
-      {showAdmin && (
-        <AdminBookingPanel
-          weeks={weeks}
-          requests={requests}
-          onWeeksChange={setWeeks}
-          onRequestsChange={setRequests}
-        />
-      )}
     </section>
   );
 }
