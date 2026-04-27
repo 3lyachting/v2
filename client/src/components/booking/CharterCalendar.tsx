@@ -258,8 +258,9 @@ export default function CharterCalendar() {
       return;
     }
     if (iso === selectedStartDate) {
+      // 2nd click on same day => single-day range (start = end)
       setSelectedStartDate(iso);
-      setSelectedEndDate(null);
+      setSelectedEndDate(iso);
       return;
     }
     if (iso < selectedStartDate) {
