@@ -9,6 +9,7 @@ export interface BookingWeek {
   disponibiliteId?: number;
   startDate: string;
   endDate: string;
+  destination?: string;
   status: BookingStatus;
   pricePrivate: number;
   pricePerPerson: number;

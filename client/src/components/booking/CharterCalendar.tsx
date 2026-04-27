@@ -20,6 +20,8 @@ type ApiDisponibilite = {
   cabinesReservees?: number | null;
 };
 
+type ProductFilter = "all" | "med" | "transat" | "caraibes" | "journee";
+
 const MONTHS_FR = ["Janvier", "Fevrier", "Mars", "Avril", "Mai", "Juin", "Juillet", "Aout", "Septembre", "Octobre", "Novembre", "Decembre"];
 const DAY_LABELS = ["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"];
 const DEV_FALLBACK_ENABLED =
@@ -54,6 +56,7 @@ function toBookingWeek(row: ApiDisponibilite): BookingWeek | null {
     disponibiliteId: row.id,
     startDate,
     endDate,
+    destination: row.destination,
     status: mapStatus(row.statut, bookedCabins, totalCabins),
     pricePrivate: row.tarifJourPriva ?? row.tarif ?? 0,
     pricePerPerson: row.tarifJourPersonne ?? row.tarifCabine ?? row.tarif ?? 0,
@@ -66,6 +69,25 @@ function toBookingWeek(row: ApiDisponibilite): BookingWeek | null {
   };
 }
 
+function normalizeForMatch(value?: string | null) {
+  return String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+}
+
+function matchesProductFilter(week: BookingWeek, filter: ProductFilter) {
+  if (filter === "all") return true;
+  const destination = normalizeForMatch(week.destination);
+  const note = normalizeForMatch(week.internalNote);
+  const haystack = `${destination} ${note}`;
+  if (filter === "transat") return haystack.includes("transat");
+  if (filter === "caraibes") return haystack.includes("caraibe") || haystack.includes("antille");
+  if (filter === "journee") return haystack.includes("journee") || haystack.includes("ciotat");
+  // med
+  return haystack.includes("mediterranee") || haystack.includes("corse") || haystack.includes("bastia") || haystack.includes("ajaccio");
+}
+
 export default function CharterCalendar() {
   const [weeks, setWeeks] = useState<BookingWeek[]>([]);
   const [loading, setLoading] = useState(true);
@@ -74,15 +96,18 @@ export default function CharterCalendar() {
   const [submitting, setSubmitting] = useState(false);
   const [selectedStartDate, setSelectedStartDate] = useState<string | null>(null);
   const [selectedEndDate, setSelectedEndDate] = useState<string | null>(null);
+  const [productFilter, setProductFilter] = useState<ProductFilter>("all");
   const [mobileOpen, setMobileOpen] = useState(false);
   const [month, setMonth] = useState(() => {
     const now = new Date();
     return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
   });
 
+  const filteredWeeks = useMemo(() => weeks.filter((week) => matchesProductFilter(week, productFilter)), [weeks, productFilter]);
+
   const weeksByDay = useMemo(() => {
     const map = new Map<string, BookingWeek[]>();
-    for (const week of weeks) {
+    for (const week of filteredWeeks) {
       const start = new Date(`${week.startDate}T00:00:00.000Z`);
       const end = new Date(`${week.endDate}T00:00:00.000Z`);
       const cursor = new Date(start);
@@ -93,7 +118,7 @@ export default function CharterCalendar() {
       }
     }
     return map;
-  }, [weeks]);
+  }, [filteredWeeks]);
 
   const loadWeeksFromApi = async () => {
     setLoading(true);
@@ -164,9 +189,24 @@ export default function CharterCalendar() {
       billingDays,
       days,
       disponibiliteId: uniqueDispoIds.length === 1 ? uniqueDispoIds[0] : undefined,
-      destination: days[0]?.internalNote || "Croisiere Sabine",
+      destination: days[0]?.destination || "Croisiere Sabine",
     };
   }, [selectedEndDate, selectedStartDate, weeksByDay]);
+
+  useEffect(() => {
+    setSelectedStartDate(null);
+    setSelectedEndDate(null);
+    const anchorMonthByFilter: Record<ProductFilter, number> = {
+      all: new Date().getUTCMonth(),
+      med: 6,
+      transat: 10,
+      caraibes: 11,
+      journee: 3,
+    };
+    const anchorMonth = anchorMonthByFilter[productFilter];
+    const now = new Date();
+    setMonth(new Date(Date.UTC(now.getUTCFullYear(), anchorMonth, 1)));
+  }, [productFilter]);
 
   const handleRequestSubmit = async (request: {
     weekId: string;
@@ -282,6 +322,25 @@ export default function CharterCalendar() {
       </header>
 
       {loadError && <p className="charter-calendar__warning">{loadError}</p>}
+
+      <div className="charter-product-filter" role="tablist" aria-label="Filtrer les offres">
+        {[
+          { id: "all", label: "Tous" },
+          { id: "med", label: "Méditerranée / Corse" },
+          { id: "transat", label: "Transat" },
+          { id: "caraibes", label: "Caraïbes" },
+          { id: "journee", label: "Journées La Ciotat" },
+        ].map((item) => (
+          <button
+            key={item.id}
+            type="button"
+            className={`charter-filter-pill ${productFilter === item.id ? "is-active" : ""}`}
+            onClick={() => setProductFilter(item.id as ProductFilter)}
+          >
+            {item.label}
+          </button>
+        ))}
+      </div>
 
       <div className="charter-layout">
         <div className="charter-monthly-grid">
