@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { ChevronLeft, ChevronRight, Info } from "lucide-react";
 import {
   chooseBestDisponibiliteForDay,
@@ -126,34 +126,49 @@ export default function CalendrierDisponibilites({ isEnglish = false }: { isEngl
   const [todayAnchor] = useState(() => toUtcMonthStart(new Date()));
   const [dispos, setDispos] = useState<Disponibilite[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [pricing, setPricing] = useState<SeasonPricingConfig>(DEFAULT_SEASON_PRICING);
   const [month, setMonth] = useState(todayAnchor);
   const [selected, setSelected] = useState<Disponibilite | null>(null);
   const [filter, setFilter] = useState<Produit>("all");
   const [reservationMode, setReservationMode] = useState<ReservationMode>("cabine");
 
-  useEffect(() => {
-    const run = async () => {
-      try {
-        setLoading(true);
-        const res = await fetch(`/api/disponibilites?t=${Date.now()}`, { cache: "no-store" });
-        if (!res.ok) throw new Error("Failed to fetch disponibilites");
-        const rows: Disponibilite[] = await res.json();
-        const normalized = rows.filter((r) => Boolean(toIsoDayUtc(r.debut) && toIsoDayUtc(r.fin)));
-        const sorted = normalized.slice().sort((a, b) => new Date(a.debut).getTime() - new Date(b.debut).getTime());
-        setDispos(sorted);
-        const first = sorted.find((d) => isBookable(d));
-        if (first) {
-          setSelected(first);
-        }
-      } catch {
-        setDispos([]);
-      } finally {
-        setLoading(false);
+  const loadDisponibilites = useCallback(async () => {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 15000);
+    try {
+      setLoading(true);
+      setLoadError(null);
+      const res = await fetch(`/api/disponibilites?t=${Date.now()}`, {
+        cache: "no-store",
+        signal: controller.signal,
+      });
+      if (!res.ok) {
+        throw new Error("L'API disponibilités a répondu en erreur.");
       }
-    };
-    void run();
+      const rows: Disponibilite[] = await res.json();
+      const normalized = rows.filter((r) => Boolean(toIsoDayUtc(r.debut) && toIsoDayUtc(r.fin)));
+      const sorted = normalized.slice().sort((a, b) => new Date(a.debut).getTime() - new Date(b.debut).getTime());
+      setDispos(sorted);
+      const first = sorted.find((d) => isBookable(d));
+      setSelected((prev) => prev || first || null);
+    } catch (error: any) {
+      setDispos([]);
+      const isTimeout = error?.name === "AbortError";
+      setLoadError(
+        isTimeout
+          ? "Le chargement des disponibilités a expiré. Réessayez."
+          : "Impossible de charger les disponibilités pour le moment."
+      );
+    } finally {
+      clearTimeout(timeout);
+      setLoading(false);
+    }
   }, []);
+
+  useEffect(() => {
+    void loadDisponibilites();
+  }, [loadDisponibilites]);
 
   useEffect(() => {
     setMonth(getAnchorMonthForFilter(filter, todayAnchor));
@@ -263,6 +278,17 @@ export default function CalendrierDisponibilites({ isEnglish = false }: { isEngl
 
       {loading ? (
         <div className="py-10 text-center">{isEnglish ? "Loading..." : "Chargement..."}</div>
+      ) : loadError ? (
+        <div className="py-10 text-center space-y-3">
+          <p className="text-sm text-red-700">{isEnglish ? "Failed to load availability." : loadError}</p>
+          <button
+            onClick={() => void loadDisponibilites()}
+            className="rounded-lg px-4 py-2 text-sm font-semibold text-white"
+            style={{ backgroundColor: BRAND_DEEP }}
+          >
+            {isEnglish ? "Retry" : "Réessayer"}
+          </button>
+        </div>
       ) : (
         <div className="grid lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2 rounded-2xl border bg-white p-4 sm:p-6" style={{ borderColor: "#dac2a7" }}>

@@ -6,6 +6,20 @@ import { requireAdmin } from "../_core/authz";
 import { runBookingConsistencyAudit, syncDisponibilitesFromReservations } from "../_core/bookingRules";
 
 const router = Router();
+const SYNC_SOFT_TIMEOUT_MS = 4000;
+
+async function runSyncWithSoftTimeout(db: any) {
+  const syncPromise = syncDisponibilitesFromReservations(db).catch((error: any) => {
+    console.error("[Disponibilites] Sync failed:", error?.message || error);
+  });
+  const timeoutPromise = new Promise<void>((resolve) => {
+    setTimeout(() => {
+      console.warn(`[Disponibilites] Sync soft-timeout after ${SYNC_SOFT_TIMEOUT_MS}ms, serving current data.`);
+      resolve();
+    }, SYNC_SOFT_TIMEOUT_MS);
+  });
+  await Promise.race([syncPromise, timeoutPromise]);
+}
 
 // GET toutes les disponibilités
 router.get("/", async (req, res) => {
@@ -17,7 +31,7 @@ router.get("/", async (req, res) => {
     if (!db) {
       return res.status(500).json({ error: "Base de données non disponible" });
     }
-    await syncDisponibilitesFromReservations(db);
+    await runSyncWithSoftTimeout(db);
     const all = await db.select().from(disponibilites).orderBy(disponibilites.debut);
     res.json(all);
   } catch (error) {
@@ -35,7 +49,7 @@ router.get("/range", async (req, res) => {
     if (!db) {
       return res.status(500).json({ error: "Base de données non disponible" });
     }
-    await syncDisponibilitesFromReservations(db);
+    await runSyncWithSoftTimeout(db);
     const { debut, fin } = req.query;
     if (!debut || !fin) {
       return res.status(400).json({ error: "Paramètres debut et fin requis" });
