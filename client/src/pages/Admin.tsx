@@ -255,6 +255,11 @@ export default function Admin() {
 
       setReservations(dataResa);
       setDisponibilites(dataDispo);
+      await Promise.all(
+        (Array.isArray(dataResa) ? dataResa : []).map(async (r: Reservation) => {
+          await loadReservationDocuments(r.id);
+        })
+      );
 
       const cmap: Record<number, CabinesReservees> = {};
       dataCabines.forEach((c: CabinesReservees) => {
@@ -298,6 +303,98 @@ export default function Admin() {
     if (!confirm("Supprimer ce créneau ?")) return;
     await fetch(`/api/disponibilites/${id}`, { method: "DELETE" });
     fetchData();
+  };
+
+  const readErrorMessage = async (response: Response, fallback: string) => {
+    try {
+      const payload = await response.json();
+      return payload?.error || fallback;
+    } catch {
+      return fallback;
+    }
+  };
+
+  const loadReservationDocuments = async (reservationId: number) => {
+    try {
+      const response = await fetch(`/api/workflow/reservations/${reservationId}/documents`, { credentials: "include" });
+      if (!response.ok) return;
+      const payload = await response.json();
+      const quotes = Array.isArray(payload?.quotes) ? payload.quotes : [];
+      const contracts = Array.isArray(payload?.contracts) ? payload.contracts : [];
+      const latestQuote = quotes.slice().sort((a: any, b: any) => (b.id || 0) - (a.id || 0))[0];
+      const latestContract = contracts.slice().sort((a: any, b: any) => (b.id || 0) - (a.id || 0))[0];
+      setReservationDocsMap((prev) => ({
+        ...prev,
+        [reservationId]: {
+          quoteUrl: latestQuote?.downloadUrl || null,
+          contractUrl: latestContract?.downloadUrl || null,
+        },
+      }));
+    } catch (error) {
+      console.error(error);
+    }
+  };
+
+  const performReservationAction = async (reservationId: number, action: () => Promise<Response>, successMessage: string) => {
+    if (reservationActionLoadingId !== null) return;
+    setReservationActionLoadingId(reservationId);
+    setReservationActionMessage("");
+    try {
+      const response = await action();
+      if (!response.ok) {
+        throw new Error(await readErrorMessage(response, "Action impossible"));
+      }
+      setReservationActionMessage(successMessage);
+      await fetchData();
+    } catch (error: any) {
+      setReservationActionMessage(error?.message || "Erreur lors de l'action");
+    } finally {
+      setReservationActionLoadingId(null);
+    }
+  };
+
+  const generateQuoteAndContract = async (reservationId: number) => {
+    if (reservationActionLoadingId !== null) return;
+    setReservationActionLoadingId(reservationId);
+    setReservationActionMessage("");
+    try {
+      const response = await fetch(`/api/workflow/reservations/${reservationId}/owner-validate`, {
+        method: "POST",
+        credentials: "include",
+      });
+      if (!response.ok) {
+        throw new Error(await readErrorMessage(response, "Génération devis/contrat impossible"));
+      }
+      const payload = await response.json();
+      const quoteUrl = payload?.quoteUrl;
+      const contractUrl = payload?.contractUrl;
+      if (!quoteUrl || !contractUrl) {
+        throw new Error("Le serveur n'a pas renvoyé les deux documents (devis + contrat).");
+      }
+      window.open(quoteUrl, "_blank", "noopener,noreferrer");
+      window.open(contractUrl, "_blank", "noopener,noreferrer");
+      setReservationActionMessage("Devis et contrat générés et ouverts.");
+      await fetchData();
+      await loadReservationDocuments(reservationId);
+    } catch (error: any) {
+      setReservationActionMessage(error?.message || "Erreur lors de la génération devis/contrat");
+    } finally {
+      setReservationActionLoadingId(null);
+    }
+  };
+
+  const getWorkflowBadge = (workflowStatut?: Reservation["workflowStatut"]) => {
+    const ws = workflowStatut || "demande";
+    if (ws === "solde_confirme") {
+      return { label: "Contrat signé + solde versé", className: "bg-emerald-100 text-emerald-700" };
+    }
+    if (ws === "acompte_confirme") {
+      return { label: "Validé (acompte reçu)", className: "bg-emerald-100 text-emerald-700" };
+    }
+    if (ws === "validee_owner" || ws === "contrat_envoye" || ws === "contrat_signe") {
+      return { label: "Devis/contrat générés", className: "bg-blue-100 text-blue-700" };
+    }
+    return { label: "En attente de devis", className: "bg-amber-100 text-amber-700" };
   };
 
   const getStatutColor = (s: string) => {
@@ -550,10 +647,106 @@ export default function Admin() {
                       <span className={`px-2 py-1 rounded-full text-xs font-semibold ${getRequestStatusColor(reservation.requestStatus)}`}>
                         {getRequestStatusLabel(reservation.requestStatus)}
                       </span>
+                      <div className="mt-2">
+                        <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-semibold ${getWorkflowBadge(reservation.workflowStatut).className}`}>
+                          {["acompte_confirme", "solde_confirme"].includes(reservation.workflowStatut || "") ? (
+                            <Check className="w-3 h-3" />
+                          ) : reservation.workflowStatut === "validee_owner" ||
+                            reservation.workflowStatut === "contrat_envoye" ||
+                            reservation.workflowStatut === "contrat_signe" ? (
+                            <FileText className="w-3 h-3" />
+                          ) : (
+                            <Clock className="w-3 h-3" />
+                          )}
+                          {getWorkflowBadge(reservation.workflowStatut).label}
+                        </span>
+                      </div>
                       <p className="text-xs text-slate-600 mt-2">
                         {(reservation.montantTotal / 100).toLocaleString("fr-FR")} €
                       </p>
                     </div>
+                  </div>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <button
+                      onClick={() => generateQuoteAndContract(reservation.id)}
+                      disabled={reservationActionLoadingId === reservation.id}
+                      className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-blue-200 text-blue-700 bg-blue-50 hover:bg-blue-100 disabled:opacity-60"
+                      title="Générer devis + contrat"
+                    >
+                      Devis + contrat
+                    </button>
+                    <button
+                      onClick={() =>
+                        performReservationAction(
+                          reservation.id,
+                          () =>
+                            fetch(`/api/workflow/reservations/${reservation.id}/send-contract`, {
+                              method: "POST",
+                              credentials: "include",
+                            }),
+                          "Contrat envoyé au client."
+                        )
+                      }
+                      disabled={reservationActionLoadingId === reservation.id}
+                      className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-slate-300 text-slate-700 hover:bg-slate-50 disabled:opacity-60"
+                      title="Envoyer le contrat au client"
+                    >
+                      Envoyer contrat
+                    </button>
+                    <button
+                      onClick={() =>
+                        performReservationAction(
+                          reservation.id,
+                          () =>
+                            fetch(`/api/workflow/reservations/${reservation.id}/acompte-received`, {
+                              method: "POST",
+                              credentials: "include",
+                            }),
+                          "Acompte confirmé."
+                        )
+                      }
+                      disabled={reservationActionLoadingId === reservation.id}
+                      className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-emerald-200 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 disabled:opacity-60"
+                      title="Confirmer acompte reçu"
+                    >
+                      Acompte reçu
+                    </button>
+                    <button
+                      onClick={() =>
+                        performReservationAction(
+                          reservation.id,
+                          () =>
+                            fetch(`/api/workflow/reservations/${reservation.id}/contract-signed`, {
+                              method: "POST",
+                              credentials: "include",
+                            }),
+                          "Contrat marqué comme signé."
+                        )
+                      }
+                      disabled={reservationActionLoadingId === reservation.id}
+                      className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-indigo-200 text-indigo-700 bg-indigo-50 hover:bg-indigo-100 disabled:opacity-60"
+                      title="Valider contrat signé"
+                    >
+                      Contrat signé
+                    </button>
+                    <button
+                      onClick={() =>
+                        performReservationAction(
+                          reservation.id,
+                          () =>
+                            fetch(`/api/workflow/reservations/${reservation.id}/solde-received`, {
+                              method: "POST",
+                              credentials: "include",
+                            }),
+                          "Solde confirmé."
+                        )
+                      }
+                      disabled={reservationActionLoadingId === reservation.id}
+                      className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-purple-200 text-purple-700 bg-purple-50 hover:bg-purple-100 disabled:opacity-60"
+                      title="Confirmer solde reçu"
+                    >
+                      Solde reçu
+                    </button>
                   </div>
                 </div>
               ))}
