@@ -38,11 +38,6 @@ function isHighSeasonMonth(month: number) {
   return month === 2 || month === 7 || month === 8 || month === 12;
 }
 
-function isLaCiotatDestination(destination?: string | null) {
-  if (!destination) return true;
-  return destination.toLowerCase().includes("ciotat");
-}
-
 function isTransatDestination(destination?: string | null) {
   return String(destination || "").toLowerCase().includes("transat");
 }
@@ -94,9 +89,6 @@ export function validateReservationPolicy(input: {
     }
     if (input.typeReservation && input.typeReservation !== "bateau_entier") {
       return { ok: false, reason: "En avril/mai, la réservation est uniquement en mode privatif." };
-    }
-    if (!isLaCiotatDestination(input.destination)) {
-      return { ok: false, reason: "En avril/mai, le départ est uniquement à La Ciotat." };
     }
     return { ok: true, policy: "april_may_private_daytrip" };
   }

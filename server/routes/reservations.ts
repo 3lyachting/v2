@@ -50,6 +50,55 @@ function isMissingBookingOriginColumnError(error: unknown) {
   return message.includes("bookingorigin") || message.includes("booking_origin");
 }
 
+async function insertReservationWithoutBookingOrigin(tx: any, payload: any) {
+  const result = await tx.execute(sql`
+    insert into "reservations" (
+      "nomClient",
+      "prenomClient",
+      "emailClient",
+      "customerId",
+      "telClient",
+      "nbPersonnes",
+      "disponibiliteId",
+      "formule",
+      "typeReservation",
+      "nbCabines",
+      "destination",
+      "dateDebut",
+      "dateFin",
+      "montantTotal",
+      "typePaiement",
+      "montantPaye",
+      "statutPaiement",
+      "requestStatus",
+      "message"
+    ) values (
+      ${payload.nomClient},
+      ${payload.prenomClient},
+      ${payload.emailClient},
+      ${payload.customerId},
+      ${payload.telClient},
+      ${payload.nbPersonnes},
+      ${payload.disponibiliteId},
+      ${payload.formule},
+      ${payload.typeReservation},
+      ${payload.nbCabines},
+      ${payload.destination},
+      ${payload.dateDebut},
+      ${payload.dateFin},
+      ${payload.montantTotal},
+      ${payload.typePaiement},
+      ${payload.montantPaye},
+      ${payload.statutPaiement},
+      ${payload.requestStatus},
+      ${payload.message}
+    )
+    returning "id"
+  `);
+  const row = (result as any)?.rows?.[0];
+  return row ? Number(row.id) : undefined;
+}
+
 async function supportsBookingOriginColumn(db: any) {
   if (bookingOriginColumnAvailable !== null) return bookingOriginColumnAvailable;
   try {
@@ -351,10 +400,11 @@ router.post("/request", async (req, res) => {
       try {
         inserted = await tx.insert(reservations).values(baseInsertPayload).returning({ id: reservations.id });
       } catch (insertError: any) {
-        if (!isMissingBookingOriginColumnError(insertError) || !("bookingOrigin" in baseInsertPayload)) throw insertError;
+        if (!isMissingBookingOriginColumnError(insertError)) throw insertError;
         bookingOriginColumnAvailable = false;
         const { bookingOrigin: _ignored, ...fallbackPayload } = baseInsertPayload;
-        inserted = await tx.insert(reservations).values(fallbackPayload).returning({ id: reservations.id });
+        const fallbackId = await insertReservationWithoutBookingOrigin(tx, fallbackPayload);
+        inserted = [{ id: fallbackId }];
       }
       reservationId = inserted[0]?.id;
       if (parsedDisponibiliteId) await refreshDisponibiliteBookingState(tx, parsedDisponibiliteId);

@@ -49,12 +49,17 @@ router.post("/test-smtp", requireAdmin, async (_req, res) => {
 
 router.post("/", async (req, res) => {
   try {
-    const { nom, email, tel, message, formule } = req.body as {
+    const { nom, email, tel, message, formule, dateDebut, dateFin, nbPassagers, destination, typeDemande } = req.body as {
       nom?: string;
       email?: string;
       tel?: string;
       message?: string;
       formule?: string;
+      dateDebut?: string;
+      dateFin?: string;
+      nbPassagers?: string | number;
+      destination?: string;
+      typeDemande?: string;
     };
 
     if (!required(nom) || !required(email) || !required(message)) {
@@ -85,6 +90,11 @@ router.post("/", async (req, res) => {
 
     const safeTel = required(tel) ? tel : "Non renseigné";
     const safeFormule = required(formule) ? formule : "Non précisée";
+    const safeDateDebut = required(dateDebut) ? dateDebut : "Non renseignee";
+    const safeDateFin = required(dateFin) ? dateFin : "Non renseignee";
+    const safeNbPassagers = required(String(nbPassagers ?? "")) ? String(nbPassagers) : "Non renseigne";
+    const safeDestination = required(destination) ? destination : "Non renseignee";
+    const safeTypeDemande = required(typeDemande) ? typeDemande : "Non renseigne";
 
     await transporter.sendMail({
       from: fromEmail,
@@ -96,6 +106,11 @@ router.post("/", async (req, res) => {
         `Email: ${email.trim()}`,
         `Téléphone: ${safeTel}`,
         `Formule: ${safeFormule}`,
+        `Date début: ${safeDateDebut}`,
+        `Date fin: ${safeDateFin}`,
+        `Nb passagers: ${safeNbPassagers}`,
+        `Destination: ${safeDestination}`,
+        `Type de demande: ${safeTypeDemande}`,
         "",
         "Message:",
         message.trim(),
@@ -106,6 +121,11 @@ router.post("/", async (req, res) => {
         <p><strong>Email:</strong> ${email.trim()}</p>
         <p><strong>Téléphone:</strong> ${safeTel}</p>
         <p><strong>Formule:</strong> ${safeFormule}</p>
+        <p><strong>Date début:</strong> ${safeDateDebut}</p>
+        <p><strong>Date fin:</strong> ${safeDateFin}</p>
+        <p><strong>Nb passagers:</strong> ${safeNbPassagers}</p>
+        <p><strong>Destination:</strong> ${safeDestination}</p>
+        <p><strong>Type de demande:</strong> ${safeTypeDemande}</p>
         <p><strong>Message:</strong><br/>${message.trim().replace(/\n/g, "<br/>")}</p>
       `,
     });
