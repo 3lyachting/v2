@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { CharterBookingPanel } from "./CharterBookingPanel";
 import { CharterRequestModal } from "./CharterRequestModal";
-import type { BookingStatus, BookingWeek } from "./bookingTypes";
-import { STATUS_LABELS_FR } from "./bookingUtils";
+import type { BookingRangeSelection, BookingStatus, BookingWeek } from "./bookingTypes";
+import { STATUS_LABELS_FR, canBookWeek } from "./bookingUtils";
 import "./charter-calendar.css";
 
 type ApiDisponibilite = {
@@ -72,14 +72,14 @@ export default function CharterCalendar() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  const [selectedWeekId, setSelectedWeekId] = useState<string | null>(null);
+  const [selectedStartDate, setSelectedStartDate] = useState<string | null>(null);
+  const [selectedEndDate, setSelectedEndDate] = useState<string | null>(null);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [month, setMonth] = useState(() => {
     const now = new Date();
     return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
   });
 
-  const selectedWeek = useMemo(() => weeks.find((week) => week.id === selectedWeekId) ?? null, [selectedWeekId, weeks]);
   const weeksByDay = useMemo(() => {
     const map = new Map<string, BookingWeek[]>();
     for (const week of weeks) {
@@ -107,12 +107,16 @@ export default function CharterCalendar() {
         .filter((week): week is BookingWeek => Boolean(week))
         .sort((a, b) => a.startDate.localeCompare(b.startDate));
       setWeeks(mapped);
-      setSelectedWeekId((prev) => prev ?? mapped[0]?.id ?? null);
+      if (!selectedStartDate && mapped[0]) {
+        setSelectedStartDate(mapped[0].startDate);
+      }
     } catch {
       if (DEV_FALLBACK_ENABLED) {
         const fallback = (await import("./bookingMockData")).bookingInitialWeeks;
         setWeeks(fallback);
-        setSelectedWeekId((prev) => prev ?? fallback[0]?.id ?? null);
+        if (!selectedStartDate && fallback[0]) {
+          setSelectedStartDate(fallback[0].startDate);
+        }
         setLoadError("API indisponible: donnees de developpement utilisees (fallback explicite).");
       } else {
         setWeeks([]);
@@ -127,6 +131,43 @@ export default function CharterCalendar() {
     void loadWeeksFromApi();
   }, []);
 
+  const getDayWeek = (date: Date) => {
+    const iso = date.toISOString().slice(0, 10);
+    const candidates = weeksByDay.get(iso) || [];
+    if (!candidates.length) return null;
+    const order: BookingStatus[] = ["available", "option", "partial", "reserved", "private", "blocked"];
+    return [...candidates].sort((a, b) => order.indexOf(a.status) - order.indexOf(b.status))[0];
+  };
+
+  const selectedRange = useMemo<BookingRangeSelection | null>(() => {
+    if (!selectedStartDate || !selectedEndDate) return null;
+    const start = new Date(`${selectedStartDate}T00:00:00.000Z`);
+    const end = new Date(`${selectedEndDate}T00:00:00.000Z`);
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return null;
+    const from = start <= end ? start : end;
+    const to = end >= start ? end : start;
+    const days: BookingWeek[] = [];
+    const cursor = new Date(from);
+    while (cursor <= to) {
+      const dayWeek = getDayWeek(cursor);
+      if (!dayWeek || !canBookWeek(dayWeek)) return null;
+      days.push(dayWeek);
+      cursor.setUTCDate(cursor.getUTCDate() + 1);
+    }
+    const startIso = from.toISOString().slice(0, 10);
+    const endIso = to.toISOString().slice(0, 10);
+    const billingDays = Math.max(1, Math.round((to.getTime() - from.getTime()) / (24 * 60 * 60 * 1000)));
+    const uniqueDispoIds = Array.from(new Set(days.map((day) => day.disponibiliteId).filter((id): id is number => Boolean(id))));
+    return {
+      startDate: startIso,
+      endDate: endIso,
+      billingDays,
+      days,
+      disponibiliteId: uniqueDispoIds.length === 1 ? uniqueDispoIds[0] : undefined,
+      destination: days[0]?.internalNote || "Croisiere Sabine",
+    };
+  }, [selectedEndDate, selectedStartDate, weeksByDay]);
+
   const handleRequestSubmit = async (request: {
     weekId: string;
     disponibiliteId?: number;
@@ -140,8 +181,7 @@ export default function CharterCalendar() {
   }) => {
     setSubmitting(true);
     setSubmitError(null);
-    const week = weeks.find((item) => item.id === request.weekId);
-    if (!week) return;
+    if (!selectedRange) return;
     const amountInCents = Math.max(0, Math.round(request.estimatedTotal * 100));
     const payload = {
       nomClient: request.fullName,
@@ -149,14 +189,17 @@ export default function CharterCalendar() {
       telClient: request.phone || undefined,
       nbPersonnes: request.peopleCount,
       formule: "semaine",
-      destination: week.internalNote || "Croisiere Sabine",
-      dateDebut: week.startDate,
-      dateFin: week.endDate,
+      destination: selectedRange.destination || "Croisiere Sabine",
+      dateDebut: selectedRange.startDate,
+      dateFin: selectedRange.endDate,
       montantTotal: amountInCents,
       typeReservation: request.mode === "private" ? "bateau_entier" : "cabine",
-      nbCabines: request.mode === "private" ? week.totalCabins : Math.max(1, Math.ceil(request.peopleCount / 2)),
+      nbCabines:
+        request.mode === "private"
+          ? Math.max(1, selectedRange.days[0]?.totalCabins || 4)
+          : Math.max(1, Math.ceil(request.peopleCount / 2)),
       message: request.message || undefined,
-      disponibiliteId: request.disponibiliteId,
+      disponibiliteId: selectedRange.disponibiliteId ?? request.disponibiliteId,
     };
     try {
       const response = await fetch("/api/reservations/request", {
@@ -204,12 +247,27 @@ export default function CharterCalendar() {
   }
 
   const getStatusClass = (status: BookingStatus) => `charter-status charter-status--${status}`;
-  const getDayWeek = (date: Date) => {
+
+  const handleDaySelect = (date: Date) => {
     const iso = date.toISOString().slice(0, 10);
-    const candidates = weeksByDay.get(iso) || [];
-    if (!candidates.length) return null;
-    const order: BookingStatus[] = ["available", "option", "partial", "reserved", "private", "blocked"];
-    return [...candidates].sort((a, b) => order.indexOf(a.status) - order.indexOf(b.status))[0];
+    const week = getDayWeek(date);
+    if (!week || !canBookWeek(week)) return;
+    if (!selectedStartDate || (selectedStartDate && selectedEndDate)) {
+      setSelectedStartDate(iso);
+      setSelectedEndDate(null);
+      return;
+    }
+    if (iso === selectedStartDate) {
+      setSelectedStartDate(iso);
+      setSelectedEndDate(null);
+      return;
+    }
+    if (iso < selectedStartDate) {
+      setSelectedStartDate(iso);
+      setSelectedEndDate(selectedStartDate);
+    } else {
+      setSelectedEndDate(iso);
+    }
   };
 
   const selectedMonthLabel = `${MONTHS_FR[monthIndex]} ${year}`;
@@ -244,16 +302,20 @@ export default function CharterCalendar() {
             {monthDays.map((day, index) => {
               if (!day) return <div key={`empty-${index}`} className="charter-day charter-day--empty" />;
               const week = getDayWeek(day);
-              const isSelected = Boolean(week && selectedWeekId === week.id);
+              const dayIso = day.toISOString().slice(0, 10);
+              const rangeStart = selectedStartDate && selectedEndDate ? (selectedStartDate <= selectedEndDate ? selectedStartDate : selectedEndDate) : selectedStartDate;
+              const rangeEnd = selectedStartDate && selectedEndDate ? (selectedStartDate >= selectedEndDate ? selectedStartDate : selectedEndDate) : selectedEndDate;
+              const isStart = selectedStartDate === dayIso;
+              const isEnd = selectedEndDate === dayIso;
+              const inRange = Boolean(rangeStart && rangeEnd && dayIso >= rangeStart && dayIso <= rangeEnd);
+              const isSelected = isStart || isEnd || inRange;
               return (
                 <button
                   key={day.toISOString()}
                   type="button"
                   className={`charter-day ${isSelected ? "is-selected" : ""}`}
                   onClick={() => {
-                    if (!week) return;
-                    setSelectedWeekId(week.id);
-                    setMobileOpen(true);
+                    handleDaySelect(day);
                   }}
                 >
                   <span className="charter-day__number">{day.getUTCDate()}</span>
@@ -269,19 +331,19 @@ export default function CharterCalendar() {
         </div>
 
         <aside className="charter-sidebar" aria-label="Panneau de demande">
-          <CharterBookingPanel week={selectedWeek} onSubmit={handleRequestSubmit} submitting={submitting} submitError={submitError} />
+          <CharterBookingPanel selection={selectedRange} onSubmit={handleRequestSubmit} submitting={submitting} submitError={submitError} />
         </aside>
       </div>
 
       <div className="charter-mobile-cta">
-        <button type="button" className="charter-btn charter-btn--primary" onClick={() => setMobileOpen(true)} disabled={!selectedWeek}>
+        <button type="button" className="charter-btn charter-btn--primary" onClick={() => setMobileOpen(true)} disabled={!selectedRange}>
           Ouvrir la demande mobile
         </button>
       </div>
 
       <CharterRequestModal
         open={mobileOpen}
-        week={selectedWeek}
+        selection={selectedRange}
         onClose={() => setMobileOpen(false)}
         onSubmit={handleRequestSubmit}
         submitting={submitting}

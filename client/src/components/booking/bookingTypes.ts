@@ -34,3 +34,12 @@ export interface BookingRequest {
   createdAt: string;
   status: BookingRequestStatus;
 }
+
+export interface BookingRangeSelection {
+  startDate: string;
+  endDate: string;
+  billingDays: number;
+  days: BookingWeek[];
+  disponibiliteId?: number;
+  destination?: string;
+}

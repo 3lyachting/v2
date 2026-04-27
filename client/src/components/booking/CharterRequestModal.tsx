@@ -1,16 +1,16 @@
-import type { BookingRequest, BookingWeek } from "./bookingTypes";
+import type { BookingRangeSelection, BookingRequest } from "./bookingTypes";
 import { CharterBookingPanel } from "./CharterBookingPanel";
 
 interface CharterRequestModalProps {
   open: boolean;
-  week: BookingWeek | null;
+  selection: BookingRangeSelection | null;
   onClose: () => void;
   onSubmit: (request: Omit<BookingRequest, "id" | "createdAt" | "status">) => Promise<void>;
   submitting?: boolean;
   submitError?: string | null;
 }
 
-export function CharterRequestModal({ open, week, onClose, onSubmit, submitting = false, submitError = null }: CharterRequestModalProps) {
+export function CharterRequestModal({ open, selection, onClose, onSubmit, submitting = false, submitError = null }: CharterRequestModalProps) {
   if (!open) return null;
 
   return (
@@ -19,7 +19,7 @@ export function CharterRequestModal({ open, week, onClose, onSubmit, submitting 
         <button type="button" className="charter-modal-close" onClick={onClose} aria-label="Fermer la fenêtre">
           Fermer
         </button>
-        <CharterBookingPanel week={week} onSubmit={onSubmit} submitting={submitting} submitError={submitError} />
+        <CharterBookingPanel selection={selection} onSubmit={onSubmit} submitting={submitting} submitError={submitError} />
       </div>
     </div>
   );

@@ -1,4 +1,4 @@
-import type { BookingMode, BookingRequest, BookingStatus, BookingWeek } from "./bookingTypes";
+import type { BookingMode, BookingRangeSelection, BookingRequest, BookingStatus, BookingWeek } from "./bookingTypes";
 
 const dateFormatter = new Intl.DateTimeFormat("fr-FR", {
   day: "numeric",
@@ -70,6 +70,11 @@ export function validateBookingRules(week: BookingWeek, mode: BookingMode, peopl
 
 export function calculateEstimatedTotal(week: BookingWeek, mode: BookingMode, peopleCount: number): number {
   return mode === "private" ? week.pricePrivate : week.pricePerPerson * peopleCount;
+}
+
+export function calculateEstimatedRangeTotal(selection: BookingRangeSelection, mode: BookingMode, peopleCount: number): number {
+  const dailySum = selection.days.reduce((acc, day) => acc + (mode === "private" ? day.pricePrivate : day.pricePerPerson * peopleCount), 0);
+  return Math.max(0, Math.round(dailySum));
 }
 
 export function applyAcceptedRequest(week: BookingWeek, request: BookingRequest): BookingWeek {
