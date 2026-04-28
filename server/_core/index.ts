@@ -17,6 +17,7 @@ import customerPortalRouter from "../routes/customerPortal";
 import adminDocumentsRouter from "../routes/adminDocuments";
 import backofficeOpsRouter from "../routes/backofficeOps";
 import charterSlotsRouter from "../routes/charterSlots";
+import mollieRouter from "../routes/mollie";
 import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
 
@@ -79,6 +80,7 @@ async function startServer() {
   app.use("/api/admin-documents", adminDocumentsRouter);
   app.use("/api/backoffice-ops", backofficeOpsRouter);
   app.use("/api/charter-slots", charterSlotsRouter);
+  app.use("/api/mollie", mollieRouter);
   // tRPC API
   app.use(
     "/api/trpc",

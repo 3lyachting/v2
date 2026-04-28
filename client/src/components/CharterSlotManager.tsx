@@ -32,6 +32,7 @@ type ReservationRow = {
   requestStatus?: string | null;
   bookingOrigin?: string | null;
   disponibiliteId?: number | null;
+  statutPaiement?: string | null;
 };
 
 function toInputDateFromApi(iso: string) {
@@ -45,6 +46,7 @@ export default function CharterSlotManager() {
   const [message, setMessage] = useState("");
   const [saving, setSaving] = useState(false);
   const [savingReservation, setSavingReservation] = useState(false);
+  const [creatingPaymentForId, setCreatingPaymentForId] = useState<number | null>(null);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [manualReservation, setManualReservation] = useState<{
     slotId: string;
@@ -237,6 +239,31 @@ export default function CharterSlotManager() {
     }
   };
 
+  const createMolliePaymentLink = async (reservationId: number) => {
+    try {
+      setCreatingPaymentForId(reservationId);
+      setMessage("");
+      const res = await fetch(apiUrl("/api/mollie/create-payment-link"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ reservationId }),
+      });
+      const data = await handleApiResponse<{ checkoutUrl: string | null }>(res);
+      if (data?.checkoutUrl) {
+        window.open(data.checkoutUrl, "_blank", "noopener,noreferrer");
+        setMessage("Lien de paiement Mollie généré et ouvert.");
+      } else {
+        setMessage("Lien généré, mais URL checkout absente.");
+      }
+      await load();
+    } catch (e: any) {
+      setMessage(e?.message || "Erreur création lien de paiement.");
+    } finally {
+      setCreatingPaymentForId(null);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm" style={{ borderColor: "#d7e3e8" }}>
@@ -345,13 +372,15 @@ export default function CharterSlotManager() {
               <p className="mt-3 text-sm text-slate-500">Aucune réservation.</p>
             ) : (
               <div className="mt-3 overflow-x-auto">
-                <table className="w-full min-w-[520px] text-left text-sm">
+                <table className="w-full min-w-[680px] text-left text-sm">
                   <thead>
                     <tr className="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-500">
                       <th className="py-2 pr-2">Client</th>
                       <th className="py-2 pr-2">Période</th>
                       <th className="py-2 pr-2">Type</th>
+                      <th className="py-2 pr-2">Paiement</th>
                       <th className="py-2 pr-2">Total</th>
+                      <th className="py-2 pr-2" />
                     </tr>
                   </thead>
                   <tbody>
@@ -365,8 +394,19 @@ export default function CharterSlotManager() {
                           {String(r.dateDebut).slice(0, 10)} <span className="text-slate-400">→</span> {String(r.dateFin).slice(0, 10)}
                         </td>
                         <td className="py-2 pr-2 text-slate-700">{r.typeReservation}</td>
+                        <td className="py-2 pr-2 text-slate-700">{r.statutPaiement || "en_attente"}</td>
                         <td className="py-2 pr-2 font-semibold text-slate-800">
                           {(Number(r.montantTotal || 0) / 100).toLocaleString("fr-FR")} €
+                        </td>
+                        <td className="py-2 pr-2 text-right">
+                          <button
+                            type="button"
+                            onClick={() => createMolliePaymentLink(r.id)}
+                            disabled={creatingPaymentForId === r.id}
+                            className="rounded-md border border-slate-200 px-2 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                          >
+                            {creatingPaymentForId === r.id ? "Création..." : "Lien paiement"}
+                          </button>
                         </td>
                       </tr>
                     ))}
