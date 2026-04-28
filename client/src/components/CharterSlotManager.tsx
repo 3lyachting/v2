@@ -81,6 +81,7 @@ export default function CharterSlotManager() {
   const [savingReservation, setSavingReservation] = useState(false);
   const [creatingPaymentForId, setCreatingPaymentForId] = useState<number | null>(null);
   const [sendingProposalForId, setSendingProposalForId] = useState<number | null>(null);
+  const [deletingReservationId, setDeletingReservationId] = useState<number | null>(null);
   const [editingReservation, setEditingReservation] = useState<ReservationEditState | null>(null);
   const [savingReservationEdit, setSavingReservationEdit] = useState(false);
   const [reservationSearch, setReservationSearch] = useState("");
@@ -326,12 +327,9 @@ export default function CharterSlotManager() {
         credentials: "include",
         body: JSON.stringify({ reservationId }),
       });
-      const paymentData = await handleApiResponse<{ checkoutUrl: string | null }>(paymentRes);
-      if (paymentData?.checkoutUrl) {
-        window.open(paymentData.checkoutUrl, "_blank", "noopener,noreferrer");
-      }
+      await handleApiResponse(paymentRes);
 
-      setMessage("Proposition envoyée : devis + contrat générés/envoyés, lien de paiement créé.");
+      setMessage("Proposition envoyée : devis + contrat envoyés, lien de paiement créé pour le client.");
       await load();
     } catch (e: any) {
       setMessage(e?.message || "Erreur lors de l'envoi de la proposition.");
@@ -399,6 +397,25 @@ export default function CharterSlotManager() {
       setMessage(e?.message || "Erreur mise à jour réservation.");
     } finally {
       setSavingReservationEdit(false);
+    }
+  };
+
+  const removeReservation = async (reservationId: number) => {
+    if (!confirm("Supprimer cette réservation ? Cette action est irréversible.")) return;
+    try {
+      setDeletingReservationId(reservationId);
+      setMessage("");
+      const res = await fetch(apiUrl(`/api/reservations/${reservationId}`), {
+        method: "DELETE",
+        credentials: "include",
+      });
+      await handleApiResponse(res);
+      setMessage("Réservation supprimée.");
+      await load();
+    } catch (e: any) {
+      setMessage(e?.message || "Erreur suppression réservation.");
+    } finally {
+      setDeletingReservationId(null);
     }
   };
 
@@ -689,6 +706,14 @@ export default function CharterSlotManager() {
                             className="rounded-md border border-slate-200 px-2 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
                           >
                             {creatingPaymentForId === r.id ? "Création..." : "Lien paiement"}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => removeReservation(r.id)}
+                            disabled={deletingReservationId === r.id}
+                            className="rounded-md border border-rose-200 bg-rose-50 px-2 py-1 text-xs font-semibold text-rose-700 hover:bg-rose-100 disabled:opacity-50"
+                          >
+                            {deletingReservationId === r.id ? "Suppression..." : "Supprimer"}
                           </button>
                         </td>
                       </tr>

@@ -13,7 +13,7 @@ import {
   reservationStatusHistory,
   esignEvents,
 } from "../../drizzle/schema";
-import { buildInvoicePdf, buildQuoteContractPdf } from "../_core/commercialDocs";
+import { buildInvoicePdf, buildQuotePdf, buildContractPdf } from "../_core/commercialDocs";
 import { dispatchEsign } from "../_core/esign";
 import { storageGetSignedUrl } from "../storage";
 import {
@@ -75,10 +75,17 @@ router.post("/reservations/:id/owner-validate", requireAdmin, async (req, res) =
 
     const quoteNumber = buildQuoteNumber(reservationId);
     const contractNumber = buildContractNumber(reservationId);
-    const combinedPdf = await buildQuoteContractPdf(r, quoteNumber, contractNumber, optionExpiresAt);
-    const combinedFile = await storagePut(
-      `commercial/combined/devis-contrat-${reservationId}.pdf`,
-      combinedPdf,
+    const quotePdf = await buildQuotePdf(r, quoteNumber, optionExpiresAt);
+    const quoteFile = await storagePut(
+      `commercial/quotes/devis-${reservationId}.pdf`,
+      quotePdf,
+      "application/pdf"
+    );
+
+    const contractPdf = await buildContractPdf(r, contractNumber);
+    const contractFile = await storagePut(
+      `commercial/contracts/contrat-${reservationId}.pdf`,
+      contractPdf,
       "application/pdf"
     );
 
@@ -92,7 +99,7 @@ router.post("/reservations/:id/owner-validate", requireAdmin, async (req, res) =
           quoteNumber,
           totalAmount: r.montantTotal,
           currency: "EUR",
-          pdfStorageKey: combinedFile.key,
+          pdfStorageKey: quoteFile.key,
         })
         .where(eq(quotes.id, existingQuote.id));
       quoteId = existingQuote.id;
@@ -104,7 +111,7 @@ router.post("/reservations/:id/owner-validate", requireAdmin, async (req, res) =
           quoteNumber,
           totalAmount: r.montantTotal,
           currency: "EUR",
-          pdfStorageKey: combinedFile.key,
+          pdfStorageKey: quoteFile.key,
         })
         .returning({ id: quotes.id });
       quoteId = quoteInsert[0]?.id ?? null;
@@ -119,13 +126,13 @@ router.post("/reservations/:id/owner-validate", requireAdmin, async (req, res) =
         .set({
           quoteId,
           contractNumber,
-          pdfStorageKey: combinedFile.key,
+          pdfStorageKey: contractFile.key,
         })
         .where(eq(contracts.id, existingContract.id));
       createdContract = {
         id: existingContract.id,
         contractNumber,
-        pdfStorageKey: combinedFile.key,
+        pdfStorageKey: contractFile.key,
       };
     } else {
       const contractInsert = await db
@@ -134,7 +141,7 @@ router.post("/reservations/:id/owner-validate", requireAdmin, async (req, res) =
           reservationId,
           quoteId,
           contractNumber,
-          pdfStorageKey: combinedFile.key,
+          pdfStorageKey: contractFile.key,
           esignProvider: "other",
         })
         .returning({ id: contracts.id, contractNumber: contracts.contractNumber, pdfStorageKey: contracts.pdfStorageKey });
@@ -162,8 +169,8 @@ router.post("/reservations/:id/owner-validate", requireAdmin, async (req, res) =
       soldeMontant,
       soldeEcheanceAt,
       optionExpiresAt,
-      quoteUrl: combinedFile.url,
-      contractUrl: combinedFile.url,
+      quoteUrl: quoteFile.url,
+      contractUrl: contractFile.url,
       contractId: createdContract.id,
     });
   } catch (error: any) {
