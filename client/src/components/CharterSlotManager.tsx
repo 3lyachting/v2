@@ -119,6 +119,9 @@ export default function CharterSlotManager() {
   const [paymentFilter, setPaymentFilter] = useState<"all" | "en_attente" | "paye" | "echec" | "rembourse">("all");
   const [workflowFilter, setWorkflowFilter] = useState<"all" | "demande" | "validee_owner" | "contrat_envoye" | "contrat_signe" | "acompte_confirme" | "solde_confirme">("all");
   const [calendarMode, setCalendarMode] = useState<"list" | "calendar">("calendar");
+  const [bulkMonth, setBulkMonth] = useState("");
+  const [bulkProduct, setBulkProduct] = useState<CharterProductCode>("journee");
+  const [generatingMonth, setGeneratingMonth] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [manualReservation, setManualReservation] = useState<{
     slotId: string;
@@ -245,6 +248,56 @@ export default function CharterSlotManager() {
       await load();
     } catch (e: any) {
       setMessage(e?.message || "Erreur suppression.");
+    }
+  };
+
+  const generateMonthDailySlots = async () => {
+    try {
+      if (!/^\d{4}-\d{2}$/.test(bulkMonth)) {
+        setMessage("Choisissez un mois valide (AAAA-MM).");
+        return;
+      }
+      setGeneratingMonth(true);
+      setMessage("");
+      const [year, month] = bulkMonth.split("-").map(Number);
+      const daysInMonth = new Date(year, month, 0).getDate();
+      let created = 0;
+      let skipped = 0;
+
+      for (let day = 1; day <= daysInMonth; day += 1) {
+        const iso = `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+        const res = await fetch(apiUrl("/api/charter-slots"), {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({
+            product: bulkProduct,
+            debut: iso,
+            fin: iso,
+            active: true,
+            note: `Génération mensuelle ${bulkMonth}`,
+            publicNote: null,
+          }),
+        });
+        if (res.ok) {
+          created += 1;
+          continue;
+        }
+        const payload = await res.json().catch(() => ({}));
+        const text = String(payload?.error || payload?.message || "");
+        if (res.status === 409 || text.toLowerCase().includes("existe") || text.toLowerCase().includes("duplicate")) {
+          skipped += 1;
+          continue;
+        }
+        throw new Error(text || `Erreur création pour ${iso}`);
+      }
+
+      setMessage(`Génération terminée (${bulkMonth}) : ${created} créé(s), ${skipped} déjà existant(s).`);
+      await load();
+    } catch (e: any) {
+      setMessage(e?.message || "Erreur génération mensuelle.");
+    } finally {
+      setGeneratingMonth(false);
     }
   };
 
@@ -665,6 +718,39 @@ export default function CharterSlotManager() {
 
       {calendarMode === "list" && (
       <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm" style={{ borderColor: "#d7e3e8" }}>
+        <div className="mb-4 rounded-xl border border-slate-200 bg-slate-50 p-3">
+          <p className="text-xs font-bold uppercase tracking-wide text-slate-600">Outil rapide</p>
+          <div className="mt-2 grid gap-2 sm:grid-cols-[1fr_1fr_auto]">
+            <input
+              type="month"
+              className="rounded-lg border border-slate-200 px-3 py-2 text-sm"
+              value={bulkMonth}
+              onChange={(e) => setBulkMonth(e.target.value)}
+            />
+            <select
+              className="rounded-lg border border-slate-200 px-3 py-2 text-sm"
+              value={bulkProduct}
+              onChange={(e) => setBulkProduct(e.target.value as CharterProductCode)}
+            >
+              {CHARTER_PRODUCTS.map((p) => (
+                <option key={p} value={p}>
+                  {CHARTER_PRODUCT_LABELS[p]}
+                </option>
+              ))}
+            </select>
+            <button
+              type="button"
+              onClick={generateMonthDailySlots}
+              disabled={generatingMonth}
+              className="rounded-lg px-3 py-2 text-sm font-semibold text-white disabled:opacity-50"
+              style={{ backgroundColor: BRAND_DEEP }}
+            >
+              {generatingMonth ? "Génération..." : "Générer 1 mois"}
+            </button>
+          </div>
+          <p className="mt-1 text-xs text-slate-500">Crée automatiquement une période par jour sur le mois choisi.</p>
+        </div>
+
         <h2 className="text-2xl font-bold" style={{ color: BRAND_DEEP }}>
           Réservations
         </h2>
