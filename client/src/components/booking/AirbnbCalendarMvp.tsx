@@ -106,6 +106,7 @@ export default function AirbnbCalendarMvp({
   onSelectionChange,
   product,
   dayAvailability,
+  blockedDays = new Set<string>(),
 }: {
   isEnglish?: boolean;
   onSelectionChange?: (startIso: string | null, endIso: string | null) => void;
@@ -116,6 +117,8 @@ export default function AirbnbCalendarMvp({
    * Les dates hors ensemble sont grisés et non cliquables.
    */
   dayAvailability: Set<string> | null;
+  /** Jours explicitement bloqués par des réservations (coloration visuelle prioritaire). */
+  blockedDays?: Set<string>;
 }) {
   const [month, setMonth] = useState(() => new Date(new Date().getFullYear(), new Date().getMonth(), 1));
   const [selectionMode, setSelectionMode] = useState<SelectionMode>("range");
@@ -488,6 +491,7 @@ export default function AirbnbCalendarMvp({
             const isSelectedRange = inRange(iso);
             const isTodayDate = isSameDay(date, today);
             const hasSoldCabins = soldDays.has(iso);
+            const isBlockedByReservation = blockedDays.has(iso);
 
             return (
               <button
@@ -510,7 +514,15 @@ export default function AirbnbCalendarMvp({
                     : "border-slate-100 bg-slate-50 text-slate-400"
                 } ${isSelectedRange ? "border-transparent" : ""} ${isDisabled ? "opacity-60" : ""}`}
                 style={
-                  isDisabled
+                  isBlockedByReservation && isCurrentMonth
+                    ? {
+                        backgroundColor: "#fff1f2",
+                        borderColor: "#fb7185",
+                        color: "#9f1239",
+                        backgroundImage:
+                          "repeating-linear-gradient(135deg, rgba(244,63,94,0.18) 0 6px, rgba(255,255,255,0) 6px 12px)",
+                      }
+                    : isDisabled
                     ? {
                         backgroundImage:
                           "repeating-linear-gradient(135deg, rgba(148,163,184,0.25) 0 6px, rgba(255,255,255,0) 6px 12px)",
@@ -536,6 +548,13 @@ export default function AirbnbCalendarMvp({
                     className="pointer-events-none absolute right-1.5 top-1.5 h-1.5 w-1.5 rounded-full"
                     style={{ backgroundColor: "#ea580c" }}
                     title={isEnglish ? "Week already has booked cabins" : "Semaine avec cabines déjà réservées"}
+                  />
+                )}
+                {isBlockedByReservation && isCurrentMonth && (
+                  <span
+                    className="pointer-events-none absolute right-1.5 top-1.5 h-1.5 w-1.5 rounded-full"
+                    style={{ backgroundColor: "#e11d48" }}
+                    title={isEnglish ? "Day blocked by reservation" : "Jour bloqué par réservation"}
                   />
                 )}
               </button>

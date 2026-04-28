@@ -1055,6 +1055,7 @@ function SectionCalendrier({ isEnglish = false }: { isEnglish?: boolean }) {
   const [location] = useLocation();
   const [product, setProduct] = useState<CharterProductCode>("med");
   const [dayAvailability, setDayAvailability] = useState<Set<string> | null>(null);
+  const [blockedDays, setBlockedDays] = useState<Set<string>>(new Set());
 
   const loadSlots = useCallback(async () => {
     try {
@@ -1081,6 +1082,7 @@ function SectionCalendrier({ isEnglish = false }: { isEnglish?: boolean }) {
       const blockedDays = blockedDaysRes.ok
         ? ((await blockedDaysRes.json()) as { days?: string[] })?.days || []
         : [];
+      setBlockedDays(new Set(blockedDays.map((d) => String(d || "").slice(0, 10))));
       const s = new Set<string>();
       let hasAnyActiveSlot = false;
       for (const r of rows) {
@@ -1161,6 +1163,7 @@ function SectionCalendrier({ isEnglish = false }: { isEnglish?: boolean }) {
               isEnglish={isEnglish}
               product={product}
               dayAvailability={dayAvailability}
+              blockedDays={blockedDays}
             />
           </div>
         </Reveal>
