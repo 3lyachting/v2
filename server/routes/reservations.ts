@@ -347,7 +347,7 @@ router.post("/request", async (req, res) => {
         const isDayTrip = Boolean(selectedDispo[0] && new Date(selectedDispo[0].debut).toISOString().slice(0, 10) === new Date(selectedDispo[0].fin).toISOString().slice(0, 10));
         const isTransat = String(selectedDispo[0]?.destination || "").toLowerCase().includes("transat");
         const maxPeople = isTransat ? 4 : isDayTrip ? 12 : 8;
-        if (parsedNbPersonnes > maxPeople) throw new Error(`Maximum ${maxPeople} personnes sur ce créneau.`);
+        if (parsedNbPersonnes > maxPeople) throw new Error(`Maximum ${maxPeople} personnes sur cette période.`);
         const sameSlotReservations = await listReservationsByDisponibiliteSafe(tx, parsedDisponibiliteId);
         const activeReservations = isAdminRequester
           ? sameSlotReservations.filter((r: any) => isActiveReservationForCapacity(r))
@@ -359,10 +359,10 @@ router.post("/request", async (req, res) => {
               .filter((r: any) => r.typeReservation === "cabine" || r.typeReservation === "place")
               .reduce((sum: number, r: any) => sum + Math.max(1, r.nbCabines || 1), 0);
         if (hasPrivate && (normalizedTypeReservation === "cabine" || normalizedTypeReservation === "place")) {
-          throw new Error("Ce créneau est déjà privatisé.");
+          throw new Error("Cette période est déjà privatisée.");
         }
         if (normalizedTypeReservation === "bateau_entier" && reservedUnits > 0) {
-          throw new Error("Ce créneau a déjà des options/réservations en cours. Privatisation impossible.");
+          throw new Error("Cette période a déjà des options/réservations en cours. Privatisation impossible.");
         }
         if (normalizedTypeReservation === "cabine" || normalizedTypeReservation === "place") {
           const nextReserved = reservedUnits + computedNbCabines;
@@ -464,7 +464,7 @@ Accédez à l'admin pour consulter et envoyer un devis.
       message: "Demande de réservation envoyée avec succès" 
     });
   } catch (error: any) {
-    if (String(error?.message || "").includes("créneau") || String(error?.message || "").includes("Maximum ")) {
+    if (String(error?.message || "").includes("période") || String(error?.message || "").includes("Maximum ")) {
       return res.status(400).json({ error: error.message });
     }
     console.error("[Reservations] Erreur lors de la création de la demande:", error);
@@ -673,7 +673,7 @@ router.put("/:id", requireAdmin, async (req, res) => {
         const isDayTrip = Boolean(selectedDispo[0] && new Date(selectedDispo[0].debut).toISOString().slice(0, 10) === new Date(selectedDispo[0].fin).toISOString().slice(0, 10));
         const isTransat = String(selectedDispo[0]?.destination || "").toLowerCase().includes("transat");
         const maxPeople = isTransat ? 4 : isDayTrip ? 12 : 8;
-        if (parsedNbPersonnes > maxPeople) throw new Error(`Maximum ${maxPeople} personnes sur ce créneau.`);
+        if (parsedNbPersonnes > maxPeople) throw new Error(`Maximum ${maxPeople} personnes sur cette période.`);
         const sameSlotReservations = await listReservationsByDisponibiliteSafe(tx, resolvedDisponibiliteId);
         const otherActiveReservations = sameSlotReservations.filter((r: any) => r.id !== existing[0].id && isActiveReservationForCapacity(r));
         const hasPrivate = otherActiveReservations.some((r: any) => r.typeReservation === "bateau_entier");
@@ -683,10 +683,10 @@ router.put("/:id", requireAdmin, async (req, res) => {
               .filter((r: any) => r.typeReservation === "cabine" || r.typeReservation === "place")
               .reduce((sum: number, r: any) => sum + Math.max(1, r.nbCabines || 1), 0);
         if (hasPrivate && (selectedTypeReservation === "cabine" || selectedTypeReservation === "place")) {
-          throw new Error("Ce créneau est déjà privatisé.");
+          throw new Error("Cette période est déjà privatisée.");
         }
         if (selectedTypeReservation === "bateau_entier" && reservedUnits > 0) {
-          throw new Error("Ce créneau a déjà des options/réservations en cours. Privatisation impossible.");
+          throw new Error("Cette période a déjà des options/réservations en cours. Privatisation impossible.");
         }
         if (selectedTypeReservation === "cabine" || selectedTypeReservation === "place") {
           const nextReserved = reservedUnits + selectedNbCabines;
@@ -716,7 +716,7 @@ router.put("/:id", requireAdmin, async (req, res) => {
 
     res.json({ success: true, message: "Réservation mise à jour" });
   } catch (error: any) {
-    if (String(error?.message || "").includes("créneau") || String(error?.message || "").includes("Maximum ")) {
+    if (String(error?.message || "").includes("période") || String(error?.message || "").includes("Maximum ")) {
       return res.status(400).json({ error: error.message });
     }
     console.error("[Reservations] Erreur lors de la mise à jour:", error);

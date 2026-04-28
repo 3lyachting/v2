@@ -34,7 +34,14 @@ const FORMULES: Record<FormuleKey, { label: string; maxPers: number; description
   croisiere_mediterranee: { label: "Croisières Méditerranée", maxPers: 8, description: "Croisières Med (jours flexibles + semaines été)", defaultDuration: 7 },
   transatlantique: { label: "Transatlantique", maxPers: 8, description: "Traversées océaniques", defaultDuration: 10 },
   croisiere_caraibes: { label: "Croisières Caraïbes", maxPers: 8, description: "Grenadines au départ de Fort-de-France", defaultDuration: 7 },
-  journee_privee: { label: "Journée privative", maxPers: 8, description: "La Ciotat - Cassis (plage de l'Arène) - retour", defaultDuration: 1 },
+  journee_privee: { label: "Journée privative", maxPers: 12, description: "La Ciotat - Cassis (plage de l'Arène) - retour", defaultDuration: 1 },
+};
+
+const FORMULE_BY_PRODUCT: Record<string, FormuleKey> = {
+  med: "croisiere_mediterranee",
+  caraibes: "croisiere_caraibes",
+  journee: "journee_privee",
+  transat: "transatlantique",
 };
 
 const toIsoDay = (d: Date) => d.toISOString().split("T")[0];
@@ -131,10 +138,15 @@ export default function Reservation() {
     const dateFin = searchParams.get("dateFin");
     const typeFromUrl = searchParams.get("typeReservation");
     const formuleFromUrl = searchParams.get("formule");
+    const produitFromUrl = searchParams.get("produit");
     const nbPersonnesFromUrl = searchParams.get("nbPersonnes");
 
-    if (formuleFromUrl && (Object.keys(FORMULES) as FormuleKey[]).includes(formuleFromUrl as FormuleKey)) {
+    if (produitFromUrl && FORMULE_BY_PRODUCT[produitFromUrl]) {
+      setFormuleKey(FORMULE_BY_PRODUCT[produitFromUrl]);
+    } else if (formuleFromUrl && (Object.keys(FORMULES) as FormuleKey[]).includes(formuleFromUrl as FormuleKey)) {
       setFormuleKey(formuleFromUrl as FormuleKey);
+    } else if (formuleFromUrl === "journee") {
+      setFormuleKey("journee_privee");
     }
     if (typeFromUrl === "bateau_entier" || typeFromUrl === "cabine" || typeFromUrl === "place") {
       setTypeReservation(typeFromUrl);
@@ -292,7 +304,7 @@ export default function Reservation() {
   const destination = pricingDispo?.destination || "Méditerranée";
   const pricingSlotType = pricingDispo ? inferSlotType(pricingDispo as any) : "other";
   const isTransatSelection = isTransatType(pricingSlotType);
-  const urlMontant = Number(searchParams.get("montant") || "");
+  const urlMontantTotalEur = Number(searchParams.get("montant") || "");
   const weeklyCabineEur = pricingDispo?.tarifCabine ?? 3900;
   const weeklyPrivaEur = pricingDispo?.tarif ?? 15000;
   const dayTripPrivaEur = pricingDispo?.tarifJourPriva ?? 1000;
@@ -308,17 +320,17 @@ export default function Reservation() {
   const maxPersonnesSelectable = Math.max(1, Math.min(formule.maxPers, maxPersonnesByAvailability || formule.maxPers));
   const requiredCabins = Math.max(1, Math.ceil((form.nbPersonnes || 1) / 2));
   const safePersons = Math.max(1, form.nbPersonnes || 1);
+  const prefilledTotalCents =
+    Number.isFinite(urlMontantTotalEur) && urlMontantTotalEur > 0 ? Math.round(urlMontantTotalEur * 100) : null;
   const selectedWeeklyPrice =
-    Number.isFinite(urlMontant) && urlMontant > 0
-      ? urlMontant
-      : isTransatSelection
-        ? 3000
+    isTransatSelection
+      ? 3000
       : isJournee
         ? dayTripPrivaEur
       : typeReservation === "bateau_entier"
         ? weeklyPrivaEur
         : weeklyCabineEur;
-  const montantTotal =
+  const montantTotalCalcule =
     isTransatSelection
       ? selectedWeeklyPrice * safePersons * 100
       : typeReservation === "bateau_entier"
@@ -326,6 +338,9 @@ export default function Reservation() {
       : typeReservation === "cabine"
         ? selectedWeeklyPrice * requiredCabins * 100
         : selectedWeeklyPrice * 100;
+  const hasCalendarPrefill = Boolean(searchParams.get("dateDebut") && searchParams.get("dateFin"));
+  const showPrefilledEstimate = Boolean(hasCalendarPrefill && prefilledTotalCents !== null && step === 4);
+  const montantTotal = showPrefilledEstimate && prefilledTotalCents != null ? prefilledTotalCents : montantTotalCalcule;
 
   useEffect(() => {
     if (!isTransatSelection) return;
@@ -428,7 +443,12 @@ export default function Reservation() {
         <p className="text-white/50 mb-8">Choisissez un type, une duree, puis un depart. Les periodes a depart samedi sont imposees automatiquement.</p>
         {selectedStartDay && step === 4 && (
           <div className="mb-6 rounded-xl border border-[oklch(0.82_0.1_85)]/40 bg-[oklch(0.82_0.1_85)]/10 px-4 py-3 text-sm text-white/90">
-            Créneau prérempli depuis le calendrier. Vous pouvez envoyer votre demande directement.
+            Période préremplie depuis le calendrier. Vous pouvez envoyer votre demande directement.
+            {showPrefilledEstimate && (
+              <span className="block mt-1 text-[oklch(0.85_0.08_85)] font-semibold">
+                Estimation reprise du calendrier: {(montantTotal / 100).toLocaleString("fr-FR")} EUR
+              </span>
+            )}
           </div>
         )}
 
@@ -571,7 +591,7 @@ export default function Reservation() {
                       </button>
                     </div>
                     <p className="mt-1 text-[11px] text-white/55">
-                      Maximum autorisé sur ce créneau: {maxPersonnesSelectable} personne{maxPersonnesSelectable > 1 ? "s" : ""}.
+                      Maximum autorisé sur cette période: {maxPersonnesSelectable} personne{maxPersonnesSelectable > 1 ? "s" : ""}.
                     </p>
                   </div>
                 </div>

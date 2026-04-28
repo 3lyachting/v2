@@ -397,7 +397,7 @@ export default function AdminCalendarView({
                 className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2 text-sm font-bold text-white transition-all hover:bg-emerald-700"
               >
                 <Plus className="h-4 w-4" />
-                Nouveau créneau
+                Nouvelle période
               </button>
             </div>
             <div className="flex items-center justify-between">
@@ -466,7 +466,7 @@ export default function AdminCalendarView({
                         <div className={`text-[9px] font-semibold px-1 py-0.5 rounded truncate border ${getStatutColor(primaryDispo.statut)}`}>
                           {primaryDispo.destination.split(" ")[0]}
                         </div>
-                        {dispos.length > 1 && <div className="text-[9px] text-slate-500 px-1">{dispos.length} créneaux</div>}
+                        {dispos.length > 1 && <div className="text-[9px] text-slate-500 px-1">{dispos.length} périodes</div>}
                       </div>
                     )}
                     {dayReservations.length > 0 && (
@@ -510,7 +510,7 @@ export default function AdminCalendarView({
         >
           <h3 className="text-lg font-bold mb-4 flex items-center gap-2" style={{ color: BRAND_DEEP }}>
             <Calendar className="w-5 h-5" style={{ color: BRAND_DEEP }} />
-            Détails réservation / créneau
+            Détails réservation / période
           </h3>
 
           {selectedDispo ? (
@@ -572,7 +572,7 @@ export default function AdminCalendarView({
 
                 {selectedDayDispos.length > 1 && (
                   <div className="pt-3 border-t border-slate-200">
-                    <p className="text-xs uppercase font-semibold text-slate-500 mb-2">Créneaux du jour ({selectedDayDispos.length})</p>
+                    <p className="text-xs uppercase font-semibold text-slate-500 mb-2">Périodes du jour ({selectedDayDispos.length})</p>
                     <div className="space-y-2">
                       {selectedDayDispos.map((d) => (
                         <button
@@ -662,7 +662,7 @@ export default function AdminCalendarView({
                     </div>
                   )}
 
-                  {/* Réservations liées au créneau */}
+                  {/* Réservations liées à la période */}
                   {selectedDispoReservations.length > 0 && (
                     <div className="pt-3 border-t border-slate-200">
                       <p className="text-xs uppercase font-semibold text-slate-500 mb-2">
@@ -806,7 +806,7 @@ export default function AdminCalendarView({
           ) : (
             <div className="text-center py-8">
               <AlertCircle className="w-8 h-8 text-slate-400 mx-auto mb-2" />
-              <p className="text-sm text-slate-600">Sélectionnez un créneau pour voir les détails</p>
+              <p className="text-sm text-slate-600">Sélectionnez une période pour voir les détails</p>
             </div>
           )}
         </motion.div>

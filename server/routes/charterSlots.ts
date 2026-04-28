@@ -39,7 +39,7 @@ function mapDbError(error: any, fallback: string) {
     return "Table charterSlots absente. Appliquez la migration (pnpm db:push ou drizzle migrer) puis redemarrez.";
   }
   if (message.includes("charterSlots_uniq_range_product_idx") || message.includes("duplicate key")) {
-    return "Un creneau identique existe deja pour ce produit (memes dates).";
+    return "Une periode identique existe deja pour ce produit (memes dates).";
   }
   return error?.message || fallback;
 }
@@ -108,7 +108,7 @@ router.get("/", async (req, res) => {
     const rows = await db.select().from(charterSlots).where(where);
     return res.json(rows);
   } catch (error: any) {
-    return res.status(500).json({ error: mapDbError(error, "Erreur chargement creneaux") });
+    return res.status(500).json({ error: mapDbError(error, "Erreur chargement periodes") });
   }
 });
 
@@ -153,7 +153,7 @@ router.post("/", requireAdmin, async (req, res) => {
 
     return res.json({ success: true, row: inserted[0] });
   } catch (error: any) {
-    return res.status(500).json({ error: mapDbError(error, "Erreur creation creneau") });
+    return res.status(500).json({ error: mapDbError(error, "Erreur creation periode") });
   }
 });
 
@@ -196,7 +196,7 @@ router.put("/:id", requireAdmin, async (req, res) => {
 
     return res.json({ success: true });
   } catch (error: any) {
-    return res.status(500).json({ error: mapDbError(error, "Erreur mise a jour creneau") });
+    return res.status(500).json({ error: mapDbError(error, "Erreur mise a jour periode") });
   }
 });
 
@@ -209,7 +209,7 @@ router.delete("/:id", requireAdmin, async (req, res) => {
     await db.delete(charterSlots).where(eq(charterSlots.id, id));
     return res.json({ success: true });
   } catch (error: any) {
-    return res.status(500).json({ error: mapDbError(error, "Erreur suppression creneau") });
+    return res.status(500).json({ error: mapDbError(error, "Erreur suppression periode") });
   }
 });
 

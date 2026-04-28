@@ -118,8 +118,8 @@ export default function ProduitsManager() {
         body: JSON.stringify(payload),
       });
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data?.error || "Impossible de créer le créneau");
-      setMessage("Créneau produit créé.");
+      if (!res.ok) throw new Error(data?.error || "Impossible de créer la période");
+      setMessage("Période produit créée.");
       setSlotForm({
         debut: "",
         fin: "",
@@ -132,7 +132,7 @@ export default function ProduitsManager() {
       });
       await fetchData();
     } catch (e: any) {
-      setMessage(e?.message || "Erreur création créneau");
+      setMessage(e?.message || "Erreur création période");
     }
   };
 
@@ -176,13 +176,13 @@ export default function ProduitsManager() {
   };
 
   const deleteSlot = async (id: number) => {
-    const ok = window.confirm("Supprimer ce créneau produit ?");
+    const ok = window.confirm("Supprimer cette période produit ?");
     if (!ok) return;
     try {
       const res = await fetch(`/api/disponibilites/${id}`, { method: "DELETE" });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data?.error || "Suppression impossible");
-      setMessage("Créneau supprimé.");
+      setMessage("Période supprimée.");
       await fetchData();
     } catch (e: any) {
       setMessage(e?.message || "Erreur suppression");
@@ -206,11 +206,11 @@ export default function ProduitsManager() {
     });
 
     if (targets.length === 0) {
-      setMessage("Aucun créneau à supprimer sur cette période.");
+      setMessage("Aucune période à supprimer sur cette période.");
       return;
     }
 
-    const confirmText = `Supprimer ${targets.length} créneau(x) de ${PRODUCTS[product].label} entre ${deletePeriod.debut} et ${deletePeriod.fin} ?`;
+    const confirmText = `Supprimer ${targets.length} période(s) de ${PRODUCTS[product].label} entre ${deletePeriod.debut} et ${deletePeriod.fin} ?`;
     if (!window.confirm(confirmText)) return;
 
     setDeleting(true);
@@ -222,7 +222,7 @@ export default function ProduitsManager() {
           throw new Error(data?.error || `Suppression impossible (id ${t.id})`);
         }
       }
-      setMessage(`${targets.length} créneau(x) supprimé(s).`);
+      setMessage(`${targets.length} période(s) supprimée(s).`);
       setDeletePeriod({ debut: "", fin: "" });
       await fetchData();
     } catch (e: any) {
@@ -236,7 +236,7 @@ export default function ProduitsManager() {
     <div className="space-y-6">
       <div>
         <h2 className="text-3xl font-bold text-blue-900">Produits</h2>
-        <p className="text-slate-600 mt-1">Gérez vos offres, créneaux, tarifs, cabines disponibles et réservations téléphone.</p>
+        <p className="text-slate-600 mt-1">Gérez vos offres, périodes, tarifs, cabines disponibles et réservations téléphone.</p>
       </div>
 
       <div className="flex flex-wrap gap-2">
@@ -253,7 +253,7 @@ export default function ProduitsManager() {
 
       <div className="grid lg:grid-cols-2 gap-6">
         <div className="bg-white border border-slate-200 rounded-xl p-5">
-          <h3 className="font-bold text-blue-900 mb-3 flex items-center gap-2"><Calendar className="w-4 h-4" />Nouveau créneau produit</h3>
+          <h3 className="font-bold text-blue-900 mb-3 flex items-center gap-2"><Calendar className="w-4 h-4" />Nouvelle période produit</h3>
           <div className="grid grid-cols-2 gap-3">
             <input type="date" value={slotForm.debut} onChange={(e) => setSlotForm((s) => ({ ...s, debut: e.target.value }))} className="px-3 py-2 border border-slate-300 rounded-lg text-sm" />
             <input type="date" value={slotForm.fin} onChange={(e) => setSlotForm((s) => ({ ...s, fin: e.target.value }))} className="px-3 py-2 border border-slate-300 rounded-lg text-sm" />
@@ -269,7 +269,7 @@ export default function ProduitsManager() {
             <input type="number" placeholder="Tarif jour / priva (€)" value={slotForm.tarifJourPriva} onChange={(e) => setSlotForm((s) => ({ ...s, tarifJourPriva: e.target.value }))} className="px-3 py-2 border border-slate-300 rounded-lg text-sm" />
             <input placeholder="Texte public" value={slotForm.notePublique} onChange={(e) => setSlotForm((s) => ({ ...s, notePublique: e.target.value }))} className="px-3 py-2 border border-slate-300 rounded-lg text-sm col-span-2" />
           </div>
-          <button onClick={createSlot} className="mt-3 px-4 py-2 bg-blue-900 text-white rounded-lg text-sm font-semibold flex items-center gap-2"><Save className="w-4 h-4" />Enregistrer créneau</button>
+          <button onClick={createSlot} className="mt-3 px-4 py-2 bg-blue-900 text-white rounded-lg text-sm font-semibold flex items-center gap-2"><Save className="w-4 h-4" />Enregistrer période</button>
         </div>
 
         <div className="bg-white border border-slate-200 rounded-xl p-5">
@@ -294,7 +294,7 @@ export default function ProduitsManager() {
       </div>
 
       <div className="bg-white border border-slate-200 rounded-xl p-5">
-        <h3 className="font-bold text-blue-900 mb-3">Créneaux existants — {PRODUCTS[product].label}</h3>
+        <h3 className="font-bold text-blue-900 mb-3">Périodes existantes — {PRODUCTS[product].label}</h3>
         <div className="mb-4 p-3 rounded-lg border border-red-200 bg-red-50">
           <p className="text-sm font-semibold text-red-900 mb-2">Supprimer une période</p>
           <div className="flex flex-wrap items-center gap-2">
@@ -363,7 +363,7 @@ export default function ProduitsManager() {
               </div>
             );
           })}
-          {productSlots.length === 0 && <p className="text-sm text-slate-500">Aucun créneau pour ce produit.</p>}
+          {productSlots.length === 0 && <p className="text-sm text-slate-500">Aucune période pour ce produit.</p>}
         </div>
       </div>
 

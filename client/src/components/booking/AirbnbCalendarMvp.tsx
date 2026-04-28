@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { CHARTER_PRODUCT_LABELS, type CharterProductCode } from "@shared/charterProduct";
 import { getCharterHighSeasonError } from "@shared/charterWeekPolicy";
+import { getProductFromDisponibilite } from "@shared/calendarSelection";
 import {
   DEFAULT_SEASON_PRICING,
   type SeasonPricingConfig,
@@ -14,6 +15,13 @@ import { apiUrl } from "@/lib/apiBase";
 
 type SelectionMode = "single" | "range";
 type ReservationMode = "cabine" | "priva";
+type DisponibiliteLite = {
+  debut: string;
+  fin: string;
+  destination: string;
+  cabinesReservees?: number | null;
+  statut?: "disponible" | "reserve" | "option" | "ferme";
+};
 
 const BRAND_DEEP = "#00384A";
 const BRAND_SAND = "#D8C19E";
@@ -23,6 +31,29 @@ const DEFAULT_PRIVATE_WEEKLY_PRICE: Record<Exclude<CharterProductCode, "transat"
   caraibes: 14000,
   journee: 1000,
 };
+
+function maxPassengersByProduct(product: CharterProductCode): number {
+  return product === "journee" ? 12 : 8;
+}
+
+function startOfWeekSaturday(iso: string): string {
+  const d = fromIso(iso);
+  const dow = d.getDay(); // 0 sunday ... 6 saturday
+  const offset = (dow + 1) % 7; // saturday => 0, sunday => 1, monday => 2, ...
+  d.setDate(d.getDate() - offset);
+  return toIso(d);
+}
+
+function addDaysLocalIso(iso: string, days: number): string {
+  const d = fromIso(iso);
+  d.setDate(d.getDate() + days);
+  return toIso(d);
+}
+
+function startOfMonthFromIso(iso: string): Date {
+  const d = fromIso(iso);
+  return new Date(d.getFullYear(), d.getMonth(), 1);
+}
 
 function toIso(date: Date) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
@@ -90,6 +121,7 @@ export default function AirbnbCalendarMvp({
   const [startDate, setStartDate] = useState<string | null>(null);
   const [endDate, setEndDate] = useState<string | null>(null);
   const [seasonPricing, setSeasonPricing] = useState<SeasonPricingConfig>(DEFAULT_SEASON_PRICING);
+  const [soldDays, setSoldDays] = useState<Set<string>>(new Set());
   const [reservationMode, setReservationMode] = useState<ReservationMode>("cabine");
   const [passengerCount, setPassengerCount] = useState<number>(2);
   const today = new Date();
@@ -112,6 +144,44 @@ export default function AirbnbCalendarMvp({
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await fetch(apiUrl("/api/disponibilites"), { cache: "no-store" });
+        if (!res.ok) throw new Error("dispos");
+        const rows = (await res.json()) as DisponibiliteLite[];
+        if (cancelled) return;
+        const set = new Set<string>();
+        for (const row of rows) {
+          const sold = Number(row.cabinesReservees || 0) > 0;
+          if (!sold) continue;
+          const rowProduct = getProductFromDisponibilite({
+            debut: row.debut,
+            fin: row.fin,
+            destination: row.destination,
+          });
+          if (rowProduct !== product) continue;
+          const a = String(row.debut).slice(0, 10);
+          const b = String(row.fin).slice(0, 10);
+          if (!/^\d{4}-\d{2}-\d{2}$/.test(a) || !/^\d{4}-\d{2}-\d{2}$/.test(b) || a > b) continue;
+          let cur = a;
+          for (;;) {
+            set.add(cur);
+            if (cur >= b) break;
+            cur = addOneDayIso(cur);
+          }
+        }
+        setSoldDays(set);
+      } catch {
+        if (!cancelled) setSoldDays(new Set());
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [product]);
 
   const monthLabel = month.toLocaleDateString(isEnglish ? "en-US" : "fr-FR", {
     month: "long",
@@ -146,6 +216,28 @@ export default function AirbnbCalendarMvp({
     if (dayAvailability && !dayAvailability.has(iso)) {
       return;
     }
+    const month = Number(iso.slice(5, 7));
+    const shouldAutoWeek = month === 2 || month === 7 || month === 8 || month === 12;
+    if (shouldAutoWeek && selectionMode === "range") {
+      const start = startOfWeekSaturday(iso);
+      const end = addDaysLocalIso(start, 7);
+      const hasAllDays =
+        !dayAvailability ||
+        (() => {
+          let cur = start;
+          for (;;) {
+            if (!dayAvailability.has(cur)) return false;
+            if (cur >= end) break;
+            cur = addOneDayIso(cur);
+          }
+          return true;
+        })();
+      if (hasAllDays) {
+        setStartDate(start);
+        setEndDate(end);
+        return;
+      }
+    }
     if (selectionMode === "single") {
       setStartDate(iso);
       setEndDate(iso);
@@ -168,6 +260,16 @@ export default function AirbnbCalendarMvp({
     onSelectionChange?.(startDate, endDate);
   }, [endDate, onSelectionChange, startDate]);
 
+  // Au changement de produit (et donc de disponibilités), naviguer vers la prochaine date disponible.
+  useEffect(() => {
+    if (!dayAvailability || dayAvailability.size === 0) return;
+    const todayIso = toIso(new Date());
+    const sorted = Array.from(dayAvailability).sort();
+    const next = sorted.find((d) => d >= todayIso) || sorted[0];
+    if (!next) return;
+    setMonth(startOfMonthFromIso(next));
+  }, [dayAvailability, product]);
+
   const nights = startDate && endDate ? dateDiffDays(startDate, endDate) : 0;
   const panelTitle = isEnglish ? "Stay details" : "Détails du séjour";
   const productLabel = CHARTER_PRODUCT_LABELS[product];
@@ -179,19 +281,19 @@ export default function AirbnbCalendarMvp({
     rangeCoverage.kind === "unknown"
       ? isEnglish
         ? "Loading availability…"
-        : "Chargement des creneaux…"
+        : "Chargement des periodes…"
       : rangeCoverage.kind === "empty"
         ? isEnglish
           ? "No published slots for this product on these dates (choose another product or different dates)."
-          : "Aucun creneau actif publie pour ce produit sur cette periode (changez de produit ou de dates)."
+          : "Aucune periode active publiee pour ce produit sur cette periode (changez de produit ou de dates)."
         : rangeCoverage.kind === "partial"
           ? isEnglish
             ? `Only ${rangeCoverage.totalDays - rangeCoverage.missingDays} of ${rangeCoverage.totalDays} day(s) are in your published window for this product.`
-            : `Seulement ${rangeCoverage.totalDays - rangeCoverage.missingDays} / ${rangeCoverage.totalDays} jour(s) entrent dans vos creneaux actifs (produit: ${productLabel}).`
+            : `Seulement ${rangeCoverage.totalDays - rangeCoverage.missingDays} / ${rangeCoverage.totalDays} jour(s) entrent dans vos periodes actives (produit: ${productLabel}).`
           : rangeCoverage.kind === "full" && endDate
             ? isEnglish
               ? "Your selection is fully within published availability for this product."
-              : "Votre selection est entierement couverte par vos creneaux actifs (produit courant)."
+              : "Votre selection est entierement couverte par vos periodes actives (produit courant)."
             : "";
 
   const highSeasonError = getCharterHighSeasonError(startDate, endDate, selectionMode, { isEnglish });
@@ -199,6 +301,11 @@ export default function AirbnbCalendarMvp({
   const isTransat = product === "transat";
   const canChooseCabine = !isDayTrip;
   const canChoosePrivatif = !isTransat;
+  const maxPassengers = maxPassengersByProduct(product);
+
+  useEffect(() => {
+    setPassengerCount((prev) => Math.max(1, Math.min(maxPassengers, prev)));
+  }, [maxPassengers]);
 
   useEffect(() => {
     if (reservationMode === "cabine" && !canChooseCabine && canChoosePrivatif) {
@@ -232,7 +339,7 @@ export default function AirbnbCalendarMvp({
       };
     }
 
-    const safePassengers = Math.max(1, Math.min(20, Number.isFinite(passengerCount) ? Math.round(passengerCount) : 1));
+    const safePassengers = Math.max(1, Math.min(maxPassengers, Number.isFinite(passengerCount) ? Math.round(passengerCount) : 1));
     const weekBlocks = Math.max(1, pricePanel.weekBlocks || 1);
     const isReady = !highSeasonError;
 
@@ -288,6 +395,7 @@ export default function AirbnbCalendarMvp({
     product,
     reservationMode,
     startDate,
+    maxPassengers,
   ]);
 
   return (
@@ -357,6 +465,7 @@ export default function AirbnbCalendarMvp({
             const isEnd = !!endDate && iso === endDate;
             const isSelectedRange = inRange(iso);
             const isTodayDate = isSameDay(date, today);
+            const hasSoldCabins = soldDays.has(iso);
 
             return (
               <button
@@ -389,6 +498,8 @@ export default function AirbnbCalendarMvp({
                     ? { backgroundColor: BRAND_DEEP, color: "white" }
                     : isSelectedRange
                       ? { backgroundColor: `${BRAND_SAND}80`, color: "#1f2937" }
+                      : hasSoldCabins && isCurrentMonth
+                        ? { backgroundColor: "#fff7ed", borderColor: "#fb923c", color: "#7c2d12" }
                       : isTodayDate
                         ? { borderColor: BRAND_DEEP }
                         : {}
@@ -397,6 +508,13 @@ export default function AirbnbCalendarMvp({
                 {date.getDate()}
                 {inAvail && isCurrentMonth && !isDisabled && (
                   <span className="pointer-events-none absolute bottom-1.5 left-1/2 h-1.5 w-1.5 -translate-x-1/2 rounded-full" style={{ backgroundColor: `${BRAND_DEEP}55` }} />
+                )}
+                {hasSoldCabins && isCurrentMonth && !isDisabled && (
+                  <span
+                    className="pointer-events-none absolute right-1.5 top-1.5 h-1.5 w-1.5 rounded-full"
+                    style={{ backgroundColor: "#ea580c" }}
+                    title={isEnglish ? "Week already has booked cabins" : "Semaine avec cabines déjà réservées"}
+                  />
                 )}
               </button>
             );
@@ -467,11 +585,18 @@ export default function AirbnbCalendarMvp({
                   <input
                     type="number"
                     min={1}
-                    max={20}
+                    max={maxPassengers}
                     value={passengerCount}
-                    onChange={(e) => setPassengerCount(Math.max(1, Number(e.target.value || 1)))}
+                    onChange={(e) =>
+                      setPassengerCount(Math.max(1, Math.min(maxPassengers, Number(e.target.value || 1))))
+                    }
                     className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
                   />
+                  <p className="mt-1 text-[11px] text-slate-500">
+                    {isEnglish
+                      ? `Maximum ${maxPassengers} passenger(s) for this product.`
+                      : `Maximum ${maxPassengers} passager(s) pour ce produit.`}
+                  </p>
                 </div>
 
                 {pricePanel.kind === "await_end" ? (
@@ -519,7 +644,7 @@ export default function AirbnbCalendarMvp({
           <p className="pt-2 text-xs text-slate-600">
             {isEnglish
               ? "Step 1: pick your dates. The form below is filled automatically. In July, August, December, and February, a full week is required: Saturday 4:00 p.m. to the following Saturday 9:00 a.m. (one or more week blocks). Published slots come from the back office; final offer is still confirmed on reply."
-              : "Étape 1 : choisissez vos dates. Le formulaire en dessous se remplit tout seul. En juillet, août, décembre et février, une semaine entière (samedi 16h au samedi 9h, en blocs d’une ou plusieurs semaines) est obligatoire. Les jours proposés viennent de vos créneaux publiés en back office ; l’offre finale reste à confirmer par retour d’e-mail."}
+              : "Étape 1 : choisissez vos dates. Le formulaire en dessous se remplit tout seul. En juillet, août, décembre et février, une semaine entière (samedi 16h au samedi 9h, en blocs d’une ou plusieurs semaines) est obligatoire. Les jours proposés viennent de vos périodes publiées en back office ; l’offre finale reste à confirmer par retour d’e-mail."}
           </p>
         </div>
       </aside>

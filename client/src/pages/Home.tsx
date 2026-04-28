@@ -5,11 +5,10 @@
  * Typo: Serif élégante (titres) + DM Sans (corps)
  */
 
-import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, lazy, useEffect, useMemo, useRef, useState } from "react";
 import AirbnbCalendarMvp from "@/components/booking/AirbnbCalendarMvp";
 import { addDays, format, subDays } from "date-fns";
 import { CHARTER_PRODUCT_LABELS, CHARTER_PRODUCTS, type CharterProductCode } from "@shared/charterProduct";
-import { getCharterHighSeasonErrorForForm } from "@shared/charterWeekPolicy";
 import { useLocation } from "wouter";
 import { motion, useInView } from "framer-motion";
 import { withBasePath } from "@/lib/basePath";
@@ -1056,26 +1055,6 @@ function SectionCalendrier({ isEnglish = false }: { isEnglish?: boolean }) {
   const [location] = useLocation();
   const [product, setProduct] = useState<CharterProductCode>("med");
   const [dayAvailability, setDayAvailability] = useState<Set<string> | null>(null);
-  const [form, setForm] = useState({
-    nom: "",
-    email: "",
-    tel: "",
-    message: "",
-    dateDebut: "",
-    dateFin: "",
-    nbPassagers: "",
-    produit: "med" as CharterProductCode,
-    destination: CHARTER_PRODUCT_LABELS.med,
-    typeDemande: "",
-  });
-  const [sent, setSent] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
-  const [submitError, setSubmitError] = useState<string | null>(null);
-
-  const charterSeasonError = useMemo(
-    () => getCharterHighSeasonErrorForForm(form.dateDebut, form.dateFin, isEnglish),
-    [form.dateDebut, form.dateFin, isEnglish]
-  );
 
   const loadSlots = useCallback(async () => {
     try {
@@ -1120,57 +1099,6 @@ function SectionCalendrier({ isEnglish = false }: { isEnglish?: boolean }) {
 
   const handleProductChange = (p: CharterProductCode) => {
     setProduct(p);
-    setForm((f) => ({ ...f, produit: p, destination: CHARTER_PRODUCT_LABELS[p] }));
-  };
-
-  const handleCalendarSelection = useCallback((startIso: string | null, endIso: string | null) => {
-    if (!startIso) {
-      setForm((f) => ({ ...f, dateDebut: "", dateFin: "" }));
-      return;
-    }
-    if (endIso == null || endIso === "") {
-      setForm((f) => ({ ...f, dateDebut: startIso, dateFin: "", produit: f.produit, destination: f.destination }));
-      return;
-    }
-    setForm((f) => ({ ...f, dateDebut: startIso, dateFin: endIso, produit: f.produit, destination: f.destination }));
-  }, []);
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (charterSeasonError) {
-      setSubmitError(charterSeasonError);
-      return;
-    }
-    setSubmitting(true);
-    setSubmitError(null);
-    try {
-      const response = await fetch("/api/contact", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
-      });
-      const payload = await response.json().catch(() => ({}));
-      if (!response.ok) {
-        throw new Error(payload?.error || (isEnglish ? "Unable to send request." : "Impossible d'envoyer la demande."));
-      }
-      setSent(true);
-      setForm({
-        nom: "",
-        email: "",
-        tel: "",
-        message: "",
-        dateDebut: "",
-        dateFin: "",
-        nbPassagers: "",
-        produit: product,
-        destination: CHARTER_PRODUCT_LABELS[product],
-        typeDemande: "",
-      });
-    } catch (error: any) {
-      setSubmitError(error?.message || (isEnglish ? "Error while sending request." : "Erreur lors de l'envoi de la demande."));
-    } finally {
-      setSubmitting(false);
-    }
   };
 
   return (
@@ -1186,8 +1114,8 @@ function SectionCalendrier({ isEnglish = false }: { isEnglish?: boolean }) {
             </h2>
             <p className="editorial-lead max-w-2xl">
               {isEnglish
-                ? "Pick a period, then complete the request. We will confirm availability and a tailored offer."
-                : "Sélectionnez une période, puis complétez la demande. Nous confirmerons la disponibilité et une offre personnalisée."}
+                ? "Pick your dates, then click Book in the right panel to continue to the reservation page."
+                : "Sélectionnez votre période, puis cliquez sur Réserver dans le panneau de droite pour passer à la réservation."}
             </p>
           </div>
         </Reveal>
@@ -1202,7 +1130,7 @@ function SectionCalendrier({ isEnglish = false }: { isEnglish?: boolean }) {
                     key={p}
                     type="button"
                     onClick={() => handleProductChange(p)}
-                    className="rounded-full border px-3 py-1.5 text-xs font-bold transition"
+                    className="rounded-full border px-5 py-2.5 text-sm font-bold transition"
                     style={{
                       borderColor: active ? "#00384A" : "#d7e3e8",
                       color: active ? "#ffffff" : "#00384A",
@@ -1219,53 +1147,7 @@ function SectionCalendrier({ isEnglish = false }: { isEnglish?: boolean }) {
               isEnglish={isEnglish}
               product={product}
               dayAvailability={dayAvailability}
-              onSelectionChange={handleCalendarSelection}
             />
-          </div>
-        </Reveal>
-
-        <Reveal delay={0.1}>
-          <div className="mx-auto max-w-3xl rounded-3xl border border-[oklch(0.88_0.02_220)] bg-white p-6 shadow-sm lg:p-8">
-            {sent ? (
-              <div className="text-center py-8">
-                <h3 className="text-xl font-bold text-[oklch(0.2_0.06_240)] mb-2" style={{ fontFamily: "Cormorant Garamond, Times New Roman, serif" }}>
-                  {isEnglish ? "Request sent" : "Demande envoyee"}
-                </h3>
-                <p className="text-[oklch(0.45_0.03_240)] text-sm">
-                  {isEnglish ? "Thank you. We will get back to you within 24 hours." : "Merci. Nous revenons vers vous sous 24h."}
-                </p>
-                <button onClick={() => setSent(false)} className="mt-4 text-sm text-[oklch(0.2_0.06_240)] hover:underline">
-                  {isEnglish ? "Send another request" : "Envoyer une autre demande"}
-                </button>
-              </div>
-            ) : (
-              <form onSubmit={handleSubmit} className="space-y-4">
-                <div className="grid sm:grid-cols-2 gap-4">
-                  <input required value={form.nom} onChange={(e) => setForm((f) => ({ ...f, nom: e.target.value }))} placeholder={isEnglish ? "Name*" : "Nom*"} className="w-full rounded-xl border border-[oklch(0.88_0.02_220)] px-4 py-2.5 text-sm" />
-                  <input required type="email" value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} placeholder="Email*" className="w-full rounded-xl border border-[oklch(0.88_0.02_220)] px-4 py-2.5 text-sm" />
-                </div>
-                <input value={form.tel} onChange={(e) => setForm((f) => ({ ...f, tel: e.target.value }))} placeholder={isEnglish ? "Phone" : "Telephone"} className="w-full rounded-xl border border-[oklch(0.88_0.02_220)] px-4 py-2.5 text-sm" />
-                <div className="grid sm:grid-cols-2 gap-4">
-                  <input type="date" value={form.dateDebut} onChange={(e) => setForm((f) => ({ ...f, dateDebut: e.target.value }))} className="w-full rounded-xl border border-[oklch(0.88_0.02_220)] px-4 py-2.5 text-sm" />
-                  <input type="date" value={form.dateFin} onChange={(e) => setForm((f) => ({ ...f, dateFin: e.target.value }))} className="w-full rounded-xl border border-[oklch(0.88_0.02_220)] px-4 py-2.5 text-sm" />
-                </div>
-                <div className="grid sm:grid-cols-3 gap-4">
-                  <input type="number" min={1} value={form.nbPassagers} onChange={(e) => setForm((f) => ({ ...f, nbPassagers: e.target.value }))} placeholder={isEnglish ? "Passengers" : "Nb passagers"} className="w-full rounded-xl border border-[oklch(0.88_0.02_220)] px-4 py-2.5 text-sm" />
-                  <input value={form.destination} onChange={(e) => setForm((f) => ({ ...f, destination: e.target.value }))} placeholder={isEnglish ? "Destination" : "Destination"} className="w-full rounded-xl border border-[oklch(0.88_0.02_220)] px-4 py-2.5 text-sm" />
-                  <input value={form.typeDemande} onChange={(e) => setForm((f) => ({ ...f, typeDemande: e.target.value }))} placeholder={isEnglish ? "Request type" : "Type de demande"} className="w-full rounded-xl border border-[oklch(0.88_0.02_220)] px-4 py-2.5 text-sm" />
-                </div>
-                <textarea required rows={4} value={form.message} onChange={(e) => setForm((f) => ({ ...f, message: e.target.value }))} placeholder={isEnglish ? "Message*" : "Message*"} className="w-full rounded-xl border border-[oklch(0.88_0.02_220)] px-4 py-2.5 text-sm resize-none" />
-                {charterSeasonError && <p className="text-center text-xs text-red-600">{charterSeasonError}</p>}
-                <button
-                  type="submit"
-                  disabled={submitting || !!charterSeasonError}
-                  className="w-full rounded-xl bg-[oklch(0.2_0.06_240)] px-4 py-3 text-sm font-bold text-white hover:bg-[oklch(0.16_0.05_240)] disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  {submitting ? (isEnglish ? "Sending..." : "Envoi...") : (isEnglish ? "Send request" : "Envoyer la demande")}
-                </button>
-                {submitError && <p className="text-center text-xs text-red-600">{submitError}</p>}
-              </form>
-            )}
           </div>
         </Reveal>
       </div>
