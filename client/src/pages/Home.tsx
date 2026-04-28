@@ -1,11 +1,11 @@
 /*
- * DESIGN: Nautique (inspiration Izenah Sailing)
+ * DESIGN: Nautique 
  * Page principale — Sabine Sailing
  * Couleurs: Bleu nuit + Ivoire + Laiton discret
  * Typo: Serif élégante (titres) + DM Sans (corps)
  */
 
-import { Suspense, lazy, useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import AirbnbCalendarMvp from "@/components/booking/AirbnbCalendarMvp";
 import { addDays, format, subDays } from "date-fns";
 import { CHARTER_PRODUCT_LABELS, CHARTER_PRODUCTS, type CharterProductCode } from "@shared/charterProduct";
