@@ -44,22 +44,6 @@ function mapDbError(error: any, fallback: string) {
   return error?.message || fallback;
 }
 
-function normalizeForMatch(value: string) {
-  return String(value || "")
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase();
-}
-
-function inferReservationProduct(destination: string, formule: string): CharterProductCode | null {
-  const text = `${normalizeForMatch(destination)} ${normalizeForMatch(formule)}`;
-  if (text.includes("transat")) return "transat";
-  if (text.includes("caraib") || text.includes("antill")) return "caraibes";
-  if (text.includes("journee") || text.includes("day")) return "journee";
-  if (text.includes("mediterr")) return "med";
-  return null;
-}
-
 function expandYmdRange(startIso: string, endIso: string): string[] {
   if (!YMD.test(startIso) || !YMD.test(endIso) || startIso > endIso) return [];
   const out: string[] = [];
@@ -165,13 +149,25 @@ router.get("/blocked-days", async (req, res) => {
     const db = await getDb();
     if (!db) return res.json({ days: [] });
 
+    const slots = await db
+      .select({ debut: charterSlots.debut, fin: charterSlots.fin })
+      .from(charterSlots)
+      .where(
+        and(
+          eq(charterSlots.product, productFilter),
+          eq(charterSlots.active, true),
+          lte(charterSlots.debut, toBound),
+          gte(charterSlots.fin, fromBound)
+        )
+      );
+
+    if (!slots.length) return res.json({ days: [] });
+
     const overlap = and(lte(reservations.dateDebut, toBound), gte(reservations.dateFin, fromBound));
     const rows = await db
       .select({
         dateDebut: reservations.dateDebut,
         dateFin: reservations.dateFin,
-        destination: reservations.destination,
-        formule: reservations.formule,
         requestStatus: reservations.requestStatus,
         workflowStatut: reservations.workflowStatut,
       })
@@ -182,15 +178,29 @@ router.get("/blocked-days", async (req, res) => {
     for (const r of rows) {
       const req = String(r.requestStatus || "");
       const wf = String(r.workflowStatut || "");
-      const isBlocking =
-        (req !== "refusee" && req !== "archivee" && req === "validee") ||
-        ["validee_owner", "devis_accepte", "contrat_envoye", "contrat_signe", "acompte_confirme", "solde_confirme"].includes(wf);
+      const isBlockingByRequest = req !== "refusee" && req !== "archivee";
+      const isBlockingByWorkflow = [
+        "validee_owner",
+        "devis_accepte",
+        "contrat_envoye",
+        "contrat_signe",
+        "acompte_confirme",
+        "solde_confirme",
+      ].includes(wf);
+      const isBlocking = isBlockingByRequest || isBlockingByWorkflow;
       if (!isBlocking) continue;
-      const resProduct = inferReservationProduct(String(r.destination || ""), String(r.formule || ""));
-      if (resProduct !== productFilter) continue;
-      const startIso = String(r.dateDebut).slice(0, 10);
-      const endIso = String(r.dateFin).slice(0, 10);
-      for (const day of expandYmdRange(startIso, endIso)) blocked.add(day);
+      const resStartIso = String(r.dateDebut).slice(0, 10);
+      const resEndIso = String(r.dateFin).slice(0, 10);
+      if (!YMD.test(resStartIso) || !YMD.test(resEndIso) || resStartIso > resEndIso) continue;
+      for (const slot of slots) {
+        const slotStartIso = String(slot.debut).slice(0, 10);
+        const slotEndIso = String(slot.fin).slice(0, 10);
+        if (!YMD.test(slotStartIso) || !YMD.test(slotEndIso) || slotStartIso > slotEndIso) continue;
+        const overlapStart = resStartIso > slotStartIso ? resStartIso : slotStartIso;
+        const overlapEnd = resEndIso < slotEndIso ? resEndIso : slotEndIso;
+        if (overlapStart > overlapEnd) continue;
+        for (const day of expandYmdRange(overlapStart, overlapEnd)) blocked.add(day);
+      }
     }
 
     return res.json({ days: Array.from(blocked).sort() });
