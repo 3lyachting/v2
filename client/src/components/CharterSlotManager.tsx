@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { apiUrl, handleApiResponse } from "@/lib/apiBase";
 import {
   CHARTER_PRODUCT_LABELS,
@@ -22,6 +22,7 @@ type SlotRow = {
 type ReservationRow = {
   id: number;
   nomClient: string;
+  prenomClient?: string | null;
   emailClient: string;
   telClient: string | null;
   nbPersonnes: number;
@@ -33,10 +34,42 @@ type ReservationRow = {
   bookingOrigin?: string | null;
   disponibiliteId?: number | null;
   statutPaiement?: string | null;
+  workflowStatut?: string | null;
+  destination?: string | null;
+  formule?: string | null;
+  message?: string | null;
+  internalComment?: string | null;
+};
+
+type ReservationEditState = {
+  id: number;
+  nomClient: string;
+  prenomClient: string;
+  emailClient: string;
+  telClient: string;
+  dateDebut: string;
+  dateFin: string;
+  nbPersonnes: number;
+  typeReservation: "bateau_entier" | "cabine" | "place";
+  montantTotalEur: number;
+  requestStatus: string;
+  workflowStatut: string;
+  statutPaiement: string;
+  destination: string;
+  formule: string;
+  message: string;
+  internalComment: string;
 };
 
 function toInputDateFromApi(iso: string) {
   return iso.slice(0, 10);
+}
+
+function toFrDate(isoLike: string) {
+  const iso = String(isoLike || "").slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(iso)) return isoLike || "";
+  const d = new Date(`${iso}T00:00:00.000Z`);
+  return d.toLocaleDateString("fr-FR");
 }
 
 export default function CharterSlotManager() {
@@ -47,6 +80,12 @@ export default function CharterSlotManager() {
   const [saving, setSaving] = useState(false);
   const [savingReservation, setSavingReservation] = useState(false);
   const [creatingPaymentForId, setCreatingPaymentForId] = useState<number | null>(null);
+  const [sendingProposalForId, setSendingProposalForId] = useState<number | null>(null);
+  const [editingReservation, setEditingReservation] = useState<ReservationEditState | null>(null);
+  const [savingReservationEdit, setSavingReservationEdit] = useState(false);
+  const [reservationSearch, setReservationSearch] = useState("");
+  const [paymentFilter, setPaymentFilter] = useState<"all" | "en_attente" | "paye" | "echec" | "rembourse">("all");
+  const [workflowFilter, setWorkflowFilter] = useState<"all" | "demande" | "validee_owner" | "contrat_envoye" | "contrat_signe" | "acompte_confirme" | "solde_confirme">("all");
   const [editingId, setEditingId] = useState<number | null>(null);
   const [manualReservation, setManualReservation] = useState<{
     slotId: string;
@@ -264,6 +303,171 @@ export default function CharterSlotManager() {
     }
   };
 
+  const sendProposalPack = async (reservationId: number) => {
+    try {
+      setSendingProposalForId(reservationId);
+      setMessage("");
+
+      const ownerValidateRes = await fetch(apiUrl(`/api/workflow/reservations/${reservationId}/owner-validate`), {
+        method: "POST",
+        credentials: "include",
+      });
+      await handleApiResponse(ownerValidateRes);
+
+      const sendContractRes = await fetch(apiUrl(`/api/workflow/reservations/${reservationId}/send-contract`), {
+        method: "POST",
+        credentials: "include",
+      });
+      await handleApiResponse(sendContractRes);
+
+      const paymentRes = await fetch(apiUrl("/api/mollie/create-payment-link"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ reservationId }),
+      });
+      const paymentData = await handleApiResponse<{ checkoutUrl: string | null }>(paymentRes);
+      if (paymentData?.checkoutUrl) {
+        window.open(paymentData.checkoutUrl, "_blank", "noopener,noreferrer");
+      }
+
+      setMessage("Proposition envoyée : devis + contrat générés/envoyés, lien de paiement créé.");
+      await load();
+    } catch (e: any) {
+      setMessage(e?.message || "Erreur lors de l'envoi de la proposition.");
+    } finally {
+      setSendingProposalForId(null);
+    }
+  };
+
+  const openReservationEdit = (r: ReservationRow) => {
+    setEditingReservation({
+      id: r.id,
+      nomClient: r.nomClient || "",
+      prenomClient: r.prenomClient || "",
+      emailClient: r.emailClient || "",
+      telClient: r.telClient || "",
+      dateDebut: toInputDateFromApi(String(r.dateDebut)),
+      dateFin: toInputDateFromApi(String(r.dateFin)),
+      nbPersonnes: Math.max(1, Number(r.nbPersonnes || 1)),
+      typeReservation: r.typeReservation || "cabine",
+      montantTotalEur: Math.max(0, Number(r.montantTotal || 0) / 100),
+      requestStatus: r.requestStatus || "nouvelle",
+      workflowStatut: r.workflowStatut || "demande",
+      statutPaiement: r.statutPaiement || "en_attente",
+      destination: r.destination || "",
+      formule: r.formule || "semaine",
+      message: r.message || "",
+      internalComment: r.internalComment || "",
+    });
+  };
+
+  const saveReservationEdit = async () => {
+    if (!editingReservation) return;
+    try {
+      setSavingReservationEdit(true);
+      setMessage("");
+      const payload = {
+        nomClient: editingReservation.nomClient.trim(),
+        prenomClient: editingReservation.prenomClient.trim() || null,
+        emailClient: editingReservation.emailClient.trim(),
+        telClient: editingReservation.telClient.trim() || null,
+        dateDebut: `${editingReservation.dateDebut}T00:00:00.000Z`,
+        dateFin: `${editingReservation.dateFin}T00:00:00.000Z`,
+        nbPersonnes: Math.max(1, Number(editingReservation.nbPersonnes || 1)),
+        typeReservation: editingReservation.typeReservation,
+        montantTotal: Math.max(100, Math.round((editingReservation.montantTotalEur || 0) * 100)),
+        requestStatus: editingReservation.requestStatus,
+        workflowStatut: editingReservation.workflowStatut,
+        statutPaiement: editingReservation.statutPaiement,
+        destination: editingReservation.destination,
+        formule: editingReservation.formule,
+        message: editingReservation.message,
+        internalComment: editingReservation.internalComment,
+      };
+      const res = await fetch(apiUrl(`/api/reservations/${editingReservation.id}`), {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify(payload),
+      });
+      await handleApiResponse(res);
+      setEditingReservation(null);
+      setMessage("Réservation mise à jour.");
+      await load();
+    } catch (e: any) {
+      setMessage(e?.message || "Erreur mise à jour réservation.");
+    } finally {
+      setSavingReservationEdit(false);
+    }
+  };
+
+  const paymentCounts = useMemo(() => {
+    return reservations.reduce(
+      (acc, r) => {
+        const key = (r.statutPaiement || "en_attente") as "en_attente" | "paye" | "echec" | "rembourse";
+        if (key in acc) acc[key] += 1;
+        return acc;
+      },
+      { en_attente: 0, paye: 0, echec: 0, rembourse: 0 }
+    );
+  }, [reservations]);
+
+  const filteredReservations = useMemo(() => {
+    const q = reservationSearch.trim().toLowerCase();
+    return reservations.filter((r) => {
+      const payment = (r.statutPaiement || "en_attente") as "en_attente" | "paye" | "echec" | "rembourse";
+      const workflow = (r.workflowStatut || "demande") as
+        | "demande"
+        | "validee_owner"
+        | "contrat_envoye"
+        | "contrat_signe"
+        | "acompte_confirme"
+        | "solde_confirme";
+      const matchesPayment = paymentFilter === "all" || payment === paymentFilter;
+      const matchesWorkflow = workflowFilter === "all" || workflow === workflowFilter;
+      const matchesSearch =
+        !q ||
+        String(r.nomClient || "").toLowerCase().includes(q) ||
+        String(r.prenomClient || "").toLowerCase().includes(q) ||
+        String(r.emailClient || "").toLowerCase().includes(q) ||
+        String(r.telClient || "").toLowerCase().includes(q);
+      return matchesPayment && matchesWorkflow && matchesSearch;
+    });
+  }, [reservations, reservationSearch, paymentFilter, workflowFilter]);
+
+  const paymentBadgeClass = (status: string | null | undefined) => {
+    const value = status || "en_attente";
+    if (value === "paye") return "bg-emerald-100 text-emerald-700";
+    if (value === "echec") return "bg-rose-100 text-rose-700";
+    if (value === "rembourse") return "bg-slate-200 text-slate-700";
+    return "bg-amber-100 text-amber-700";
+  };
+
+  const paymentLabel = (status: string | null | undefined) => {
+    const value = status || "en_attente";
+    if (value === "paye") return "Payée";
+    if (value === "echec") return "Échec";
+    if (value === "rembourse") return "Remboursée";
+    return "En attente";
+  };
+
+  const workflowLabel = (status: string | null | undefined) => {
+    const value = status || "demande";
+    if (value === "validee_owner") return "Validée owner";
+    if (value === "contrat_envoye") return "Contrat envoyé";
+    if (value === "contrat_signe") return "Contrat signé";
+    if (value === "acompte_confirme") return "Acompte confirmé";
+    if (value === "solde_confirme") return "Solde confirmé";
+    return "Demande";
+  };
+
+  const reservationTypeLabel = (type: ReservationRow["typeReservation"]) => {
+    if (type === "bateau_entier") return "Privatif";
+    if (type === "place") return "Place";
+    return "Cabine";
+  };
+
   return (
     <div className="space-y-6">
       <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm" style={{ borderColor: "#d7e3e8" }}>
@@ -367,12 +571,65 @@ export default function CharterSlotManager() {
           </div>
 
           <div className="rounded-xl border border-slate-200 bg-white p-4">
-            <h3 className="text-sm font-bold text-slate-800">Dernières réservations</h3>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <h3 className="text-sm font-bold text-slate-800">Dernières réservations</h3>
+              <div className="flex flex-wrap items-center gap-2 text-xs">
+                <span className="rounded-full bg-amber-100 px-2 py-1 font-semibold text-amber-700">
+                  En attente: {paymentCounts.en_attente}
+                </span>
+                <span className="rounded-full bg-emerald-100 px-2 py-1 font-semibold text-emerald-700">
+                  Payées: {paymentCounts.paye}
+                </span>
+                <span className="rounded-full bg-rose-100 px-2 py-1 font-semibold text-rose-700">
+                  Échecs: {paymentCounts.echec}
+                </span>
+              </div>
+            </div>
+
+            <div className="mt-3 grid gap-2 sm:grid-cols-3">
+              <input
+                className="rounded-lg border border-slate-200 px-3 py-2 text-sm"
+                placeholder="Recherche client (nom, email, téléphone)"
+                value={reservationSearch}
+                onChange={(e) => setReservationSearch(e.target.value)}
+              />
+              <select
+                className="rounded-lg border border-slate-200 px-3 py-2 text-sm"
+                value={paymentFilter}
+                onChange={(e) => setPaymentFilter(e.target.value as typeof paymentFilter)}
+              >
+                <option value="all">Paiement: tous</option>
+                <option value="en_attente">Paiement: en attente</option>
+                <option value="paye">Paiement: payées</option>
+                <option value="echec">Paiement: échecs</option>
+                <option value="rembourse">Paiement: remboursées</option>
+              </select>
+              <select
+                className="rounded-lg border border-slate-200 px-3 py-2 text-sm"
+                value={workflowFilter}
+                onChange={(e) => setWorkflowFilter(e.target.value as typeof workflowFilter)}
+              >
+                <option value="all">Workflow: tous</option>
+                <option value="demande">Workflow: demande</option>
+                <option value="validee_owner">Workflow: validée owner</option>
+                <option value="contrat_envoye">Workflow: contrat envoyé</option>
+                <option value="contrat_signe">Workflow: contrat signé</option>
+                <option value="acompte_confirme">Workflow: acompte confirmé</option>
+                <option value="solde_confirme">Workflow: solde confirmé</option>
+              </select>
+            </div>
+
+            <div className="mt-2 text-xs text-slate-500">
+              {filteredReservations.length} réservation(s) affichée(s) sur {reservations.length}
+            </div>
+
             {reservations.length === 0 ? (
               <p className="mt-3 text-sm text-slate-500">Aucune réservation.</p>
+            ) : filteredReservations.length === 0 ? (
+              <p className="mt-3 text-sm text-slate-500">Aucun résultat pour ces filtres.</p>
             ) : (
               <div className="mt-3 overflow-x-auto">
-                <table className="w-full min-w-[680px] text-left text-sm">
+                <table className="w-full min-w-[820px] text-left text-sm">
                   <thead>
                     <tr className="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-500">
                       <th className="py-2 pr-2">Client</th>
@@ -380,25 +637,51 @@ export default function CharterSlotManager() {
                       <th className="py-2 pr-2">Type</th>
                       <th className="py-2 pr-2">Paiement</th>
                       <th className="py-2 pr-2">Total</th>
-                      <th className="py-2 pr-2" />
+                      <th className="py-2 pr-2">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {reservations.map((r) => (
+                    {filteredReservations.map((r) => (
                       <tr key={r.id} className="border-b border-slate-100">
                         <td className="py-2 pr-2">
-                          <div className="font-medium text-slate-800">{r.nomClient}</div>
+                          <div className="font-medium text-slate-800">
+                            👤 {r.prenomClient ? `${r.prenomClient} ${r.nomClient}` : r.nomClient}
+                          </div>
                           <div className="text-xs text-slate-500">{r.emailClient}</div>
                         </td>
                         <td className="py-2 pr-2 text-slate-700">
-                          {String(r.dateDebut).slice(0, 10)} <span className="text-slate-400">→</span> {String(r.dateFin).slice(0, 10)}
+                          {toFrDate(String(r.dateDebut))} <span className="text-slate-400">→</span> {toFrDate(String(r.dateFin))}
                         </td>
-                        <td className="py-2 pr-2 text-slate-700">{r.typeReservation}</td>
-                        <td className="py-2 pr-2 text-slate-700">{r.statutPaiement || "en_attente"}</td>
+                        <td className="py-2 pr-2 text-slate-700">
+                          <div>{reservationTypeLabel(r.typeReservation)}</div>
+                          <div className="text-xs text-slate-500">{r.nbPersonnes} pers.</div>
+                        </td>
+                        <td className="py-2 pr-2">
+                          <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-semibold ${paymentBadgeClass(r.statutPaiement)}`}>
+                            {paymentLabel(r.statutPaiement)}
+                          </span>
+                          <div className="mt-1 text-xs text-slate-500">⚙ {workflowLabel(r.workflowStatut)}</div>
+                        </td>
                         <td className="py-2 pr-2 font-semibold text-slate-800">
                           {(Number(r.montantTotal || 0) / 100).toLocaleString("fr-FR")} €
                         </td>
-                        <td className="py-2 pr-2 text-right">
+                        <td className="py-2 pr-2 text-right space-x-2">
+                          <button
+                            type="button"
+                            onClick={() => sendProposalPack(r.id)}
+                            disabled={sendingProposalForId === r.id}
+                            className="rounded-md border border-emerald-200 bg-emerald-50 px-2 py-1 text-xs font-semibold text-emerald-700 hover:bg-emerald-100 disabled:opacity-50"
+                            title="Génère/envoie devis + contrat, puis crée le lien de paiement"
+                          >
+                            {sendingProposalForId === r.id ? "Envoi..." : "Envoyer la proposition"}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => openReservationEdit(r)}
+                            className="rounded-md border border-slate-200 px-2 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                          >
+                            Éditer
+                          </button>
                           <button
                             type="button"
                             onClick={() => createMolliePaymentLink(r.id)}
@@ -417,6 +700,65 @@ export default function CharterSlotManager() {
           </div>
         </div>
       </div>
+
+      {editingReservation && (
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-900/40 p-4">
+          <div className="w-full max-w-3xl rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl">
+            <div className="mb-4 flex items-center justify-between">
+              <h3 className="text-lg font-bold text-slate-900">Éditer réservation #{editingReservation.id}</h3>
+              <button className="text-sm text-slate-500 hover:underline" onClick={() => setEditingReservation(null)}>
+                Fermer
+              </button>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <input className="rounded-lg border border-slate-200 px-3 py-2 text-sm" value={editingReservation.nomClient} onChange={(e) => setEditingReservation((s) => s && ({ ...s, nomClient: e.target.value }))} placeholder="Nom" />
+              <input className="rounded-lg border border-slate-200 px-3 py-2 text-sm" value={editingReservation.prenomClient} onChange={(e) => setEditingReservation((s) => s && ({ ...s, prenomClient: e.target.value }))} placeholder="Prénom" />
+              <input className="rounded-lg border border-slate-200 px-3 py-2 text-sm" value={editingReservation.emailClient} onChange={(e) => setEditingReservation((s) => s && ({ ...s, emailClient: e.target.value }))} placeholder="Email" />
+              <input className="rounded-lg border border-slate-200 px-3 py-2 text-sm" value={editingReservation.telClient} onChange={(e) => setEditingReservation((s) => s && ({ ...s, telClient: e.target.value }))} placeholder="Téléphone" />
+              <input type="date" className="rounded-lg border border-slate-200 px-3 py-2 text-sm" value={editingReservation.dateDebut} onChange={(e) => setEditingReservation((s) => s && ({ ...s, dateDebut: e.target.value }))} />
+              <input type="date" className="rounded-lg border border-slate-200 px-3 py-2 text-sm" value={editingReservation.dateFin} onChange={(e) => setEditingReservation((s) => s && ({ ...s, dateFin: e.target.value }))} />
+              <input type="number" min={1} className="rounded-lg border border-slate-200 px-3 py-2 text-sm" value={editingReservation.nbPersonnes} onChange={(e) => setEditingReservation((s) => s && ({ ...s, nbPersonnes: Math.max(1, Number(e.target.value || 1)) }))} />
+              <input type="number" min={0} className="rounded-lg border border-slate-200 px-3 py-2 text-sm" value={editingReservation.montantTotalEur} onChange={(e) => setEditingReservation((s) => s && ({ ...s, montantTotalEur: Math.max(0, Number(e.target.value || 0)) }))} placeholder="Montant total €" />
+              <select className="rounded-lg border border-slate-200 px-3 py-2 text-sm" value={editingReservation.typeReservation} onChange={(e) => setEditingReservation((s) => s && ({ ...s, typeReservation: e.target.value as "bateau_entier" | "cabine" | "place" }))}>
+                <option value="bateau_entier">bateau_entier</option>
+                <option value="cabine">cabine</option>
+                <option value="place">place</option>
+              </select>
+              <select className="rounded-lg border border-slate-200 px-3 py-2 text-sm" value={editingReservation.statutPaiement} onChange={(e) => setEditingReservation((s) => s && ({ ...s, statutPaiement: e.target.value }))}>
+                <option value="en_attente">en_attente</option>
+                <option value="paye">paye</option>
+                <option value="echec">echec</option>
+                <option value="rembourse">rembourse</option>
+              </select>
+              <select className="rounded-lg border border-slate-200 px-3 py-2 text-sm" value={editingReservation.requestStatus} onChange={(e) => setEditingReservation((s) => s && ({ ...s, requestStatus: e.target.value }))}>
+                <option value="nouvelle">nouvelle</option>
+                <option value="en_cours">en_cours</option>
+                <option value="validee">validee</option>
+                <option value="refusee">refusee</option>
+                <option value="archivee">archivee</option>
+              </select>
+              <input className="rounded-lg border border-slate-200 px-3 py-2 text-sm" value={editingReservation.workflowStatut} onChange={(e) => setEditingReservation((s) => s && ({ ...s, workflowStatut: e.target.value }))} placeholder="workflowStatut" />
+              <input className="rounded-lg border border-slate-200 px-3 py-2 text-sm" value={editingReservation.destination} onChange={(e) => setEditingReservation((s) => s && ({ ...s, destination: e.target.value }))} placeholder="Destination" />
+              <input className="rounded-lg border border-slate-200 px-3 py-2 text-sm" value={editingReservation.formule} onChange={(e) => setEditingReservation((s) => s && ({ ...s, formule: e.target.value }))} placeholder="Formule" />
+              <textarea className="rounded-lg border border-slate-200 px-3 py-2 text-sm sm:col-span-2" rows={2} value={editingReservation.message} onChange={(e) => setEditingReservation((s) => s && ({ ...s, message: e.target.value }))} placeholder="Message client" />
+              <textarea className="rounded-lg border border-slate-200 px-3 py-2 text-sm sm:col-span-2" rows={2} value={editingReservation.internalComment} onChange={(e) => setEditingReservation((s) => s && ({ ...s, internalComment: e.target.value }))} placeholder="Commentaire interne" />
+            </div>
+            <div className="mt-4 flex justify-end gap-2">
+              <button className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700" onClick={() => setEditingReservation(null)}>
+                Annuler
+              </button>
+              <button
+                className="rounded-lg px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+                style={{ backgroundColor: BRAND_DEEP }}
+                disabled={savingReservationEdit}
+                onClick={saveReservationEdit}
+              >
+                {savingReservationEdit ? "Enregistrement..." : "Enregistrer"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div>
         <h2 className="text-3xl font-bold" style={{ color: BRAND_DEEP }}>
@@ -544,7 +886,7 @@ export default function CharterSlotManager() {
                         {CHARTER_PRODUCT_LABELS[r.product]}
                       </td>
                       <td className="py-2 pr-2 text-slate-700">
-                        {toInputDateFromApi(r.debut)} <span className="text-slate-400">→</span> {toInputDateFromApi(r.fin)}
+                        {toFrDate(r.debut)} <span className="text-slate-400">→</span> {toFrDate(r.fin)}
                       </td>
                       <td className="py-2 pr-2">
                         <span
