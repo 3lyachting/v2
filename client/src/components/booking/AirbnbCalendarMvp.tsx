@@ -2,11 +2,27 @@ import { useEffect, useMemo, useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { CHARTER_PRODUCT_LABELS, type CharterProductCode } from "@shared/charterProduct";
 import { getCharterHighSeasonError } from "@shared/charterWeekPolicy";
+import {
+  DEFAULT_SEASON_PRICING,
+  type SeasonPricingConfig,
+  type SeasonPricingProduct,
+  estimateMvpIndicativeTotalEur,
+  getSeasonPriceForDate,
+  TRANSAT_PER_PERSON_EUR,
+} from "@shared/seasonPricing";
+import { apiUrl } from "@/lib/apiBase";
 
 type SelectionMode = "single" | "range";
+type ReservationMode = "cabine" | "priva";
 
 const BRAND_DEEP = "#00384A";
 const BRAND_SAND = "#D8C19E";
+
+const DEFAULT_PRIVATE_WEEKLY_PRICE: Record<Exclude<CharterProductCode, "transat">, number> = {
+  med: 14000,
+  caraibes: 14000,
+  journee: 1000,
+};
 
 function toIso(date: Date) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
@@ -73,7 +89,29 @@ export default function AirbnbCalendarMvp({
   const [selectionMode, setSelectionMode] = useState<SelectionMode>("range");
   const [startDate, setStartDate] = useState<string | null>(null);
   const [endDate, setEndDate] = useState<string | null>(null);
+  const [seasonPricing, setSeasonPricing] = useState<SeasonPricingConfig>(DEFAULT_SEASON_PRICING);
+  const [reservationMode, setReservationMode] = useState<ReservationMode>("cabine");
+  const [passengerCount, setPassengerCount] = useState<number>(2);
   const today = new Date();
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await fetch(apiUrl("/api/backoffice-ops/season-pricing"), { cache: "no-store" });
+        if (!res.ok) throw new Error("pricing");
+        const data = (await res.json()) as SeasonPricingConfig;
+        if (!cancelled) {
+          setSeasonPricing({ ...DEFAULT_SEASON_PRICING, ...data });
+        }
+      } catch {
+        if (!cancelled) setSeasonPricing(DEFAULT_SEASON_PRICING);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const monthLabel = month.toLocaleDateString(isEnglish ? "en-US" : "fr-FR", {
     month: "long",
@@ -157,6 +195,100 @@ export default function AirbnbCalendarMvp({
             : "";
 
   const highSeasonError = getCharterHighSeasonError(startDate, endDate, selectionMode, { isEnglish });
+  const isDayTrip = product === "journee";
+  const isTransat = product === "transat";
+  const canChooseCabine = !isDayTrip;
+  const canChoosePrivatif = !isTransat;
+
+  useEffect(() => {
+    if (reservationMode === "cabine" && !canChooseCabine && canChoosePrivatif) {
+      setReservationMode("priva");
+    } else if (reservationMode === "priva" && !canChoosePrivatif && canChooseCabine) {
+      setReservationMode("cabine");
+    }
+  }, [canChooseCabine, canChoosePrivatif, reservationMode]);
+
+  const pricePanel = useMemo(() => {
+    const p = product as SeasonPricingProduct;
+    if (!startDate) return { kind: "empty" as const };
+    if (selectionMode === "range" && !endDate) {
+      const u =
+        product === "transat" ? TRANSAT_PER_PERSON_EUR : getSeasonPriceForDate(seasonPricing, p, startDate);
+      return { kind: "await_end" as const, unitEur: u };
+    }
+    const end = endDate || startDate;
+    return { kind: "ready" as const, ...estimateMvpIndicativeTotalEur(seasonPricing, p, startDate, end) };
+  }, [endDate, product, seasonPricing, selectionMode, startDate]);
+
+  const bookingPanel = useMemo(() => {
+    if (pricePanel.kind !== "ready" || !startDate) {
+      return {
+        canBook: false,
+        totalEur: null as number | null,
+        info: isEnglish
+          ? "Complete your date range first."
+          : "Complétez d'abord la plage de dates.",
+        href: "#",
+      };
+    }
+
+    const safePassengers = Math.max(1, Math.min(20, Number.isFinite(passengerCount) ? Math.round(passengerCount) : 1));
+    const weekBlocks = Math.max(1, pricePanel.weekBlocks || 1);
+    const isReady = !highSeasonError;
+
+    let totalEur: number | null = null;
+    if (reservationMode === "cabine") {
+      totalEur = pricePanel.total != null ? Math.round(pricePanel.total * safePassengers) : null;
+    } else if (canChoosePrivatif) {
+      const base = DEFAULT_PRIVATE_WEEKLY_PRICE[product as Exclude<CharterProductCode, "transat">] ?? 0;
+      totalEur = product === "journee" ? base : base * weekBlocks;
+    }
+
+    const reservationType =
+      reservationMode === "priva" ? "bateau_entier" : isTransat ? "place" : "cabine";
+    const formule = isDayTrip ? "journee" : "semaine";
+    const destination = CHARTER_PRODUCT_LABELS[product];
+    const query = new URLSearchParams({
+      produit: product,
+      destination,
+      formule,
+      typeReservation: reservationType,
+      nbPersonnes: String(safePassengers),
+      dateDebut: startDate,
+      dateFin: endDate || startDate,
+      montant: String(totalEur ?? 0),
+    });
+
+    return {
+      canBook: Boolean(totalEur != null && isReady),
+      totalEur,
+      info:
+        totalEur == null
+          ? isEnglish
+            ? "No price configured for this product."
+            : "Aucun tarif configuré pour ce produit."
+          : reservationMode === "cabine"
+            ? isEnglish
+              ? `Calculated for ${safePassengers} passenger(s).`
+              : `Calculé pour ${safePassengers} passager(s).`
+            : isEnglish
+              ? "Private charter estimated total."
+              : "Total estimé pour privatisation.",
+      href: `/reservation?${query.toString()}`,
+    };
+  }, [
+    canChoosePrivatif,
+    endDate,
+    highSeasonError,
+    isDayTrip,
+    isEnglish,
+    isTransat,
+    passengerCount,
+    pricePanel,
+    product,
+    reservationMode,
+    startDate,
+  ]);
 
   return (
     <div className="grid gap-6 lg:grid-cols-[1.4fr_1fr]">
@@ -291,6 +423,85 @@ export default function AirbnbCalendarMvp({
               {nights > 0 ? `${nights} ${isEnglish ? "day(s)" : "jour(s)"}` : isEnglish ? "Choose your dates" : "Choisissez vos dates"}
             </p>
           </div>
+          {pricePanel.kind !== "empty" && (
+            <div className="rounded-xl border border-slate-200 bg-white p-3">
+              <p className="text-xs uppercase tracking-wide text-slate-500">{isEnglish ? "Booking options" : "Options de réservation"}</p>
+              <div className="mt-2 space-y-3">
+                {(canChooseCabine || canChoosePrivatif) && (
+                  <div className={`grid gap-2 ${canChooseCabine && canChoosePrivatif ? "grid-cols-2" : "grid-cols-1"}`}>
+                    {canChooseCabine && (
+                      <button
+                        type="button"
+                        onClick={() => setReservationMode("cabine")}
+                        className={`rounded-lg border px-3 py-2 text-xs font-semibold ${reservationMode === "cabine" ? "text-white" : ""}`}
+                        style={
+                          reservationMode === "cabine"
+                            ? { backgroundColor: BRAND_DEEP, borderColor: BRAND_DEEP }
+                            : { color: BRAND_DEEP, borderColor: "#d8c1a6" }
+                        }
+                      >
+                        {isTransat ? (isEnglish ? "Seat" : "Place") : isEnglish ? "Cabin" : "Cabine"}
+                      </button>
+                    )}
+                    {canChoosePrivatif && (
+                      <button
+                        type="button"
+                        onClick={() => setReservationMode("priva")}
+                        className={`rounded-lg border px-3 py-2 text-xs font-semibold ${reservationMode === "priva" ? "text-white" : ""}`}
+                        style={
+                          reservationMode === "priva"
+                            ? { backgroundColor: BRAND_DEEP, borderColor: BRAND_DEEP }
+                            : { color: BRAND_DEEP, borderColor: "#d8c1a6" }
+                        }
+                      >
+                        {isEnglish ? "Private" : "Privatif"}
+                      </button>
+                    )}
+                  </div>
+                )}
+
+                <div>
+                  <label className="text-xs uppercase tracking-wide text-slate-500">
+                    {isEnglish ? "Passengers" : "Nombre de passagers"}
+                  </label>
+                  <input
+                    type="number"
+                    min={1}
+                    max={20}
+                    value={passengerCount}
+                    onChange={(e) => setPassengerCount(Math.max(1, Number(e.target.value || 1)))}
+                    className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
+                  />
+                </div>
+
+                {pricePanel.kind === "await_end" ? (
+                  <p className="text-xs text-slate-500">
+                    {isEnglish
+                      ? "Select an end date to calculate the booking total."
+                      : "Sélectionnez la date de fin pour calculer le total de réservation."}
+                  </p>
+                ) : (
+                  <>
+                    <p className="text-2xl font-bold" style={{ color: BRAND_DEEP }}>
+                      {bookingPanel.totalEur != null
+                        ? `${bookingPanel.totalEur.toLocaleString(isEnglish ? "en-GB" : "fr-FR")} €`
+                        : isEnglish
+                          ? "Price unavailable"
+                          : "Tarif indisponible"}
+                    </p>
+                    <p className="text-xs text-slate-500">{bookingPanel.info}</p>
+                    <a
+                      href={bookingPanel.canBook ? bookingPanel.href : "#"}
+                      className={`block rounded-xl px-4 py-3 text-center text-sm font-bold text-white ${bookingPanel.canBook ? "" : "pointer-events-none opacity-50"}`}
+                      style={{ backgroundColor: BRAND_DEEP }}
+                    >
+                      {isEnglish ? "Book now" : "Réserver"}
+                    </a>
+                  </>
+                )}
+              </div>
+            </div>
+          )}
           {availabilityHint && (
             <div
               className={`rounded-xl border px-3 py-2 text-xs ${
