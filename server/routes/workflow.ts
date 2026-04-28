@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { and, eq } from "drizzle-orm";
+import nodemailer from "nodemailer";
 import { getDb } from "../db";
 import { storagePut } from "../storage";
 import { requireAdmin } from "../_core/authz";
@@ -31,6 +32,16 @@ const buildQuoteNumber = (id: number) => `DV-${nowYear()}-${pad(id)}`;
 const buildContractNumber = (id: number) => `CT-${nowYear()}-${pad(id)}`;
 const buildInvoiceNumber = (id: number, type: "acompte" | "solde" | "full") =>
   `FAC-${type.toUpperCase()}-${nowYear()}-${pad(id)}`;
+
+function getSmtpConfig() {
+  const host = (process.env.SMTP_HOST || "").trim();
+  const user = (process.env.SMTP_USER || "").trim();
+  const pass = process.env.SMTP_PASS || "";
+  const fromEmail = (process.env.CONTACT_FROM_EMAIL || process.env.SMTP_USER || "").trim();
+  const port = Number(process.env.SMTP_PORT || 587);
+  const secure = process.env.SMTP_SECURE === "true";
+  return { host, user, pass, fromEmail, port, secure };
+}
 
 router.post("/reservations/:id/owner-validate", requireAdmin, async (req, res) => {
   try {
@@ -274,6 +285,77 @@ router.post("/reservations/:id/send-contract", requireAdmin, async (req, res) =>
     });
   } catch (error: any) {
     return res.status(500).json({ error: error?.message || "Erreur envoi contrat" });
+  }
+});
+
+router.post("/reservations/:id/send-proposal-email", requireAdmin, async (req, res) => {
+  try {
+    const reservationId = parseInt(req.params.id, 10);
+    const db = await getDb();
+    if (!db) return res.status(500).json({ error: "Base de données non disponible" });
+
+    const existing = await listReservationsByIdSafe(db, reservationId);
+    if (!existing.length) return res.status(404).json({ error: "Réservation introuvable" });
+    const r = existing[0];
+    if (!r.emailClient) return res.status(400).json({ error: "Email client manquant" });
+
+    const quoteRows = await db.select().from(quotes).where(eq(quotes.reservationId, reservationId));
+    const contractRows = await db.select().from(contracts).where(eq(contracts.reservationId, reservationId));
+    const latestQuote = quoteRows.slice().sort((a, b) => b.id - a.id)[0] || null;
+    const latestContract = contractRows.slice().sort((a, b) => b.id - a.id)[0] || null;
+
+    const quoteUrl = latestQuote?.pdfStorageKey ? await storageGetSignedUrl(latestQuote.pdfStorageKey).catch(() => null) : null;
+    const contractUrl = latestContract?.pdfStorageKey ? await storageGetSignedUrl(latestContract.pdfStorageKey).catch(() => null) : null;
+    const paymentUrl = String(req.body?.paymentUrl || "").trim() || null;
+
+    const smtp = getSmtpConfig();
+    if (!smtp.host || !smtp.user || !smtp.pass || !smtp.fromEmail) {
+      return res.status(400).json({
+        error:
+          "SMTP non configuré. Définissez SMTP_HOST, SMTP_USER, SMTP_PASS et CONTACT_FROM_EMAIL.",
+      });
+    }
+
+    const transporter = nodemailer.createTransport({
+      host: smtp.host,
+      port: smtp.port,
+      secure: smtp.secure,
+      auth: { user: smtp.user, pass: smtp.pass },
+    });
+
+    const subject = `Votre proposition - réservation #${reservationId}`;
+    const textLines = [
+      `Bonjour ${r.nomClient || ""},`,
+      "",
+      "Votre proposition est prête.",
+      quoteUrl ? `Devis: ${quoteUrl}` : "Devis: indisponible",
+      contractUrl ? `Contrat: ${contractUrl}` : "Contrat: indisponible",
+      paymentUrl ? `Lien de paiement acompte (20%): ${paymentUrl}` : "Lien de paiement: indisponible",
+      "",
+      "Merci.",
+      "Sabine Sailing",
+    ];
+
+    await transporter.sendMail({
+      from: smtp.fromEmail,
+      to: r.emailClient,
+      subject,
+      text: textLines.join("\n"),
+      html: `
+        <p>Bonjour ${String(r.nomClient || "client")},</p>
+        <p>Votre proposition est prête :</p>
+        <ul>
+          <li>${quoteUrl ? `<a href="${quoteUrl}">Devis</a>` : "Devis indisponible"}</li>
+          <li>${contractUrl ? `<a href="${contractUrl}">Contrat</a>` : "Contrat indisponible"}</li>
+          <li>${paymentUrl ? `<a href="${paymentUrl}">Lien de paiement acompte (20%)</a>` : "Lien de paiement indisponible"}</li>
+        </ul>
+        <p>Merci,<br/>Sabine Sailing</p>
+      `,
+    });
+
+    return res.json({ success: true, quoteUrl, contractUrl, paymentUrl });
+  } catch (error: any) {
+    return res.status(500).json({ error: error?.message || "Erreur envoi email proposition" });
   }
 });
 

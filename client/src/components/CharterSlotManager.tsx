@@ -412,9 +412,17 @@ export default function CharterSlotManager() {
         credentials: "include",
         body: JSON.stringify({ reservationId }),
       });
-      await handleApiResponse(paymentRes);
+      const paymentData = await handleApiResponse<{ checkoutUrl: string | null }>(paymentRes);
 
-      setMessage("Proposition envoyée : devis + contrat envoyés, lien de paiement créé pour le client.");
+      const sendProposalEmailRes = await fetch(apiUrl(`/api/workflow/reservations/${reservationId}/send-proposal-email`), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ paymentUrl: paymentData?.checkoutUrl || null }),
+      });
+      await handleApiResponse(sendProposalEmailRes);
+
+      setMessage("Proposition envoyée au client par email (devis + contrat + lien de paiement).");
       await load();
     } catch (e: any) {
       setMessage(e?.message || "Erreur lors de l'envoi de la proposition.");
@@ -922,7 +930,7 @@ export default function CharterSlotManager() {
                   .filter((r) => r.active)
                   .map((r) => (
                     <option key={r.id} value={r.id}>
-                      {CHARTER_PRODUCT_LABELS[r.product]} · {toInputDateFromApi(r.debut)} → {toInputDateFromApi(r.fin)}
+                      {CHARTER_PRODUCT_LABELS[r.product]} · {toFrDate(r.debut)} → {toFrDate(r.fin)}
                     </option>
                   ))}
               </select>

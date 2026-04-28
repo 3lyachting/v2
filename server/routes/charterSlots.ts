@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { and, eq, gte, lte } from "drizzle-orm";
 import { getDb } from "../db";
-import { charterSlots } from "../../drizzle/schema";
+import { charterSlots, reservations } from "../../drizzle/schema";
 import { requireAdmin } from "../_core/authz";
 import { sdk } from "../_core/sdk";
 import { CHARTER_PRODUCTS, isCharterProductCode, type CharterProductCode } from "@shared/charterProduct";
@@ -42,6 +42,34 @@ function mapDbError(error: any, fallback: string) {
     return "Une periode identique existe deja pour ce produit (memes dates).";
   }
   return error?.message || fallback;
+}
+
+function normalizeForMatch(value: string) {
+  return String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+}
+
+function inferReservationProduct(destination: string, formule: string): CharterProductCode | null {
+  const text = `${normalizeForMatch(destination)} ${normalizeForMatch(formule)}`;
+  if (text.includes("transat")) return "transat";
+  if (text.includes("caraib") || text.includes("antill")) return "caraibes";
+  if (text.includes("journee") || text.includes("day")) return "journee";
+  if (text.includes("mediterr")) return "med";
+  return null;
+}
+
+function expandYmdRange(startIso: string, endIso: string): string[] {
+  if (!YMD.test(startIso) || !YMD.test(endIso) || startIso > endIso) return [];
+  const out: string[] = [];
+  let cur = new Date(`${startIso}T00:00:00.000Z`);
+  const end = new Date(`${endIso}T00:00:00.000Z`);
+  while (cur <= end) {
+    out.push(cur.toISOString().slice(0, 10));
+    cur.setUTCDate(cur.getUTCDate() + 1);
+  }
+  return out;
 }
 
 async function isAdminRequest(req: import("express").Request) {
@@ -109,6 +137,65 @@ router.get("/", async (req, res) => {
     return res.json(rows);
   } catch (error: any) {
     return res.status(500).json({ error: mapDbError(error, "Erreur chargement periodes") });
+  }
+});
+
+// Public: jours à bloquer côté calendrier client pour éviter les doubles réservations
+router.get("/blocked-days", async (req, res) => {
+  try {
+    const { from, to } = defaultRange();
+    const qFrom = typeof req.query.from === "string" ? parseYmdUtcStart(req.query.from) : null;
+    const qTo = typeof req.query.to === "string" ? parseYmdUtcEndOfDay(req.query.to) : null;
+    if (typeof req.query.from === "string" && !qFrom) {
+      return res.status(400).json({ error: "Parametre 'from' invalide (attendu YYYY-MM-DD)." });
+    }
+    if (typeof req.query.to === "string" && !qTo) {
+      return res.status(400).json({ error: "Parametre 'to' invalide (attendu YYYY-MM-DD)." });
+    }
+    const productFilter = typeof req.query.product === "string" ? req.query.product : null;
+    if (!productFilter || !isCharterProductCode(productFilter)) {
+      return res.status(400).json({ error: "Produit requis" });
+    }
+    const fromBound = qFrom || from;
+    const toBound = qTo || to;
+    if (toBound < fromBound) {
+      return res.status(400).json({ error: "La plage 'to' doit etre apres 'from'." });
+    }
+
+    const db = await getDb();
+    if (!db) return res.json({ days: [] });
+
+    const overlap = and(lte(reservations.dateDebut, toBound), gte(reservations.dateFin, fromBound));
+    const rows = await db
+      .select({
+        dateDebut: reservations.dateDebut,
+        dateFin: reservations.dateFin,
+        destination: reservations.destination,
+        formule: reservations.formule,
+        requestStatus: reservations.requestStatus,
+        workflowStatut: reservations.workflowStatut,
+      })
+      .from(reservations)
+      .where(overlap);
+
+    const blocked = new Set<string>();
+    for (const r of rows) {
+      const req = String(r.requestStatus || "");
+      const wf = String(r.workflowStatut || "");
+      const isBlocking =
+        (req !== "refusee" && req !== "archivee" && req === "validee") ||
+        ["validee_owner", "devis_accepte", "contrat_envoye", "contrat_signe", "acompte_confirme", "solde_confirme"].includes(wf);
+      if (!isBlocking) continue;
+      const resProduct = inferReservationProduct(String(r.destination || ""), String(r.formule || ""));
+      if (resProduct !== productFilter) continue;
+      const startIso = String(r.dateDebut).slice(0, 10);
+      const endIso = String(r.dateFin).slice(0, 10);
+      for (const day of expandYmdRange(startIso, endIso)) blocked.add(day);
+    }
+
+    return res.json({ days: Array.from(blocked).sort() });
+  } catch (error: any) {
+    return res.status(500).json({ error: mapDbError(error, "Erreur chargement jours bloques") });
   }
 });
 

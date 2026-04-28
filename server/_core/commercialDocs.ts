@@ -11,6 +11,13 @@ const COMPANY = {
   email: "contact@3lyachting.com",
 };
 
+const BANK_DETAILS = {
+  accountName: "3L yachting",
+  iban: "FR76 1695 8000 0129 3037 2555 023",
+  bic: "QNTOFRP1XXX",
+  partnerSwift: "TRWIBEB3XXX",
+};
+
 const euro = (cents: number) =>
   (cents / 100)
     .toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
@@ -213,8 +220,15 @@ export async function buildQuotePdf(r: Reservation, quoteNumber: string, optionE
   page.drawText(isPrivate ? "- Acompte 10 % a la reservation" : "- Acompte 20 % a la reservation", { x: 44, y: 378, font, size: 10, color: rgb(0.15, 0.15, 0.15) });
   page.drawText(isPrivate ? "- Solde 60 jours avant depart" : "- Solde 45 jours avant depart", { x: 44, y: 362, font, size: 10, color: rgb(0.15, 0.15, 0.15) });
   page.drawText("Reglement par virement bancaire", { x: 44, y: 343, font: bold, size: 10, color: rgb(0.15, 0.15, 0.15) });
-  page.drawText("IBAN FR76 1695 8000 0129 3037 2555 023", { x: 44, y: 327, font, size: 9.5, color: rgb(0.2, 0.2, 0.2) });
-  page.drawText("BIC QNTOFRP1XXX", { x: 44, y: 313, font, size: 9.5, color: rgb(0.2, 0.2, 0.2) });
+  page.drawText(`Titulaire: ${BANK_DETAILS.accountName}`, { x: 44, y: 327, font, size: 9.5, color: rgb(0.2, 0.2, 0.2) });
+  page.drawText(`IBAN ${BANK_DETAILS.iban}`, { x: 44, y: 313, font, size: 9.5, color: rgb(0.2, 0.2, 0.2) });
+  page.drawText(`BIC ${BANK_DETAILS.bic} (banque partenaire SWIFT ${BANK_DETAILS.partnerSwift})`, {
+    x: 44,
+    y: 299,
+    font,
+    size: 9.5,
+    color: rgb(0.2, 0.2, 0.2),
+  });
 
   // Inclusions / exclusions block (as in charter contract, depends on mode)
   page.drawRectangle({ x: 40, y: 150, width: 515, height: 130, borderColor: rgb(0.83, 0.85, 0.9), borderWidth: 1 });
@@ -448,8 +462,9 @@ export async function buildInvoicePdf(
     `Echeance: ${dateFr(dueAt)}`,
     "",
     "Reglement par virement:",
-    "IBAN FR76 1695 8000 0129 3037 2555 023",
-    "BIC QNTOFRP1XXX",
+    `Titulaire: ${BANK_DETAILS.accountName}`,
+    `IBAN ${BANK_DETAILS.iban}`,
+    `BIC ${BANK_DETAILS.bic} (banque partenaire SWIFT ${BANK_DETAILS.partnerSwift})`,
   ];
 
   return renderPdf(`FACTURE ${invoiceNumber}`, lines);

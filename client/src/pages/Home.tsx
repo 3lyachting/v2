@@ -1062,20 +1062,31 @@ function SectionCalendrier({ isEnglish = false }: { isEnglish?: boolean }) {
       // cellule du Set reste entierement grise tant qu'au moins un creneau existe ailleurs).
       const from = format(subDays(new Date(), 400), "yyyy-MM-dd");
       const to = format(addDays(new Date(), 800), "yyyy-MM-dd");
-      const res = await fetch(
-        `${apiUrl("/api/charter-slots")}?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}&product=${encodeURIComponent(
-          product
-        )}`
-      );
-      if (!res.ok) {
+      const [slotsRes, blockedDaysRes] = await Promise.all([
+        fetch(
+          `${apiUrl("/api/charter-slots")}?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}&product=${encodeURIComponent(
+            product
+          )}`
+        ),
+        fetch(
+          `${apiUrl("/api/charter-slots/blocked-days")}?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}&product=${encodeURIComponent(
+            product
+          )}`
+        ),
+      ]);
+      if (!slotsRes.ok) {
         return;
       }
-      const rows = (await res.json()) as { debut: string; fin: string; active: boolean }[];
+      const rows = (await slotsRes.json()) as { debut: string; fin: string; active: boolean }[];
+      const blockedDays = blockedDaysRes.ok
+        ? ((await blockedDaysRes.json()) as { days?: string[] })?.days || []
+        : [];
       const s = new Set<string>();
       for (const r of rows) {
         if (r.active === false) continue;
         for (const d of expandCharterSlotDays(r.debut, r.fin)) s.add(d);
       }
+      for (const d of blockedDays) s.delete(String(d || "").slice(0, 10));
       // Aucun creneau public => pas de contrainte (dates toujours cliquables)
       setDayAvailability(s.size > 0 ? s : null);
     } catch {
