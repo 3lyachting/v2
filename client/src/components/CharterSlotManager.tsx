@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { apiUrl, handleApiResponse } from "@/lib/apiBase";
+import AdminCalendarView from "@/components/AdminCalendarView";
 import {
   CHARTER_PRODUCT_LABELS,
   CHARTER_PRODUCTS,
@@ -61,6 +62,34 @@ type ReservationEditState = {
   internalComment: string;
 };
 
+type WorkflowDocumentsResponse = {
+  quotes?: Array<{ id: number; downloadUrl: string | null }>;
+  contracts?: Array<{ id: number; downloadUrl: string | null }>;
+};
+
+type ReservationLinksViewer = {
+  reservationId: number;
+  quoteUrl: string | null;
+  contractUrl: string | null;
+  paymentUrl: string | null;
+};
+
+type CalendarDispo = {
+  id: number;
+  planningType?: "charter" | "technical_stop" | "maintenance" | "blocked";
+  debut: string;
+  fin: string;
+  statut: "disponible" | "reserve" | "option" | "ferme";
+  tarif: number | null;
+  destination: string;
+  note: string | null;
+  notePublique: string | null;
+  createdAt: string;
+  updatedAt: string;
+  capaciteTotale?: number;
+  cabinesReservees?: number;
+};
+
 function toInputDateFromApi(iso: string) {
   return iso.slice(0, 10);
 }
@@ -82,11 +111,14 @@ export default function CharterSlotManager() {
   const [creatingPaymentForId, setCreatingPaymentForId] = useState<number | null>(null);
   const [sendingProposalForId, setSendingProposalForId] = useState<number | null>(null);
   const [deletingReservationId, setDeletingReservationId] = useState<number | null>(null);
+  const [consultingForId, setConsultingForId] = useState<number | null>(null);
+  const [linksViewer, setLinksViewer] = useState<ReservationLinksViewer | null>(null);
   const [editingReservation, setEditingReservation] = useState<ReservationEditState | null>(null);
   const [savingReservationEdit, setSavingReservationEdit] = useState(false);
   const [reservationSearch, setReservationSearch] = useState("");
   const [paymentFilter, setPaymentFilter] = useState<"all" | "en_attente" | "paye" | "echec" | "rembourse">("all");
   const [workflowFilter, setWorkflowFilter] = useState<"all" | "demande" | "validee_owner" | "contrat_envoye" | "contrat_signe" | "acompte_confirme" | "solde_confirme">("all");
+  const [calendarMode, setCalendarMode] = useState<"list" | "calendar">("calendar");
   const [editingId, setEditingId] = useState<number | null>(null);
   const [manualReservation, setManualReservation] = useState<{
     slotId: string;
@@ -400,6 +432,40 @@ export default function CharterSlotManager() {
     }
   };
 
+  const openReservationLinks = async (reservationId: number) => {
+    try {
+      setConsultingForId(reservationId);
+      setMessage("");
+
+      const docsRes = await fetch(apiUrl(`/api/workflow/reservations/${reservationId}/documents`), {
+        credentials: "include",
+      });
+      const docs = await handleApiResponse<WorkflowDocumentsResponse>(docsRes);
+      const sortedQuotes = (docs.quotes || []).slice().sort((a, b) => b.id - a.id);
+      const sortedContracts = (docs.contracts || []).slice().sort((a, b) => b.id - a.id);
+      const quoteUrl = sortedQuotes[0]?.downloadUrl || null;
+      const contractUrl = sortedContracts[0]?.downloadUrl || null;
+
+      let paymentUrl: string | null = null;
+      const paymentRes = await fetch(apiUrl(`/api/mollie/payment-link/${reservationId}`), {
+        credentials: "include",
+      });
+      if (paymentRes.ok) {
+        const paymentData = await handleApiResponse<{ checkoutUrl: string | null }>(paymentRes);
+        paymentUrl = paymentData?.checkoutUrl || null;
+      }
+
+      setLinksViewer({ reservationId, quoteUrl, contractUrl, paymentUrl });
+      if (!quoteUrl && !contractUrl && !paymentUrl) {
+        setMessage("Aucun devis/contrat/lien paiement disponible pour cette réservation.");
+      }
+    } catch (e: any) {
+      setMessage(e?.message || "Erreur consultation documents.");
+    } finally {
+      setConsultingForId(null);
+    }
+  };
+
   const removeReservation = async (reservationId: number) => {
     if (!confirm("Supprimer cette réservation ? Cette action est irréversible.")) return;
     try {
@@ -479,14 +545,125 @@ export default function CharterSlotManager() {
     return "Demande";
   };
 
+  const dossierBadge = (workflowStatus: string | null | undefined) => {
+    const value = workflowStatus || "demande";
+    if (value === "contrat_envoye" || value === "validee_owner") {
+      return { label: "Proposition envoyée", className: "bg-sky-100 text-sky-700" };
+    }
+    if (value === "contrat_signe") {
+      return { label: "Contrat signé", className: "bg-indigo-100 text-indigo-700" };
+    }
+    if (value === "acompte_confirme") {
+      return { label: "Acompte confirmé", className: "bg-emerald-100 text-emerald-700" };
+    }
+    if (value === "solde_confirme") {
+      return { label: "Réservation soldée", className: "bg-emerald-100 text-emerald-700" };
+    }
+    return { label: "En attente", className: "bg-amber-100 text-amber-700" };
+  };
+
   const reservationTypeLabel = (type: ReservationRow["typeReservation"]) => {
     if (type === "bateau_entier") return "Privatif";
     if (type === "place") return "Place";
     return "Cabine";
   };
 
+  const calendarDisponibilites = useMemo<CalendarDispo[]>(
+    () =>
+      rows.map((r) => ({
+        id: r.id,
+        planningType: "charter",
+        debut: r.debut,
+        fin: r.fin,
+        statut: r.active ? "disponible" : "ferme",
+        tarif: null,
+        destination: CHARTER_PRODUCT_LABELS[r.product],
+        note: r.note,
+        notePublique: r.publicNote,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        capaciteTotale: 4,
+        cabinesReservees: 0,
+      })),
+    [rows]
+  );
+
+  const calendarReservations = useMemo(
+    () =>
+      reservations.map((r) => ({
+        ...r,
+        bookingOrigin: (r.bookingOrigin as "direct" | "clicknboat" | "skippair" | "samboat" | undefined) || "direct",
+        requestStatus: (r.requestStatus as "nouvelle" | "en_cours" | "validee" | "refusee" | "archivee" | undefined) || "nouvelle",
+        statutPaiement: (r.statutPaiement as "en_attente" | "paye" | "echec" | "rembourse" | undefined) || "en_attente",
+      })),
+    [reservations]
+  );
+
+  const createReservationFromCalendar = (dispo: CalendarDispo) => {
+    setManualReservation((m) => ({ ...m, slotId: String(dispo.id) }));
+    setCalendarMode("list");
+    setMessage("Période préremplie pour créer une réservation manuelle.");
+  };
+
   return (
     <div className="space-y-6">
+      <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm" style={{ borderColor: "#d7e3e8" }}>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h2 className="text-xl font-bold" style={{ color: BRAND_DEEP }}>
+            Calendrier Backoffice
+          </h2>
+          <div className="inline-flex rounded-lg border border-slate-200 bg-slate-50 p-1">
+            <button
+              type="button"
+              onClick={() => setCalendarMode("calendar")}
+              className={`rounded-md px-3 py-1.5 text-xs font-semibold ${calendarMode === "calendar" ? "text-white" : "text-slate-700"}`}
+              style={calendarMode === "calendar" ? { backgroundColor: BRAND_DEEP } : {}}
+            >
+              Vue calendrier
+            </button>
+            <button
+              type="button"
+              onClick={() => setCalendarMode("list")}
+              className={`rounded-md px-3 py-1.5 text-xs font-semibold ${calendarMode === "list" ? "text-white" : "text-slate-700"}`}
+              style={calendarMode === "list" ? { backgroundColor: BRAND_DEEP } : {}}
+            >
+              Vue listes
+            </button>
+          </div>
+        </div>
+        <p className="mt-1 text-sm text-slate-600">
+          Clique sur une période pour la modifier, supprimer, ou créer une réservation directement.
+        </p>
+      </div>
+
+      {calendarMode === "calendar" && (
+        <AdminCalendarView
+          disponibilites={calendarDisponibilites}
+          reservations={calendarReservations as any}
+          onEdit={(d) => {
+            const row = rows.find((r) => r.id === d.id);
+            if (row) startEdit(row);
+          }}
+          onDelete={async (id) => {
+            try {
+              await remove(id);
+              return true;
+            } catch {
+              return false;
+            }
+          }}
+          onCreateSlot={startCreate}
+          onCreateReservation={createReservationFromCalendar}
+          onEditReservation={async (reservationId) => {
+            const res = await fetch(apiUrl(`/api/reservations/${reservationId}`), { credentials: "include" });
+            const reservation = await handleApiResponse<ReservationRow>(res);
+            openReservationEdit(reservation);
+          }}
+          loading={loading}
+        />
+      )}
+
+      {calendarMode === "list" && (
       <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm" style={{ borderColor: "#d7e3e8" }}>
         <h2 className="text-2xl font-bold" style={{ color: BRAND_DEEP }}>
           Réservations
@@ -495,7 +672,157 @@ export default function CharterSlotManager() {
           Créez une réservation manuelle (téléphone / email) puis suivez les dernières demandes.
         </p>
 
-        <div className="mt-4 grid gap-6 lg:grid-cols-[1fr_1.2fr]">
+        <div className="mt-4 grid gap-6 lg:grid-cols-[1.7fr_1fr]">
+          <div className="rounded-xl border border-slate-200 bg-white p-5">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <h3 className="text-sm font-bold text-slate-800">Dernières réservations</h3>
+              <div className="flex flex-wrap items-center gap-2 text-xs">
+                <span className="rounded-full bg-amber-100 px-2 py-1 font-semibold text-amber-700">
+                  En attente: {paymentCounts.en_attente}
+                </span>
+                <span className="rounded-full bg-emerald-100 px-2 py-1 font-semibold text-emerald-700">
+                  Payées: {paymentCounts.paye}
+                </span>
+                <span className="rounded-full bg-rose-100 px-2 py-1 font-semibold text-rose-700">
+                  Échecs: {paymentCounts.echec}
+                </span>
+              </div>
+            </div>
+
+            <div className="mt-3 grid gap-2 sm:grid-cols-3">
+              <input
+                className="rounded-lg border border-slate-200 px-3 py-2 text-sm"
+                placeholder="Recherche client (nom, email, téléphone)"
+                value={reservationSearch}
+                onChange={(e) => setReservationSearch(e.target.value)}
+              />
+              <select
+                className="rounded-lg border border-slate-200 px-3 py-2 text-sm"
+                value={paymentFilter}
+                onChange={(e) => setPaymentFilter(e.target.value as typeof paymentFilter)}
+              >
+                <option value="all">Paiement: tous</option>
+                <option value="en_attente">Paiement: en attente</option>
+                <option value="paye">Paiement: payées</option>
+                <option value="echec">Paiement: échecs</option>
+                <option value="rembourse">Paiement: remboursées</option>
+              </select>
+              <select
+                className="rounded-lg border border-slate-200 px-3 py-2 text-sm"
+                value={workflowFilter}
+                onChange={(e) => setWorkflowFilter(e.target.value as typeof workflowFilter)}
+              >
+                <option value="all">Workflow: tous</option>
+                <option value="demande">Workflow: demande</option>
+                <option value="validee_owner">Workflow: validée owner</option>
+                <option value="contrat_envoye">Workflow: contrat envoyé</option>
+                <option value="contrat_signe">Workflow: contrat signé</option>
+                <option value="acompte_confirme">Workflow: acompte confirmé</option>
+                <option value="solde_confirme">Workflow: solde confirmé</option>
+              </select>
+            </div>
+
+            <div className="mt-2 text-xs text-slate-500">
+              {filteredReservations.length} réservation(s) affichée(s) sur {reservations.length}
+            </div>
+
+            {reservations.length === 0 ? (
+              <p className="mt-3 text-sm text-slate-500">Aucune réservation.</p>
+            ) : filteredReservations.length === 0 ? (
+              <p className="mt-3 text-sm text-slate-500">Aucun résultat pour ces filtres.</p>
+            ) : (
+              <div className="mt-3 overflow-x-auto">
+                <table className="w-full min-w-[960px] text-left text-sm">
+                  <thead>
+                    <tr className="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-500">
+                      <th className="py-2 pr-2">Client</th>
+                      <th className="py-2 pr-2">Période</th>
+                      <th className="py-2 pr-2">Type</th>
+                      <th className="py-2 pr-2">Statut</th>
+                      <th className="py-2 pr-2">Total</th>
+                      <th className="py-2 pr-2">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredReservations.map((r) => (
+                      <tr key={r.id} className="border-b border-slate-100">
+                        <td className="py-2 pr-2">
+                          <div className="font-medium text-slate-800">
+                            👤 {r.prenomClient ? `${r.prenomClient} ${r.nomClient}` : r.nomClient}
+                          </div>
+                          <div className="text-xs text-slate-500">{r.emailClient}</div>
+                        </td>
+                        <td className="py-2 pr-2 text-slate-700">
+                          {toFrDate(String(r.dateDebut))} <span className="text-slate-400">→</span> {toFrDate(String(r.dateFin))}
+                        </td>
+                        <td className="py-2 pr-2 text-slate-700">
+                          <div>{reservationTypeLabel(r.typeReservation)}</div>
+                          <div className="text-xs text-slate-500">{r.nbPersonnes} pers.</div>
+                        </td>
+                        <td className="py-2 pr-2">
+                          <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-semibold ${dossierBadge(r.workflowStatut).className}`}>
+                            {dossierBadge(r.workflowStatut).label}
+                          </span>
+                          <div className="mt-1">
+                            <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-semibold ${paymentBadgeClass(r.statutPaiement)}`}>
+                              Paiement: {paymentLabel(r.statutPaiement)}
+                            </span>
+                          </div>
+                          <div className="mt-1 text-xs text-slate-500">⚙ {workflowLabel(r.workflowStatut)}</div>
+                        </td>
+                        <td className="py-2 pr-2 font-semibold text-slate-800">
+                          {(Number(r.montantTotal || 0) / 100).toLocaleString("fr-FR")} €
+                        </td>
+                        <td className="py-2 pr-2 text-right space-x-2">
+                          <button
+                            type="button"
+                            onClick={() => sendProposalPack(r.id)}
+                            disabled={sendingProposalForId === r.id}
+                            className="rounded-md border border-emerald-200 bg-emerald-50 px-2 py-1 text-xs font-semibold text-emerald-700 hover:bg-emerald-100 disabled:opacity-50"
+                            title="Génère/envoie devis + contrat, puis crée le lien de paiement"
+                          >
+                            {sendingProposalForId === r.id ? "Envoi..." : "Envoyer la proposition"}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => openReservationEdit(r)}
+                            className="rounded-md border border-slate-200 px-2 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                          >
+                            Éditer
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => createMolliePaymentLink(r.id)}
+                            disabled={creatingPaymentForId === r.id}
+                            className="rounded-md border border-slate-200 px-2 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                          >
+                            {creatingPaymentForId === r.id ? "Création..." : "Lien paiement"}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => removeReservation(r.id)}
+                            disabled={deletingReservationId === r.id}
+                            className="rounded-md border border-rose-200 bg-rose-50 px-2 py-1 text-xs font-semibold text-rose-700 hover:bg-rose-100 disabled:opacity-50"
+                          >
+                            {deletingReservationId === r.id ? "Suppression..." : "Supprimer"}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => openReservationLinks(r.id)}
+                            disabled={consultingForId === r.id}
+                            className="rounded-md border border-sky-200 bg-sky-50 px-2 py-1 text-xs font-semibold text-sky-700 hover:bg-sky-100 disabled:opacity-50"
+                          >
+                            {consultingForId === r.id ? "Chargement..." : "Consulter"}
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+
           <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
             <h3 className="text-sm font-bold text-slate-800">Nouvelle réservation manuelle</h3>
             <div className="mt-3 grid gap-2 text-sm">
@@ -586,145 +913,48 @@ export default function CharterSlotManager() {
               </button>
             </div>
           </div>
-
-          <div className="rounded-xl border border-slate-200 bg-white p-4">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <h3 className="text-sm font-bold text-slate-800">Dernières réservations</h3>
-              <div className="flex flex-wrap items-center gap-2 text-xs">
-                <span className="rounded-full bg-amber-100 px-2 py-1 font-semibold text-amber-700">
-                  En attente: {paymentCounts.en_attente}
-                </span>
-                <span className="rounded-full bg-emerald-100 px-2 py-1 font-semibold text-emerald-700">
-                  Payées: {paymentCounts.paye}
-                </span>
-                <span className="rounded-full bg-rose-100 px-2 py-1 font-semibold text-rose-700">
-                  Échecs: {paymentCounts.echec}
-                </span>
-              </div>
-            </div>
-
-            <div className="mt-3 grid gap-2 sm:grid-cols-3">
-              <input
-                className="rounded-lg border border-slate-200 px-3 py-2 text-sm"
-                placeholder="Recherche client (nom, email, téléphone)"
-                value={reservationSearch}
-                onChange={(e) => setReservationSearch(e.target.value)}
-              />
-              <select
-                className="rounded-lg border border-slate-200 px-3 py-2 text-sm"
-                value={paymentFilter}
-                onChange={(e) => setPaymentFilter(e.target.value as typeof paymentFilter)}
-              >
-                <option value="all">Paiement: tous</option>
-                <option value="en_attente">Paiement: en attente</option>
-                <option value="paye">Paiement: payées</option>
-                <option value="echec">Paiement: échecs</option>
-                <option value="rembourse">Paiement: remboursées</option>
-              </select>
-              <select
-                className="rounded-lg border border-slate-200 px-3 py-2 text-sm"
-                value={workflowFilter}
-                onChange={(e) => setWorkflowFilter(e.target.value as typeof workflowFilter)}
-              >
-                <option value="all">Workflow: tous</option>
-                <option value="demande">Workflow: demande</option>
-                <option value="validee_owner">Workflow: validée owner</option>
-                <option value="contrat_envoye">Workflow: contrat envoyé</option>
-                <option value="contrat_signe">Workflow: contrat signé</option>
-                <option value="acompte_confirme">Workflow: acompte confirmé</option>
-                <option value="solde_confirme">Workflow: solde confirmé</option>
-              </select>
-            </div>
-
-            <div className="mt-2 text-xs text-slate-500">
-              {filteredReservations.length} réservation(s) affichée(s) sur {reservations.length}
-            </div>
-
-            {reservations.length === 0 ? (
-              <p className="mt-3 text-sm text-slate-500">Aucune réservation.</p>
-            ) : filteredReservations.length === 0 ? (
-              <p className="mt-3 text-sm text-slate-500">Aucun résultat pour ces filtres.</p>
-            ) : (
-              <div className="mt-3 overflow-x-auto">
-                <table className="w-full min-w-[820px] text-left text-sm">
-                  <thead>
-                    <tr className="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-500">
-                      <th className="py-2 pr-2">Client</th>
-                      <th className="py-2 pr-2">Période</th>
-                      <th className="py-2 pr-2">Type</th>
-                      <th className="py-2 pr-2">Paiement</th>
-                      <th className="py-2 pr-2">Total</th>
-                      <th className="py-2 pr-2">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredReservations.map((r) => (
-                      <tr key={r.id} className="border-b border-slate-100">
-                        <td className="py-2 pr-2">
-                          <div className="font-medium text-slate-800">
-                            👤 {r.prenomClient ? `${r.prenomClient} ${r.nomClient}` : r.nomClient}
-                          </div>
-                          <div className="text-xs text-slate-500">{r.emailClient}</div>
-                        </td>
-                        <td className="py-2 pr-2 text-slate-700">
-                          {toFrDate(String(r.dateDebut))} <span className="text-slate-400">→</span> {toFrDate(String(r.dateFin))}
-                        </td>
-                        <td className="py-2 pr-2 text-slate-700">
-                          <div>{reservationTypeLabel(r.typeReservation)}</div>
-                          <div className="text-xs text-slate-500">{r.nbPersonnes} pers.</div>
-                        </td>
-                        <td className="py-2 pr-2">
-                          <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-semibold ${paymentBadgeClass(r.statutPaiement)}`}>
-                            {paymentLabel(r.statutPaiement)}
-                          </span>
-                          <div className="mt-1 text-xs text-slate-500">⚙ {workflowLabel(r.workflowStatut)}</div>
-                        </td>
-                        <td className="py-2 pr-2 font-semibold text-slate-800">
-                          {(Number(r.montantTotal || 0) / 100).toLocaleString("fr-FR")} €
-                        </td>
-                        <td className="py-2 pr-2 text-right space-x-2">
-                          <button
-                            type="button"
-                            onClick={() => sendProposalPack(r.id)}
-                            disabled={sendingProposalForId === r.id}
-                            className="rounded-md border border-emerald-200 bg-emerald-50 px-2 py-1 text-xs font-semibold text-emerald-700 hover:bg-emerald-100 disabled:opacity-50"
-                            title="Génère/envoie devis + contrat, puis crée le lien de paiement"
-                          >
-                            {sendingProposalForId === r.id ? "Envoi..." : "Envoyer la proposition"}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => openReservationEdit(r)}
-                            className="rounded-md border border-slate-200 px-2 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50"
-                          >
-                            Éditer
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => createMolliePaymentLink(r.id)}
-                            disabled={creatingPaymentForId === r.id}
-                            className="rounded-md border border-slate-200 px-2 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
-                          >
-                            {creatingPaymentForId === r.id ? "Création..." : "Lien paiement"}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => removeReservation(r.id)}
-                            disabled={deletingReservationId === r.id}
-                            className="rounded-md border border-rose-200 bg-rose-50 px-2 py-1 text-xs font-semibold text-rose-700 hover:bg-rose-100 disabled:opacity-50"
-                          >
-                            {deletingReservationId === r.id ? "Suppression..." : "Supprimer"}
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
         </div>
       </div>
+      )}
+
+      {linksViewer && (
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-900/40 p-4">
+          <div className="w-full max-w-xl rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl">
+            <div className="mb-4 flex items-center justify-between">
+              <h3 className="text-lg font-bold text-slate-900">Documents & paiement #{linksViewer.reservationId}</h3>
+              <button className="text-sm text-slate-500 hover:underline" onClick={() => setLinksViewer(null)}>
+                Fermer
+              </button>
+            </div>
+            <div className="space-y-2 text-sm">
+              <a
+                className={`block rounded-lg border px-3 py-2 ${linksViewer.quoteUrl ? "border-slate-200 text-slate-800 hover:bg-slate-50" : "border-slate-100 text-slate-400"}`}
+                href={linksViewer.quoteUrl || undefined}
+                target="_blank"
+                rel="noreferrer"
+              >
+                📄 Devis {linksViewer.quoteUrl ? "" : "(indisponible)"}
+              </a>
+              <a
+                className={`block rounded-lg border px-3 py-2 ${linksViewer.contractUrl ? "border-slate-200 text-slate-800 hover:bg-slate-50" : "border-slate-100 text-slate-400"}`}
+                href={linksViewer.contractUrl || undefined}
+                target="_blank"
+                rel="noreferrer"
+              >
+                📝 Contrat {linksViewer.contractUrl ? "" : "(indisponible)"}
+              </a>
+              <a
+                className={`block rounded-lg border px-3 py-2 ${linksViewer.paymentUrl ? "border-slate-200 text-slate-800 hover:bg-slate-50" : "border-slate-100 text-slate-400"}`}
+                href={linksViewer.paymentUrl || undefined}
+                target="_blank"
+                rel="noreferrer"
+              >
+                💳 Lien de paiement {linksViewer.paymentUrl ? "" : "(indisponible)"}
+              </a>
+            </div>
+          </div>
+        </div>
+      )}
 
       {editingReservation && (
         <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-900/40 p-4">

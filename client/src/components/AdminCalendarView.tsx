@@ -148,6 +148,7 @@ export default function AdminCalendarView({
   onEdit,
   onDelete,
   onCreateSlot,
+  onCreateReservation,
   onEditReservation,
   loading,
 }: {
@@ -156,6 +157,7 @@ export default function AdminCalendarView({
   onEdit: (dispo: Disponibilite) => void;
   onDelete: (id: number) => Promise<boolean>;
   onCreateSlot: () => void;
+  onCreateReservation: (dispo: Disponibilite) => void;
   onEditReservation: (reservationId: number) => void;
   loading: boolean;
 }) {
@@ -779,6 +781,15 @@ export default function AdminCalendarView({
 
                 {/* Actions */}
                 <div className="pt-4 border-t border-slate-200 flex gap-2">
+                  <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={() => onCreateReservation(selectedDispo)}
+                    className="flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors text-sm font-semibold"
+                  >
+                    <Plus className="w-4 h-4" />
+                    Nouvelle résa
+                  </motion.button>
                   <motion.button
                     whileHover={{ scale: 1.05 }}
                     whileTap={{ scale: 0.95 }}

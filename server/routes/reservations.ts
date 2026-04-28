@@ -325,6 +325,27 @@ router.post("/request", async (req, res) => {
           dateFin,
         });
 
+    // Réservation client depuis le calendrier: la sélection doit correspondre
+    // exactement à la disponibilité complète publiée (pas de sous-plage).
+    if (!isSimpleRequest && parsedDisponibiliteId) {
+      const [selectedDispo] = await db
+        .select({ debut: disponibilites.debut, fin: disponibilites.fin })
+        .from(disponibilites)
+        .where(eq(disponibilites.id, parsedDisponibiliteId))
+        .limit(1);
+      if (selectedDispo) {
+        const reqStartIso = toIsoDay(dateDebut);
+        const reqEndIso = toIsoDay(dateFin);
+        const dispoStartIso = toIsoDay(selectedDispo.debut);
+        const dispoEndIso = toIsoDay(selectedDispo.fin);
+        if (!reqStartIso || !reqEndIso || reqStartIso !== dispoStartIso || reqEndIso !== dispoEndIso) {
+          return res.status(400).json({
+            error: "Vous devez sélectionner la période complète d'une disponibilité.",
+          });
+        }
+      }
+    }
+
     let isAdminRequester = false;
     try {
       const authUser = await sdk.authenticateRequest(req);

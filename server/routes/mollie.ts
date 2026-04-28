@@ -107,6 +107,43 @@ router.post("/create-payment-link", requireAdmin, async (req, res) => {
   }
 });
 
+router.get("/payment-link/:reservationId", requireAdmin, async (req, res) => {
+  try {
+    const reservationId = Number(req.params.reservationId);
+    if (!Number.isFinite(reservationId) || reservationId <= 0) {
+      return res.status(400).json({ error: "reservationId invalide" });
+    }
+    const db = await getDb();
+    if (!db) return res.status(500).json({ error: "Base de données non disponible" });
+
+    const [r] = await db.select().from(reservations).where(eq(reservations.id, reservationId)).limit(1);
+    if (!r) return res.status(404).json({ error: "Réservation introuvable" });
+
+    const paymentRef = String(r.stripeSessionId || "").trim();
+    if (!paymentRef.startsWith("mollie:")) {
+      return res.status(404).json({ error: "Aucun lien de paiement Mollie enregistré pour cette réservation" });
+    }
+    const paymentId = paymentRef.replace(/^mollie:/, "").trim();
+    if (!paymentId) {
+      return res.status(404).json({ error: "Référence Mollie invalide" });
+    }
+
+    const payment = await mollieFetch<MolliePayment>(`/payments/${encodeURIComponent(paymentId)}`, {
+      method: "GET",
+    });
+
+    return res.json({
+      success: true,
+      provider: "mollie",
+      paymentId,
+      checkoutUrl: payment._links?.checkout?.href || null,
+      status: payment.status || null,
+    });
+  } catch (error: any) {
+    return res.status(500).json({ error: error?.message || "Erreur récupération lien Mollie" });
+  }
+});
+
 router.post("/webhook", async (req, res) => {
   try {
     const paymentId = String(req.body?.id || req.query?.id || "").trim();

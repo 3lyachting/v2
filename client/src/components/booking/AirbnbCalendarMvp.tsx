@@ -16,6 +16,7 @@ import { apiUrl } from "@/lib/apiBase";
 type SelectionMode = "single" | "range";
 type ReservationMode = "cabine" | "priva";
 type DisponibiliteLite = {
+  id?: number;
   debut: string;
   fin: string;
   destination: string;
@@ -122,6 +123,7 @@ export default function AirbnbCalendarMvp({
   const [endDate, setEndDate] = useState<string | null>(null);
   const [seasonPricing, setSeasonPricing] = useState<SeasonPricingConfig>(DEFAULT_SEASON_PRICING);
   const [soldDays, setSoldDays] = useState<Set<string>>(new Set());
+  const [slotsForProduct, setSlotsForProduct] = useState<Array<{ id: number; startIso: string; endIso: string }>>([]);
   const [reservationMode, setReservationMode] = useState<ReservationMode>("cabine");
   const [passengerCount, setPassengerCount] = useState<number>(2);
   const today = new Date();
@@ -154,9 +156,8 @@ export default function AirbnbCalendarMvp({
         const rows = (await res.json()) as DisponibiliteLite[];
         if (cancelled) return;
         const set = new Set<string>();
+        const slots: Array<{ id: number; startIso: string; endIso: string }> = [];
         for (const row of rows) {
-          const sold = Number(row.cabinesReservees || 0) > 0;
-          if (!sold) continue;
           const rowProduct = getProductFromDisponibilite({
             debut: row.debut,
             fin: row.fin,
@@ -166,6 +167,11 @@ export default function AirbnbCalendarMvp({
           const a = String(row.debut).slice(0, 10);
           const b = String(row.fin).slice(0, 10);
           if (!/^\d{4}-\d{2}-\d{2}$/.test(a) || !/^\d{4}-\d{2}-\d{2}$/.test(b) || a > b) continue;
+          if (row.id && (row.statut === "disponible" || row.statut === "option")) {
+            slots.push({ id: row.id, startIso: a, endIso: b });
+          }
+          const sold = Number(row.cabinesReservees || 0) > 0;
+          if (!sold) continue;
           let cur = a;
           for (;;) {
             set.add(cur);
@@ -174,8 +180,12 @@ export default function AirbnbCalendarMvp({
           }
         }
         setSoldDays(set);
+        setSlotsForProduct(slots);
       } catch {
-        if (!cancelled) setSoldDays(new Set());
+        if (!cancelled) {
+          setSoldDays(new Set());
+          setSlotsForProduct([]);
+        }
       }
     })();
     return () => {
@@ -214,6 +224,12 @@ export default function AirbnbCalendarMvp({
   const handleSelectDate = (date: Date) => {
     const iso = toIso(date);
     if (dayAvailability && !dayAvailability.has(iso)) {
+      return;
+    }
+    const matchedSlot = slotsForProduct.find((slot) => iso >= slot.startIso && iso <= slot.endIso);
+    if (matchedSlot) {
+      setStartDate(matchedSlot.startIso);
+      setEndDate(matchedSlot.endIso);
       return;
     }
     const month = Number(iso.slice(5, 7));
@@ -355,6 +371,10 @@ export default function AirbnbCalendarMvp({
       reservationMode === "priva" ? "bateau_entier" : isTransat ? "place" : "cabine";
     const formule = isDayTrip ? "journee" : "semaine";
     const destination = CHARTER_PRODUCT_LABELS[product];
+    const selectedSlot =
+      startDate && (endDate || startDate)
+        ? slotsForProduct.find((slot) => slot.startIso === startDate && slot.endIso === (endDate || startDate))
+        : null;
     const query = new URLSearchParams({
       produit: product,
       destination,
@@ -364,6 +384,7 @@ export default function AirbnbCalendarMvp({
       dateDebut: startDate,
       dateFin: endDate || startDate,
       montant: String(totalEur ?? 0),
+      ...(selectedSlot ? { disponibiliteId: String(selectedSlot.id) } : {}),
     });
 
     return {
@@ -395,6 +416,7 @@ export default function AirbnbCalendarMvp({
     product,
     reservationMode,
     startDate,
+    slotsForProduct,
     maxPassengers,
   ]);
 
@@ -643,8 +665,8 @@ export default function AirbnbCalendarMvp({
           )}
           <p className="pt-2 text-xs text-slate-600">
             {isEnglish
-              ? "Step 1: pick your dates. The form below is filled automatically. In July, August, December, and February, a full week is required: Saturday 4:00 p.m. to the following Saturday 9:00 a.m. (one or more week blocks). Published slots come from the back office; final offer is still confirmed on reply."
-              : "Étape 1 : choisissez vos dates. Le formulaire en dessous se remplit tout seul. En juillet, août, décembre et février, une semaine entière (samedi 16h au samedi 9h, en blocs d’une ou plusieurs semaines) est obligatoire. Les jours proposés viennent de vos périodes publiées en back office ; l’offre finale reste à confirmer par retour d’e-mail."}
+              ? "Step 1: click an available date. The full availability slot is selected automatically (no partial range)."
+              : "Étape 1 : cliquez sur un jour disponible. La période complète de la disponibilité est sélectionnée automatiquement (pas de sous-plage)."}
           </p>
         </div>
       </aside>
