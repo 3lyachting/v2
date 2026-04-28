@@ -60,7 +60,10 @@ type ReservationEditState = {
   formule: string;
   message: string;
   internalComment: string;
+  reservationStatus: ReservationStatus;
 };
+
+type ReservationStatus = "nouvelle" | "devis_envoye" | "validee_acompte" | "terminee_solde";
 
 type WorkflowDocumentsResponse = {
   quotes?: Array<{ id: number; downloadUrl: string | null }>;
@@ -101,6 +104,49 @@ function toFrDate(isoLike: string) {
   return d.toLocaleDateString("fr-FR");
 }
 
+function getReservationStatus(r: Pick<ReservationRow, "requestStatus" | "workflowStatut">): ReservationStatus {
+  const req = String(r.requestStatus || "");
+  const wf = String(r.workflowStatut || "");
+  if (wf === "solde_confirme") return "terminee_solde";
+  if (wf === "acompte_confirme") return "validee_acompte";
+  if (["validee_owner", "devis_accepte", "contrat_envoye", "contrat_signe"].includes(wf) || req === "validee") {
+    return "devis_envoye";
+  }
+  return "nouvelle";
+}
+
+function toReservationStatusLabel(status: ReservationStatus) {
+  if (status === "terminee_solde") return "Terminée (solde versé)";
+  if (status === "validee_acompte") return "Validée (acompte reçu)";
+  if (status === "devis_envoye") return "Devis envoyé";
+  return "Nouvelle";
+}
+
+function reservationStatusLabelFromRow(r: Pick<ReservationRow, "requestStatus" | "workflowStatut">) {
+  const status = getReservationStatus(r);
+  if (status === "terminee_solde") return "Terminée (solde versé)";
+  if (status === "validee_acompte") return "Validée (acompte reçu)";
+  if (status === "devis_envoye") return "Devis envoyé";
+  return "Nouvelle";
+}
+
+function mapReservationStatusToPayload(status: ReservationStatus, currentPaymentStatus: string) {
+  if (status === "terminee_solde") {
+    return { requestStatus: "validee", workflowStatut: "solde_confirme", statutPaiement: "paye" };
+  }
+  if (status === "validee_acompte") {
+    return {
+      requestStatus: "validee",
+      workflowStatut: "acompte_confirme",
+      statutPaiement: currentPaymentStatus === "en_attente" ? "paye" : currentPaymentStatus,
+    };
+  }
+  if (status === "devis_envoye") {
+    return { requestStatus: "validee", workflowStatut: "contrat_envoye", statutPaiement: currentPaymentStatus };
+  }
+  return { requestStatus: "nouvelle", workflowStatut: "demande", statutPaiement: currentPaymentStatus };
+}
+
 export default function CharterSlotManager() {
   const [rows, setRows] = useState<SlotRow[]>([]);
   const [reservations, setReservations] = useState<ReservationRow[]>([]);
@@ -117,7 +163,7 @@ export default function CharterSlotManager() {
   const [savingReservationEdit, setSavingReservationEdit] = useState(false);
   const [reservationSearch, setReservationSearch] = useState("");
   const [paymentFilter, setPaymentFilter] = useState<"all" | "en_attente" | "paye" | "echec" | "rembourse">("all");
-  const [workflowFilter, setWorkflowFilter] = useState<"all" | "demande" | "validee_owner" | "contrat_envoye" | "contrat_signe" | "acompte_confirme" | "solde_confirme">("all");
+  const [workflowFilter, setWorkflowFilter] = useState<"all" | ReservationStatus>("all");
   const [calendarMode, setCalendarMode] = useState<"list" | "calendar">("calendar");
   const [bulkMonth, setBulkMonth] = useState("");
   const [bulkProduct, setBulkProduct] = useState<CharterProductCode>("journee");
@@ -450,6 +496,7 @@ export default function CharterSlotManager() {
       formule: r.formule || "semaine",
       message: r.message || "",
       internalComment: r.internalComment || "",
+      reservationStatus: getReservationStatus(r),
     });
   };
 
@@ -458,6 +505,7 @@ export default function CharterSlotManager() {
     try {
       setSavingReservationEdit(true);
       setMessage("");
+      const mapped = mapReservationStatusToPayload(editingReservation.reservationStatus, editingReservation.statutPaiement);
       const payload = {
         nomClient: editingReservation.nomClient.trim(),
         prenomClient: editingReservation.prenomClient.trim() || null,
@@ -468,9 +516,9 @@ export default function CharterSlotManager() {
         nbPersonnes: Math.max(1, Number(editingReservation.nbPersonnes || 1)),
         typeReservation: editingReservation.typeReservation,
         montantTotal: Math.max(100, Math.round((editingReservation.montantTotalEur || 0) * 100)),
-        requestStatus: editingReservation.requestStatus,
-        workflowStatut: editingReservation.workflowStatut,
-        statutPaiement: editingReservation.statutPaiement,
+        requestStatus: mapped.requestStatus,
+        workflowStatut: mapped.workflowStatut,
+        statutPaiement: mapped.statutPaiement,
         destination: editingReservation.destination,
         formule: editingReservation.formule,
         message: editingReservation.message,
@@ -561,15 +609,9 @@ export default function CharterSlotManager() {
     const q = reservationSearch.trim().toLowerCase();
     return reservations.filter((r) => {
       const payment = (r.statutPaiement || "en_attente") as "en_attente" | "paye" | "echec" | "rembourse";
-      const workflow = (r.workflowStatut || "demande") as
-        | "demande"
-        | "validee_owner"
-        | "contrat_envoye"
-        | "contrat_signe"
-        | "acompte_confirme"
-        | "solde_confirme";
+      const status = getReservationStatus(r);
       const matchesPayment = paymentFilter === "all" || payment === paymentFilter;
-      const matchesWorkflow = workflowFilter === "all" || workflow === workflowFilter;
+      const matchesWorkflow = workflowFilter === "all" || status === workflowFilter;
       const matchesSearch =
         !q ||
         String(r.nomClient || "").toLowerCase().includes(q) ||
@@ -596,31 +638,16 @@ export default function CharterSlotManager() {
     return "En attente";
   };
 
-  const workflowLabel = (status: string | null | undefined) => {
-    const value = status || "demande";
-    if (value === "validee_owner") return "Validée owner";
-    if (value === "contrat_envoye") return "Contrat envoyé";
-    if (value === "contrat_signe") return "Contrat signé";
-    if (value === "acompte_confirme") return "Acompte confirmé";
-    if (value === "solde_confirme") return "Solde confirmé";
-    return "Demande";
+  const workflowLabel = (reservation: ReservationRow) => {
+    return reservationStatusLabelFromRow(reservation);
   };
 
-  const dossierBadge = (workflowStatus: string | null | undefined) => {
-    const value = workflowStatus || "demande";
-    if (value === "contrat_envoye" || value === "validee_owner") {
-      return { label: "Proposition envoyée", className: "bg-sky-100 text-sky-700" };
-    }
-    if (value === "contrat_signe") {
-      return { label: "Contrat signé", className: "bg-indigo-100 text-indigo-700" };
-    }
-    if (value === "acompte_confirme") {
-      return { label: "Acompte confirmé", className: "bg-emerald-100 text-emerald-700" };
-    }
-    if (value === "solde_confirme") {
-      return { label: "Réservation soldée", className: "bg-emerald-100 text-emerald-700" };
-    }
-    return { label: "En attente", className: "bg-amber-100 text-amber-700" };
+  const dossierBadge = (reservation: ReservationRow) => {
+    const value = getReservationStatus(reservation);
+    if (value === "devis_envoye") return { label: "Devis envoyé", className: "bg-sky-100 text-sky-700" };
+    if (value === "validee_acompte") return { label: "Validée (acompte reçu)", className: "bg-emerald-100 text-emerald-700" };
+    if (value === "terminee_solde") return { label: "Terminée (solde versé)", className: "bg-indigo-100 text-indigo-700" };
+    return { label: "Nouvelle", className: "bg-amber-100 text-amber-700" };
   };
 
   const reservationTypeLabel = (type: ReservationRow["typeReservation"]) => {
@@ -806,13 +833,11 @@ export default function CharterSlotManager() {
                 value={workflowFilter}
                 onChange={(e) => setWorkflowFilter(e.target.value as typeof workflowFilter)}
               >
-                <option value="all">Workflow: tous</option>
-                <option value="demande">Workflow: demande</option>
-                <option value="validee_owner">Workflow: validée owner</option>
-                <option value="contrat_envoye">Workflow: contrat envoyé</option>
-                <option value="contrat_signe">Workflow: contrat signé</option>
-                <option value="acompte_confirme">Workflow: acompte confirmé</option>
-                <option value="solde_confirme">Workflow: solde confirmé</option>
+                <option value="all">Statut: tous</option>
+                <option value="nouvelle">Statut: nouvelle</option>
+                <option value="devis_envoye">Statut: devis envoyé</option>
+                <option value="validee_acompte">Statut: validée (acompte reçu)</option>
+                <option value="terminee_solde">Statut: terminée (solde versé)</option>
               </select>
             </div>
 
@@ -854,15 +879,15 @@ export default function CharterSlotManager() {
                           <div className="text-xs text-slate-500">{r.nbPersonnes} pers.</div>
                         </td>
                         <td className="py-2 pr-2">
-                          <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-semibold ${dossierBadge(r.workflowStatut).className}`}>
-                            {dossierBadge(r.workflowStatut).label}
+                          <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-semibold ${dossierBadge(r).className}`}>
+                            {dossierBadge(r).label}
                           </span>
                           <div className="mt-1">
                             <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-semibold ${paymentBadgeClass(r.statutPaiement)}`}>
                               Paiement: {paymentLabel(r.statutPaiement)}
                             </span>
                           </div>
-                          <div className="mt-1 text-xs text-slate-500">⚙ {workflowLabel(r.workflowStatut)}</div>
+                          <div className="mt-1 text-xs text-slate-500">⚙ {workflowLabel(r)}</div>
                         </td>
                         <td className="py-2 pr-2 font-semibold text-slate-800">
                           {(Number(r.montantTotal || 0) / 100).toLocaleString("fr-FR")} €
@@ -1079,14 +1104,18 @@ export default function CharterSlotManager() {
                 <option value="echec">echec</option>
                 <option value="rembourse">rembourse</option>
               </select>
-              <select className="rounded-lg border border-slate-200 px-3 py-2 text-sm" value={editingReservation.requestStatus} onChange={(e) => setEditingReservation((s) => s && ({ ...s, requestStatus: e.target.value }))}>
+              <select
+                className="rounded-lg border border-slate-200 px-3 py-2 text-sm"
+                value={editingReservation.reservationStatus}
+                onChange={(e) =>
+                  setEditingReservation((s) => (s ? { ...s, reservationStatus: e.target.value as ReservationStatus } : s))
+                }
+              >
                 <option value="nouvelle">nouvelle</option>
-                <option value="en_cours">en_cours</option>
-                <option value="validee">validee</option>
-                <option value="refusee">refusee</option>
-                <option value="archivee">archivee</option>
+                <option value="devis_envoye">devis envoyé</option>
+                <option value="validee_acompte">validée (acompte reçu)</option>
+                <option value="terminee_solde">terminée (solde versé)</option>
               </select>
-              <input className="rounded-lg border border-slate-200 px-3 py-2 text-sm" value={editingReservation.workflowStatut} onChange={(e) => setEditingReservation((s) => s && ({ ...s, workflowStatut: e.target.value }))} placeholder="workflowStatut" />
               <input className="rounded-lg border border-slate-200 px-3 py-2 text-sm" value={editingReservation.destination} onChange={(e) => setEditingReservation((s) => s && ({ ...s, destination: e.target.value }))} placeholder="Destination" />
               <input className="rounded-lg border border-slate-200 px-3 py-2 text-sm" value={editingReservation.formule} onChange={(e) => setEditingReservation((s) => s && ({ ...s, formule: e.target.value }))} placeholder="Formule" />
               <textarea className="rounded-lg border border-slate-200 px-3 py-2 text-sm sm:col-span-2" rows={2} value={editingReservation.message} onChange={(e) => setEditingReservation((s) => s && ({ ...s, message: e.target.value }))} placeholder="Message client" />

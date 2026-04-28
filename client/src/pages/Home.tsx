@@ -1082,13 +1082,16 @@ function SectionCalendrier({ isEnglish = false }: { isEnglish?: boolean }) {
         ? ((await blockedDaysRes.json()) as { days?: string[] })?.days || []
         : [];
       const s = new Set<string>();
+      let hasAnyActiveSlot = false;
       for (const r of rows) {
         if (r.active === false) continue;
+        hasAnyActiveSlot = true;
         for (const d of expandCharterSlotDays(r.debut, r.fin)) s.add(d);
       }
       for (const d of blockedDays) s.delete(String(d || "").slice(0, 10));
-      // Aucun creneau public => pas de contrainte (dates toujours cliquables)
-      setDayAvailability(s.size > 0 ? s : null);
+      // null = aucun slot public pour ce produit ; Set (meme vide) = slots connus et filtrés.
+      // Important: Set vide => tout est bloque, il ne faut pas retomber en mode "aucune contrainte".
+      setDayAvailability(hasAnyActiveSlot ? s : null);
     } catch {
       // Erreur reseau: ne pas ecraser un Set valide deja en memoire
     }
