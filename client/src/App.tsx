@@ -9,6 +9,7 @@ import Home from "./pages/Home";
 import Admin from "./pages/Admin";
 import AdminLogin from "./pages/AdminLogin";
 import CustomerPortal from "./pages/CustomerPortal";
+import Reservation from "./pages/Reservation";
 
 function Router() {
   return (
@@ -19,7 +20,7 @@ function Router() {
         <Route path="/en/:rest*" component={Home} />
         <Route path="/admin/login" component={AdminLogin} />
         <Route path="/admin" component={Admin} />
-        <Route path="/reservation" component={Home} />
+        <Route path="/reservation" component={Reservation} />
         <Route path="/reservation/succes" component={Home} />
         <Route path="/reservation/annule" component={Home} />
         <Route path="/espace-client" component={CustomerPortal} />
