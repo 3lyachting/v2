@@ -101,17 +101,17 @@ export function validateReservationPolicy(input: {
     return { ok: true, policy: "april_may_private_daytrip" };
   }
 
-  const summerStart = `${startYear}-06-01`;
+  const summerStart = `${startYear}-07-01`;
   const summerEnd = `${startYear}-08-31`;
   if (isInsideWindow(startIso, endIso, summerStart, summerEnd)) {
     const startSaturday = dayOfWeekIso(startIso) === 6;
     const endSaturday = dayOfWeekIso(endIso) === 6;
     const weeklySpan = diffDays(startIso, endIso) === 7;
     if (!startSaturday || !endSaturday || !weeklySpan) {
-      return { ok: false, reason: "En juin/juillet/août, les réservations sont obligatoirement du samedi au samedi." };
+      return { ok: false, reason: "En juillet/août, les réservations sont obligatoirement du samedi au samedi." };
     }
     if (input.typeReservation && input.typeReservation !== "bateau_entier" && input.typeReservation !== "cabine") {
-      return { ok: false, reason: "En juin/juillet/août, seuls les modes cabine et privatif sont autorisés." };
+      return { ok: false, reason: "En juillet/août, seuls les modes cabine et privatif sont autorisés." };
     }
     if (input.typeReservation === "cabine" && input.nbCabines !== undefined && input.nbCabines !== null) {
       if (!Number.isInteger(input.nbCabines) || input.nbCabines < 1 || input.nbCabines > 4) {

@@ -46,23 +46,23 @@ describe("reservation policy", () => {
     expect(destinationRejected.ok).toBe(false);
   });
 
-  it("keeps june in saturday-weekly mode", () => {
-    const juneRejected = validateReservationPolicy({
-      dateDebut: "2026-06-10T00:00:00.000Z",
-      dateFin: "2026-06-17T00:00:00.000Z",
+  it("keeps july/august in saturday-weekly mode", () => {
+    const julyRejected = validateReservationPolicy({
+      dateDebut: "2026-07-10T00:00:00.000Z",
+      dateFin: "2026-07-17T00:00:00.000Z",
       destination: "Corse",
       typeReservation: "cabine",
       nbCabines: 2,
     });
-    expect(juneRejected.ok).toBe(false);
-    const juneWeekly = validateReservationPolicy({
-      dateDebut: "2026-06-13T00:00:00.000Z",
-      dateFin: "2026-06-20T00:00:00.000Z",
+    expect(julyRejected.ok).toBe(false);
+    const julyWeekly = validateReservationPolicy({
+      dateDebut: "2026-07-11T00:00:00.000Z",
+      dateFin: "2026-07-18T00:00:00.000Z",
       destination: "Corse",
       typeReservation: "cabine",
       nbCabines: 2,
     });
-    expect(juneWeekly).toEqual({ ok: true, policy: "summer_weekly_private_or_cabine" });
+    expect(julyWeekly).toEqual({ ok: true, policy: "summer_weekly_private_or_cabine" });
   });
 
   it("enforces saturday-to-saturday in december and february", () => {
