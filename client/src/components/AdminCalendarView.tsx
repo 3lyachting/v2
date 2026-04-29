@@ -228,9 +228,8 @@ export default function AdminCalendarView({
       const start = toIsoDay(d.debut);
       const end = toIsoDay(d.fin);
       if (!start || !end) return;
-      const isSingleDay = start === end;
       let current = new Date(start);
-      while (current.toISOString().slice(0, 10) < end || (isSingleDay && current.toISOString().slice(0, 10) === end)) {
+      while (current.toISOString().slice(0, 10) <= end) {
         const dateKey = current.toISOString().slice(0, 10);
         if (!map.has(dateKey)) map.set(dateKey, []);
         map.get(dateKey)!.push(d);
@@ -246,9 +245,8 @@ export default function AdminCalendarView({
       const start = toIsoDay(reservation.dateDebut);
       const end = toIsoDay(reservation.dateFin);
       if (!start || !end) return;
-      const isSingleDay = start === end;
       let current = new Date(start);
-      while (current.toISOString().slice(0, 10) < end || (isSingleDay && current.toISOString().slice(0, 10) === end)) {
+      while (current.toISOString().slice(0, 10) <= end) {
         const key = current.toISOString().slice(0, 10);
         if (!map.has(key)) map.set(key, []);
         map.get(key)!.push(reservation);

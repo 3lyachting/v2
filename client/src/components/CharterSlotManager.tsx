@@ -159,6 +159,13 @@ function mapReservationStatusToPayload(status: ReservationStatus, currentPayment
   return { requestStatus: "nouvelle", workflowStatut: "demande", statutPaiement: currentPaymentStatus };
 }
 
+function isConfirmedReservationForCalendar(reservation: ReservationRow): boolean {
+  const workflow = String(reservation.workflowStatut || "");
+  const paymentStatus = String(reservation.statutPaiement || "");
+  if (paymentStatus === "paye") return true;
+  return workflow === "acompte_confirme" || workflow === "solde_confirme" || workflow === "contrat_signe";
+}
+
 export default function CharterSlotManager() {
   const [rows, setRows] = useState<SlotRow[]>([]);
   const [reservations, setReservations] = useState<ReservationRow[]>([]);
@@ -699,13 +706,22 @@ export default function CharterSlotManager() {
         } else {
           reservedUnits = overlapping.length > 0 ? CHARTER_CRUISE_CABIN_UNITS : 0;
         }
+        const hasOverlap = overlapping.length > 0;
+        const hasConfirmed = overlapping.some((reservation) => isConfirmedReservationForCalendar(reservation));
+        const computedStatut: CalendarDispo["statut"] = !slot.active
+          ? "ferme"
+          : hasOverlap && !hasConfirmed
+            ? "option"
+            : reservedUnits >= CHARTER_CRUISE_CABIN_UNITS
+              ? "reserve"
+              : "disponible";
 
         return {
           id: slot.id,
           planningType: "charter",
           debut: slot.debut,
           fin: slot.fin,
-          statut: !slot.active ? "ferme" : reservedUnits >= CHARTER_CRUISE_CABIN_UNITS ? "reserve" : "disponible",
+          statut: computedStatut,
           tarif: null,
           destination: CHARTER_PRODUCT_LABELS[slot.product],
           note: slot.note,
