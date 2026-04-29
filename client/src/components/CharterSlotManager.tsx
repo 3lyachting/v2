@@ -6,6 +6,12 @@ import {
   CHARTER_PRODUCTS,
   type CharterProductCode,
 } from "@shared/charterProduct";
+import {
+  aggregateCruiseCabineOccupancy,
+  CHARTER_CRUISE_CABIN_UNITS,
+  isCruiseMultiUnitProduct,
+  isReservationBlockingForCharterCalendar,
+} from "@shared/charterCapacity";
 
 const BRAND_DEEP = "#00384A";
 const BRAND_SAND = "#D8C19E";
@@ -102,6 +108,11 @@ function toFrDate(isoLike: string) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(iso)) return isoLike || "";
   const d = new Date(`${iso}T00:00:00.000Z`);
   return d.toLocaleDateString("fr-FR");
+}
+
+function toIsoDay(value?: string | null) {
+  const raw = String(value || "").slice(0, 10);
+  return /^\d{4}-\d{2}-\d{2}$/.test(raw) ? raw : "";
 }
 
 function getReservationStatus(r: Pick<ReservationRow, "requestStatus" | "workflowStatut">): ReservationStatus {
@@ -215,12 +226,7 @@ export default function CharterSlotManager() {
       const slotsData = await handleApiResponse<SlotRow[]>(slotsRes);
       const reservationsData = await handleApiResponse<ReservationRow[]>(reservationsRes);
       setRows(slotsData.sort((a, b) => a.debut.localeCompare(b.debut) || a.product.localeCompare(b.product)));
-      setReservations(
-        reservationsData
-          .slice()
-          .sort((a, b) => String(b.dateDebut).localeCompare(String(a.dateDebut)))
-          .slice(0, 20)
-      );
+      setReservations(reservationsData.slice().sort((a, b) => String(b.dateDebut).localeCompare(String(a.dateDebut))));
     } catch (e: any) {
       setMessage(e?.message || "Erreur chargement.");
     } finally {
@@ -661,22 +667,42 @@ export default function CharterSlotManager() {
 
   const calendarDisponibilites = useMemo<CalendarDispo[]>(
     () =>
-      rows.map((r) => ({
-        id: r.id,
-        planningType: "charter",
-        debut: r.debut,
-        fin: r.fin,
-        statut: r.active ? "disponible" : "ferme",
-        tarif: null,
-        destination: CHARTER_PRODUCT_LABELS[r.product],
-        note: r.note,
-        notePublique: r.publicNote,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        capaciteTotale: 4,
-        cabinesReservees: 0,
-      })),
-    [rows]
+      rows.map((slot) => {
+        const slotStart = toIsoDay(slot.debut);
+        const slotEnd = toIsoDay(slot.fin);
+        const overlapping = reservations.filter((reservation) => {
+          const resStart = toIsoDay(reservation.dateDebut);
+          const resEnd = toIsoDay(reservation.dateFin);
+          if (!slotStart || !slotEnd || !resStart || !resEnd) return false;
+          if (!isReservationBlockingForCharterCalendar(reservation as any)) return false;
+          return resStart <= slotEnd && resEnd >= slotStart;
+        });
+
+        let reservedUnits = 0;
+        if (isCruiseMultiUnitProduct(slot.product)) {
+          const occ = aggregateCruiseCabineOccupancy(overlapping as any);
+          reservedUnits = occ.hasPrivate ? CHARTER_CRUISE_CABIN_UNITS : Math.min(CHARTER_CRUISE_CABIN_UNITS, occ.reservedUnits);
+        } else {
+          reservedUnits = overlapping.length > 0 ? CHARTER_CRUISE_CABIN_UNITS : 0;
+        }
+
+        return {
+          id: slot.id,
+          planningType: "charter",
+          debut: slot.debut,
+          fin: slot.fin,
+          statut: !slot.active ? "ferme" : reservedUnits >= CHARTER_CRUISE_CABIN_UNITS ? "reserve" : "disponible",
+          tarif: null,
+          destination: CHARTER_PRODUCT_LABELS[slot.product],
+          note: slot.note,
+          notePublique: slot.publicNote,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          capaciteTotale: CHARTER_CRUISE_CABIN_UNITS,
+          cabinesReservees: reservedUnits,
+        } satisfies CalendarDispo;
+      }),
+    [rows, reservations]
   );
 
   const calendarReservations = useMemo(

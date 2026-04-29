@@ -1,6 +1,6 @@
 import { useEffect, useState, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Calendar, ChevronLeft, ChevronRight, Plus, Edit2, Trash2, AlertCircle, User, CreditCard, Clock3, Mail } from "lucide-react";
+import { Calendar, ChevronLeft, ChevronRight, Plus, Edit2, Trash2, AlertCircle, User, CreditCard, Clock3, Mail, X } from "lucide-react";
 import { toast } from "sonner";
 import { inferSlotType } from "@shared/slotRules";
 
@@ -166,6 +166,7 @@ export default function AdminCalendarView({
   const [selectedDispo, setSelectedDispo] = useState<Disponibilite | null>(null);
   const [selectedReservation, setSelectedReservation] = useState<Reservation | null>(null);
   const [selectedDayKey, setSelectedDayKey] = useState<string | null>(null);
+  const [reservationModal, setReservationModal] = useState<Reservation | null>(null);
 
   const monthLabel = useMemo(() => {
     return currentMonth.toLocaleDateString("fr-FR", { month: "long", year: "numeric" });
@@ -295,6 +296,7 @@ export default function AdminCalendarView({
     const key = dayKey || toIsoDay(reservation.dateDebut);
     if (key) setSelectedDayKey(key);
     setSelectedReservation(reservation);
+    setReservationModal(reservation);
     const linkedDispo = reservation.disponibiliteId
       ? filteredDisponibilites.find((dispo) => dispo.id === reservation.disponibiliteId) || null
       : null;
@@ -822,6 +824,92 @@ export default function AdminCalendarView({
           )}
         </motion.div>
       </div>
+
+      <AnimatePresence>
+        {reservationModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4"
+            onClick={() => setReservationModal(null)}
+          >
+            <motion.div
+              initial={{ opacity: 0, y: 8, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 8, scale: 0.98 }}
+              transition={{ duration: 0.16 }}
+              className="w-full max-w-xl rounded-2xl border border-slate-200 bg-white p-5 shadow-xl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="mb-3 flex items-start justify-between gap-4">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Fiche réservation</p>
+                  <h4 className="text-lg font-bold text-slate-900">
+                    #{reservationModal.id} — {reservationModal.prenomClient ? `${reservationModal.prenomClient} ` : ""}
+                    {reservationModal.nomClient}
+                  </h4>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setReservationModal(null)}
+                  className="rounded-lg border border-slate-200 p-1.5 text-slate-500 hover:bg-slate-50"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+              <div className="grid grid-cols-1 gap-2 text-sm sm:grid-cols-2">
+                <div className="rounded-lg border border-slate-200 bg-slate-50 p-2.5">
+                  <p className="text-[11px] uppercase text-slate-500">Période</p>
+                  <p className="font-semibold text-slate-900">
+                    {new Date(reservationModal.dateDebut).toLocaleDateString("fr-FR", { timeZone: "UTC" })} →{" "}
+                    {new Date(reservationModal.dateFin).toLocaleDateString("fr-FR", { timeZone: "UTC" })}
+                  </p>
+                </div>
+                <div className="rounded-lg border border-slate-200 bg-slate-50 p-2.5">
+                  <p className="text-[11px] uppercase text-slate-500">Type</p>
+                  <p className="font-semibold text-slate-900">{reservationModal.typeReservation || "Non renseigné"}</p>
+                </div>
+                <div className="rounded-lg border border-slate-200 bg-slate-50 p-2.5">
+                  <p className="text-[11px] uppercase text-slate-500">Montant</p>
+                  <p className="font-semibold text-slate-900">
+                    {(Number(reservationModal.montantTotal || 0) / 100).toLocaleString("fr-FR")} €
+                  </p>
+                </div>
+                <div className="rounded-lg border border-slate-200 bg-slate-50 p-2.5">
+                  <p className="text-[11px] uppercase text-slate-500">Cabines / personnes</p>
+                  <p className="font-semibold text-slate-900">
+                    {reservationModal.nbCabines || 0} cab. • {reservationModal.nbPersonnes || 0} pers.
+                  </p>
+                </div>
+              </div>
+              {reservationModal.emailClient && (
+                <p className="mt-3 text-sm text-slate-700">
+                  <span className="font-semibold">Email :</span> {reservationModal.emailClient}
+                </p>
+              )}
+              {reservationModal.telClient && (
+                <p className="mt-1 text-sm text-slate-700">
+                  <span className="font-semibold">Téléphone :</span> {reservationModal.telClient}
+                </p>
+              )}
+              <div className="mt-4 flex gap-2">
+                <button
+                  onClick={() => {
+                    onEditReservation(reservationModal.id);
+                    setReservationModal(null);
+                  }}
+                  className="inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold text-white"
+                  style={{ backgroundColor: BRAND_DEEP }}
+                >
+                  <Edit2 className="h-4 w-4" />
+                  Modifier la résa
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

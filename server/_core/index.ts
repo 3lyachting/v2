@@ -64,6 +64,8 @@ async function startServer() {
   });
   // Stripe webhook DOIT utiliser express.raw AVANT express.json pour vérifier la signature
   app.use("/api/stripe/webhook", express.raw({ type: "application/json" }), stripeWebhookRouter);
+  // E-sign webhook idem (Yousign signature calculée sur le corps brut)
+  app.use("/api/workflow/esign/webhook", express.raw({ type: "*/*" }), workflowRouter);
   // Configure body parser with larger size limit for file uploads
   app.use(express.json({ limit: "50mb" }));
   app.use(express.urlencoded({ limit: "50mb", extended: true }));

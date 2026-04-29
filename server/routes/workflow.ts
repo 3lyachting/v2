@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { and, eq } from "drizzle-orm";
 import nodemailer from "nodemailer";
+import crypto from "node:crypto";
 import { getDb } from "../db";
 import { storagePut } from "../storage";
 import { requireAdmin } from "../_core/authz";
@@ -52,6 +53,35 @@ function getSmtpConfig() {
   const port = Number(process.env.SMTP_PORT || 587);
   const secure = process.env.SMTP_SECURE === "true";
   return { host, user, pass, fromEmail, port, secure };
+}
+
+function normalizeSignature(input: string) {
+  const value = String(input || "").trim().toLowerCase();
+  if (!value) return "";
+  if (value.startsWith("sha256=")) return value.slice("sha256=".length).trim();
+  return value;
+}
+
+function safeEqualHex(expectedHex: string, incoming: string) {
+  const a = Buffer.from(normalizeSignature(expectedHex), "utf8");
+  const b = Buffer.from(normalizeSignature(incoming), "utf8");
+  if (!a.length || !b.length || a.length !== b.length) return false;
+  return crypto.timingSafeEqual(a, b);
+}
+
+function verifyYousignSignature(rawBody: Buffer, secret: string, headers: Record<string, unknown>) {
+  const candidateHeaderKeys = [
+    "x-yousign-signature-256",
+    "x-yousign-signature",
+    "yousign-signature",
+    "x-signature",
+  ];
+  const provided = candidateHeaderKeys
+    .map((k) => String(headers[k] || "").trim())
+    .find((v) => v.length > 0);
+  if (!provided) return false;
+  const expectedHex = crypto.createHmac("sha256", secret).update(rawBody).digest("hex");
+  return safeEqualHex(expectedHex, provided);
 }
 
 router.post("/reservations/:id/owner-validate", requireAdmin, async (req, res) => {
@@ -709,11 +739,26 @@ router.get("/reservations/:id/documents", requireAdmin, async (req, res) => {
 router.post("/esign/webhook", async (req, res) => {
   try {
     const expectedSecret = process.env.ESIGN_WEBHOOK_SECRET || ENV.cookieSecret;
-    const incomingSecret = req.headers["x-webhook-secret"];
-    if (!expectedSecret || incomingSecret !== expectedSecret) {
-      return res.status(401).json({ error: "Webhook non autorisé" });
+    const rawBody =
+      Buffer.isBuffer(req.body)
+        ? req.body
+        : Buffer.from(typeof req.body === "string" ? req.body : JSON.stringify(req.body || {}), "utf8");
+    const incomingSecret = String(req.headers["x-webhook-secret"] || "");
+    const bySharedHeader = Boolean(expectedSecret && incomingSecret && incomingSecret === expectedSecret);
+    const byYousignSignature = Boolean(
+      expectedSecret && verifyYousignSignature(rawBody, expectedSecret, req.headers as Record<string, unknown>)
+    );
+    if (!bySharedHeader && !byYousignSignature) {
+      return res.status(401).json({ error: "Webhook non autorisé (signature invalide)." });
     }
-    const { contractId, envelopeId, provider, eventType, payload } = req.body || {};
+
+    let body: any = {};
+    try {
+      body = JSON.parse(rawBody.toString("utf8"));
+    } catch {
+      body = typeof req.body === "object" && req.body ? req.body : {};
+    }
+    const { contractId, envelopeId, provider, eventType, payload } = body || {};
     if (!eventType || (!contractId && !envelopeId)) {
       return res.status(400).json({ error: "eventType + (contractId ou envelopeId) requis" });
     }

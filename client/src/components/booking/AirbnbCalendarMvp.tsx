@@ -335,6 +335,22 @@ export default function AirbnbCalendarMvp({
     return { slot: p, occ };
   }, [charterPeriods, endDate, slotOccupancy, startDate]);
 
+  const cabinsLeftByDay = useMemo(() => {
+    const out = new Map<string, number>();
+    if (!isCruiseMultiUnitProduct(product)) return out;
+    for (const slot of charterPeriods) {
+      const occ = slotOccupancy[String(slot.id)] || { reservedUnits: 0, hasPrivate: false };
+      const left = occ.hasPrivate ? 0 : Math.max(0, CHARTER_CRUISE_CABIN_UNITS - Number(occ.reservedUnits || 0));
+      let cur = slot.startIso;
+      while (cur <= slot.endIso) {
+        out.set(cur, left);
+        if (cur === slot.endIso) break;
+        cur = addOneDayIso(cur);
+      }
+    }
+    return out;
+  }, [charterPeriods, product, slotOccupancy]);
+
   const occBlocksPrivatif = Boolean(
     selectedCharterOccupancy &&
       (selectedCharterOccupancy.occ.hasPrivate || selectedCharterOccupancy.occ.reservedUnits > 0)
@@ -544,6 +560,7 @@ export default function AirbnbCalendarMvp({
             const isTodayDate = isSameDay(date, today);
             const hasSoldCabins = soldDays.has(iso);
             const isBlockedByReservation = blockedDays.has(iso);
+            const cabinsLeft = cabinsLeftByDay.get(iso);
 
             return (
               <button
@@ -601,6 +618,19 @@ export default function AirbnbCalendarMvp({
                     style={{ backgroundColor: "#ea580c" }}
                     title={isEnglish ? "Week already has booked cabins" : "Semaine avec cabines déjà réservées"}
                   />
+                )}
+                {isCurrentMonth && !isDisabled && typeof cabinsLeft === "number" && (
+                  <span
+                    className="pointer-events-none absolute left-1.5 top-1.5 rounded border px-1 text-[9px] font-semibold"
+                    style={{
+                      borderColor: cabinsLeft > 0 ? "#86efac" : "#fda4af",
+                      backgroundColor: cabinsLeft > 0 ? "#f0fdf4" : "#fff1f2",
+                      color: cabinsLeft > 0 ? "#14532d" : "#9f1239",
+                    }}
+                    title={isEnglish ? `${cabinsLeft} cabin(s) left` : `${cabinsLeft} cabine(s) restante(s)`}
+                  >
+                    {cabinsLeft}/{CHARTER_CRUISE_CABIN_UNITS}
+                  </span>
                 )}
                 {isBlockedByReservation && isCurrentMonth && (
                   <span
