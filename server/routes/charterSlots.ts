@@ -56,6 +56,21 @@ function expandYmdRange(startIso: string, endIso: string): string[] {
   return out;
 }
 
+/** Drizzle renvoie souvent des `Date` : ne pas utiliser String(date).slice(0,10) (format locale invalide pour YMD). */
+function toYmdUtc(value: unknown): string | null {
+  if (value == null) return null;
+  if (typeof value === "string") {
+    const s = value.trim().slice(0, 10);
+    return YMD.test(s) ? s : null;
+  }
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    return value.toISOString().slice(0, 10);
+  }
+  const parsed = new Date(String(value));
+  if (Number.isNaN(parsed.getTime())) return null;
+  return parsed.toISOString().slice(0, 10);
+}
+
 async function isAdminRequest(req: import("express").Request) {
   const bypass =
     process.env.NODE_ENV === "development" && process.env.ADMIN_AUTH_BYPASS === "true";
@@ -189,13 +204,14 @@ router.get("/blocked-days", async (req, res) => {
       ].includes(wf);
       const isBlocking = isBlockingByRequest || isBlockingByWorkflow;
       if (!isBlocking) continue;
-      const resStartIso = String(r.dateDebut).slice(0, 10);
-      const resEndIso = String(r.dateFin).slice(0, 10);
-      if (!YMD.test(resStartIso) || !YMD.test(resEndIso) || resStartIso > resEndIso) continue;
+      const resStartIso = toYmdUtc(r.dateDebut);
+      const resEndIso = toYmdUtc(r.dateFin);
+      if (!resStartIso || !resEndIso || !YMD.test(resStartIso) || !YMD.test(resEndIso) || resStartIso > resEndIso) continue;
       for (const slot of slots) {
-        const slotStartIso = String(slot.debut).slice(0, 10);
-        const slotEndIso = String(slot.fin).slice(0, 10);
-        if (!YMD.test(slotStartIso) || !YMD.test(slotEndIso) || slotStartIso > slotEndIso) continue;
+        const slotStartIso = toYmdUtc(slot.debut);
+        const slotEndIso = toYmdUtc(slot.fin);
+        if (!slotStartIso || !slotEndIso || !YMD.test(slotStartIso) || !YMD.test(slotEndIso) || slotStartIso > slotEndIso)
+          continue;
         const overlapStart = resStartIso > slotStartIso ? resStartIso : slotStartIso;
         const overlapEnd = resEndIso < slotEndIso ? resEndIso : slotEndIso;
         if (overlapStart > overlapEnd) continue;
