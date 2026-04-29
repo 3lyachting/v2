@@ -250,8 +250,10 @@ router.post("/reservations/:id/send-contract", requireAdmin, async (req, res) =>
     }
 
     const configuredProvider = (process.env.ESIGN_PROVIDER || "other").toLowerCase();
-    const strictEsign = configuredProvider === "yousign" || configuredProvider === "docusign";
-    let esignProvider: "yousign" | "docusign" | "other" = "other";
+    const strictEsign =
+      configuredProvider === "yousign" || configuredProvider === "docusign" || configuredProvider === "docuseal";
+    let esignProvider: "yousign" | "docusign" | "docuseal" | "other" = "other";
+    let esignProviderDb: "yousign" | "docusign" | "other" = "other";
     let esignEnvelopeId = `manual-${reservationId}-${Date.now()}`;
     let signUrl: string | null = null;
     let sentAt: Date | null = null;
@@ -276,6 +278,7 @@ router.post("/reservations/:id/send-contract", requireAdmin, async (req, res) =>
           : [],
       });
       esignProvider = result.provider;
+      esignProviderDb = result.provider === "docuseal" ? "other" : result.provider;
       esignEnvelopeId = result.envelopeId;
       signUrl = result.signUrl;
       sentAt = result.sentAt;
@@ -287,6 +290,7 @@ router.post("/reservations/:id/send-contract", requireAdmin, async (req, res) =>
         });
       }
       esignProvider = "other";
+      esignProviderDb = "other";
       esignEnvelopeId = `manual-${reservationId}-${Date.now()}`;
       sentAt = new Date();
       fallbackReason = reason;
@@ -295,7 +299,7 @@ router.post("/reservations/:id/send-contract", requireAdmin, async (req, res) =>
     await db
       .update(contracts)
       .set({
-        esignProvider,
+        esignProvider: esignProviderDb,
         esignEnvelopeId,
         sentAt,
       })

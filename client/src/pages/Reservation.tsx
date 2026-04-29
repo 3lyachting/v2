@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useLocation } from "wouter";
 import { Anchor, ArrowLeft, Calendar, Check, Send, Shield, Users } from "lucide-react";
 import { inferSlotType, isTransatType } from "@shared/slotRules";
+import { computeReservedUnits } from "@shared/charterCapacity";
 
 type FormuleKey = "croisiere_mediterranee" | "transatlantique" | "croisiere_caraibes" | "journee_privee";
 type TypeReservation = "bateau_entier" | "cabine" | "place";
@@ -330,7 +331,10 @@ export default function Reservation() {
         ? disponibiliteFreeUnits * 2
         : disponibiliteFreeUnits;
   const maxPersonnesSelectable = Math.max(1, Math.min(formule.maxPers, maxPersonnesByAvailability || formule.maxPers));
-  const requiredCabins = Math.max(1, Math.ceil((form.nbPersonnes || 1) / 2));
+  const requiredCabins = computeReservedUnits({
+    typeReservation: "cabine",
+    nbPersonnes: form.nbPersonnes,
+  });
   const safePersons = Math.max(1, form.nbPersonnes || 1);
   const prefilledTotalCents =
     Number.isFinite(urlMontantTotalEur) && urlMontantTotalEur > 0 ? Math.round(urlMontantTotalEur * 100) : null;
@@ -369,6 +373,14 @@ export default function Reservation() {
     setForm((prev) => ({ ...prev, nbCabines: Math.max(1, Math.min(4, prev.nbPersonnes || 1)) }));
   }, [isTransatSelection, form.nbPersonnes]);
 
+  useEffect(() => {
+    if (isTransatSelection || typeReservation !== "cabine") return;
+    setForm((prev) => ({
+      ...prev,
+      nbCabines: computeReservedUnits({ typeReservation: "cabine", nbPersonnes: prev.nbPersonnes }),
+    }));
+  }, [isTransatSelection, typeReservation, form.nbPersonnes]);
+
   const canSubmit = Boolean(
     selectedStart &&
     form.nomClient.trim() &&
@@ -403,7 +415,11 @@ export default function Reservation() {
         telClient: form.telClient,
         nbPersonnes: form.nbPersonnes,
         typeReservation,
-        nbCabines: typeReservation === "bateau_entier" ? 4 : form.nbCabines,
+        nbCabines: computeReservedUnits({
+          typeReservation,
+          nbPersonnes: form.nbPersonnes,
+          nbCabines: typeReservation === "bateau_entier" ? 4 : form.nbCabines,
+        }),
         message: form.message,
         destination,
         formule: formuleKey,

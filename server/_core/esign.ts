@@ -1,6 +1,6 @@
 import { ENV } from "./env";
 
-type SupportedProvider = "yousign" | "docusign" | "other";
+type SupportedProvider = "yousign" | "docusign" | "docuseal" | "other";
 
 export type EsignDispatchInput = {
   contractNumber: string;
@@ -21,7 +21,7 @@ export type EsignDispatchResult = {
 const provider = (process.env.ESIGN_PROVIDER || "other").toLowerCase() as SupportedProvider;
 
 function getProvider(): SupportedProvider {
-  if (provider === "yousign" || provider === "docusign") return provider;
+  if (provider === "yousign" || provider === "docusign" || provider === "docuseal") return provider;
   return "other";
 }
 
@@ -156,10 +156,63 @@ async function dispatchDocusign(input: EsignDispatchInput): Promise<EsignDispatc
   };
 }
 
+async function dispatchDocuseal(input: EsignDispatchInput): Promise<EsignDispatchResult> {
+  const apiKey = process.env.ESIGN_DOCUSEAL_API_KEY || ENV.eSignDocusealApiKey;
+  const baseUrl = (process.env.ESIGN_DOCUSEAL_BASE_URL || ENV.eSignDocusealBaseUrl || "https://api.docuseal.com").replace(/\/+$/, "");
+  const templateIdRaw = process.env.ESIGN_DOCUSEAL_TEMPLATE_ID || ENV.eSignDocusealTemplateId;
+  const role = (process.env.ESIGN_DOCUSEAL_ROLE || ENV.eSignDocusealRole || "Signer").trim();
+  const templateId = Number(templateIdRaw);
+
+  if (!apiKey) throw new Error("ESIGN_DOCUSEAL_API_KEY manquant");
+  if (!Number.isFinite(templateId) || templateId <= 0) {
+    throw new Error("ESIGN_DOCUSEAL_TEMPLATE_ID invalide (entier > 0 requis)");
+  }
+
+  const response = await fetch(`${baseUrl}/submissions`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      template_id: templateId,
+      send_email: true,
+      submitters: [
+        {
+          name: input.signerName,
+          email: input.signerEmail,
+          role,
+        },
+      ],
+      metadata: {
+        source: "sabine-sailing",
+        contractNumber: input.contractNumber,
+        contractDownloadUrl: input.contractDownloadUrl,
+      },
+      webhook_url: input.webhookUrl,
+    }),
+  });
+
+  if (!response.ok) {
+    const details = await response.text().catch(() => response.statusText);
+    throw new Error(`DocuSeal error ${response.status}: ${details}`);
+  }
+
+  const payload: any = await response.json();
+  const firstSubmitter = Array.isArray(payload?.submitters) ? payload.submitters[0] : null;
+  return {
+    provider: "docuseal",
+    envelopeId: String(payload?.id || payload?.submission_id || `docuseal-${Date.now()}`),
+    signUrl: firstSubmitter?.slug ? `${baseUrl}/s/${firstSubmitter.slug}` : payload?.embedded_signing_url || null,
+    sentAt: new Date(),
+  };
+}
+
 export async function dispatchEsign(input: EsignDispatchInput): Promise<EsignDispatchResult> {
   const p = getProvider();
   if (p === "yousign") return dispatchYousign(input);
   if (p === "docusign") return dispatchDocusign(input);
+  if (p === "docuseal") return dispatchDocuseal(input);
   return {
     provider: "other",
     envelopeId: `manual-${Date.now()}`,

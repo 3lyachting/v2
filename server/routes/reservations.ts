@@ -22,6 +22,7 @@ import {
 import {
   aggregateCruiseCabineOccupancy,
   CHARTER_CRUISE_CABIN_UNITS,
+  computeReservedUnits,
   isCruiseMultiUnitProduct,
   isReservationBlockingForCharterCalendar,
   rangesOverlapForStay,
@@ -253,12 +254,11 @@ router.post("/request", async (req, res) => {
     const parsedNbPersonnes = Math.max(1, parseInt(nbPersonnes) || 1);
     const normalizedTypeReservation: "bateau_entier" | "cabine" | "place" =
       typeReservation === "cabine" || typeReservation === "place" ? typeReservation : "bateau_entier";
-    const computedNbCabines =
-      normalizedTypeReservation === "cabine"
-        ? Math.max(1, Math.ceil(parsedNbPersonnes / 2))
-        : normalizedTypeReservation === "place"
-          ? Math.max(1, parsedNbPersonnes)
-        : Math.max(1, parseInt(nbCabines) || 1);
+    const computedNbCabines = computeReservedUnits({
+      typeReservation: normalizedTypeReservation,
+      nbPersonnes: parsedNbPersonnes,
+      nbCabines,
+    });
 
     const customerRows = await db.select().from(customers).where(eq(customers.email, normalizedEmail)).limit(1);
     let customerId = customerRows[0]?.id;
@@ -716,14 +716,11 @@ router.put("/:id", requireAdmin, async (req, res) => {
       typeReservation === "cabine" || typeReservation === "place" || typeReservation === "bateau_entier"
         ? typeReservation
         : (existing[0].typeReservation as any);
-    const selectedNbCabines =
-      selectedTypeReservation === "cabine"
-        ? Math.max(1, Math.ceil(parsedNbPersonnes / 2))
-        : selectedTypeReservation === "place"
-          ? Math.max(1, parsedNbPersonnes)
-          : nbCabines !== undefined
-            ? Math.max(1, parseInt(nbCabines))
-            : Math.max(1, existing[0].nbCabines || 1);
+    const selectedNbCabines = computeReservedUnits({
+      typeReservation: selectedTypeReservation,
+      nbPersonnes: parsedNbPersonnes,
+      nbCabines: nbCabines !== undefined ? parseInt(nbCabines) : existing[0].nbCabines,
+    });
     const policyCheck = validateReservationPolicy({
       dateDebut: effectiveDateDebut,
       dateFin: effectiveDateFin,

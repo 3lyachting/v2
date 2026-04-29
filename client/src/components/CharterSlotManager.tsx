@@ -9,6 +9,7 @@ import {
 import {
   aggregateCruiseCabineOccupancy,
   CHARTER_CRUISE_CABIN_UNITS,
+  computeReservedUnits,
   isCruiseMultiUnitProduct,
   isReservationBlockingForCharterCalendar,
   rangesOverlapForStay,
@@ -397,12 +398,11 @@ export default function CharterSlotManager() {
         telClient: manualReservation.telClient.trim() || null,
         nbPersonnes: Math.max(1, manualReservation.nbPersonnes || 1),
         typeReservation: manualReservation.typeReservation,
-        nbCabines:
-          manualReservation.typeReservation === "cabine"
-            ? Math.max(1, Math.ceil((manualReservation.nbPersonnes || 1) / 2))
-            : manualReservation.typeReservation === "place"
-              ? Math.max(1, manualReservation.nbPersonnes || 1)
-              : 4,
+        nbCabines: computeReservedUnits({
+          typeReservation: manualReservation.typeReservation,
+          nbPersonnes: manualReservation.nbPersonnes,
+          nbCabines: manualReservation.typeReservation === "bateau_entier" ? 4 : 1,
+        }),
         dateDebut: selected.debut,
         dateFin: selected.fin,
         disponibiliteId: null,

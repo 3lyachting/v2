@@ -72,7 +72,7 @@ export default function Admin() {
         setOriginsSummary(summary?.origins || null);
       } catch (e: any) {
         setFinanceError(e?.message || "Erreur chargement finances.");
-      } finally {
+    } finally {
         setFinanceLoading(false);
       }
     };
@@ -82,7 +82,7 @@ export default function Admin() {
   const handleLogout = async () => {
     try {
       await fetch("/api/admin-auth/logout", {
-        method: "POST",
+          method: "POST",
         credentials: "include",
       });
     } finally {
@@ -93,7 +93,7 @@ export default function Admin() {
 
   if (!authChecked || !authOk) return null;
 
-  return (
+        return (
     <div className="min-h-screen bg-slate-50 font-sans text-slate-900">
       <header className="sticky top-0 z-30 border-b border-slate-200 bg-white">
         <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4">
@@ -101,7 +101,7 @@ export default function Admin() {
             <img src={logoSabine} alt="Sabine" className="h-8" />
             <div className="h-6 w-px bg-slate-200" />
             <h1 className="text-lg font-bold text-slate-900">Backoffice</h1>
-          </div>
+        </div>
           <button onClick={handleLogout} className="flex items-center gap-2 text-sm font-semibold text-slate-600 transition-colors hover:text-rose-600">
             <LogOut className="h-4 w-4" />
             Deconnexion
@@ -119,7 +119,7 @@ export default function Admin() {
             { id: "maintenance" as const, label: "Maintenance", icon: Wrench },
             { id: "config" as const, label: "Configuration", icon: Link2 },
           ].map((item) => (
-            <button
+          <button
               key={item.id}
               onClick={() => setTab(item.id)}
               className={`flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition-all ${
@@ -128,7 +128,7 @@ export default function Admin() {
             >
               <item.icon className="h-4 w-4" />
               {item.label}
-            </button>
+          </button>
           ))}
         </div>
 
@@ -140,7 +140,7 @@ export default function Admin() {
               <h2 className="text-2xl font-bold text-slate-900">Indicateurs financiers</h2>
               <p className="mt-2 text-sm text-slate-600">Synthèse basée sur les réservations enregistrées.</p>
               {financeError && <p className="mt-3 text-sm text-rose-700">{financeError}</p>}
-            </div>
+              </div>
             {financeLoading ? (
               <div className="rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-500 shadow-sm">Chargement...</div>
             ) : (
@@ -149,13 +149,13 @@ export default function Admin() {
                   <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
                     <p className="text-xs uppercase tracking-wide text-slate-500">Réservations</p>
                     <p className="mt-1 text-2xl font-bold text-slate-900">{financeReservations.length}</p>
-                  </div>
+            </div>
                   <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
                     <p className="text-xs uppercase tracking-wide text-slate-500">CA brut</p>
                     <p className="mt-1 text-2xl font-bold text-slate-900">
                       {(financeReservations.reduce((acc, r) => acc + Number(r.montantTotal || 0), 0) / 100).toLocaleString("fr-FR")} €
                     </p>
-                  </div>
+              </div>
                   <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
                     <p className="text-xs uppercase tracking-wide text-slate-500">Panier moyen</p>
                     <p className="mt-1 text-2xl font-bold text-slate-900">
@@ -168,7 +168,7 @@ export default function Admin() {
                         : "0"}{" "}
                       €
                     </p>
-                  </div>
+              </div>
                 </div>
                 <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
                   <h3 className="text-lg font-bold text-slate-900">Origines des réservations</h3>
@@ -183,8 +183,8 @@ export default function Admin() {
                             <th className="py-2 pr-2">Réservations</th>
                             <th className="py-2 pr-2">CA</th>
                             <th className="py-2 pr-2">Source</th>
-                          </tr>
-                        </thead>
+                    </tr>
+                  </thead>
                         <tbody>
                           {Object.entries(originsSummary).map(([k, v]) => (
                             <tr key={k} className="border-b border-slate-100">
@@ -192,13 +192,13 @@ export default function Admin() {
                               <td className="py-2 pr-2 text-slate-700">{v.count}</td>
                               <td className="py-2 pr-2 text-slate-700">{(Number(v.revenueCents || 0) / 100).toLocaleString("fr-FR")} €</td>
                               <td className="py-2 pr-2 text-slate-500">{v.source}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  )}
-                </div>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
               </>
             )}
           </div>

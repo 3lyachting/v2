@@ -1056,7 +1056,7 @@ function SectionCalendrier({ isEnglish = false }: { isEnglish?: boolean }) {
   const [product, setProduct] = useState<CharterProductCode>("med");
   const [dayAvailability, setDayAvailability] = useState<Set<string> | null>(null);
   const [blockedDays, setBlockedDays] = useState<Set<string>>(new Set());
-  const [charterPeriods, setCharterPeriods] = useState<Array<{ id: number; startIso: string; endIso: string }>>([]);
+  const [charterPeriods, setCharterPeriods] = useState<Array<{ id: number; startIso: string; endIso: string; publicNote?: string | null }>>([]);
   const [slotOccupancy, setSlotOccupancy] = useState<Record<string, { reservedUnits: number; hasPrivate: boolean }>>({});
 
   const loadSlots = useCallback(async () => {
@@ -1080,7 +1080,7 @@ function SectionCalendrier({ isEnglish = false }: { isEnglish?: boolean }) {
       if (!slotsRes.ok) {
         return;
       }
-      const rows = (await slotsRes.json()) as { id: number; debut: string; fin: string; active: boolean }[];
+      const rows = (await slotsRes.json()) as { id: number; debut: string; fin: string; active: boolean; publicNote?: string | null }[];
       const blockedPayload = blockedDaysRes.ok
         ? ((await blockedDaysRes.json()) as {
             days?: string[];
@@ -1090,7 +1090,7 @@ function SectionCalendrier({ isEnglish = false }: { isEnglish?: boolean }) {
       const blockedDays = blockedPayload?.days || [];
       setBlockedDays(new Set(blockedDays.map((d) => String(d || "").slice(0, 10))));
       setSlotOccupancy(blockedPayload?.slotOccupancy && typeof blockedPayload.slotOccupancy === "object" ? blockedPayload.slotOccupancy : {});
-      const periods: Array<{ id: number; startIso: string; endIso: string }> = [];
+      const periods: Array<{ id: number; startIso: string; endIso: string; publicNote?: string | null }> = [];
       const s = new Set<string>();
       let hasAnyActiveSlot = false;
       for (const r of rows) {
@@ -1099,7 +1099,7 @@ function SectionCalendrier({ isEnglish = false }: { isEnglish?: boolean }) {
         const startIso = String(r.debut ?? "").slice(0, 10);
         const endIso = String(r.fin ?? "").slice(0, 10);
         if (/^\d{4}-\d{2}-\d{2}$/.test(startIso) && /^\d{4}-\d{2}-\d{2}$/.test(endIso) && startIso <= endIso) {
-          periods.push({ id: r.id, startIso, endIso });
+          periods.push({ id: r.id, startIso, endIso, publicNote: r.publicNote || null });
         }
         for (const d of expandCharterSlotDays(r.debut, r.fin)) s.add(d);
       }

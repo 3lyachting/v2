@@ -14,6 +14,20 @@ export type OccupancyReservation = {
   workflowStatut?: string | null;
 };
 
+export function computeReservedUnits(params: {
+  typeReservation?: string | null;
+  nbPersonnes?: number | null;
+  nbCabines?: number | null;
+}): number {
+  const type = String(params.typeReservation || "");
+  const persons = Math.max(1, Number(params.nbPersonnes) || 1);
+  const cabins = Math.max(1, Number(params.nbCabines) || 1);
+  if (type === "bateau_entier") return CHARTER_CRUISE_CABIN_UNITS;
+  if (type === "place") return persons;
+  if (type === "cabine") return Math.max(1, Math.ceil(persons / 2));
+  return cabins;
+}
+
 const YMD = /^\d{4}-\d{2}-\d{2}$/;
 
 function toYmd(value: unknown): string | null {

@@ -66,6 +66,14 @@ function fromIso(iso: string) {
   return new Date(y, (m || 1) - 1, d || 1);
 }
 
+function formatDateForPanel(iso: string | null | undefined, isEnglish: boolean): string {
+  if (!iso) return isEnglish ? "Not selected" : "Non sélectionnée";
+  const raw = String(iso).slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(raw)) return String(iso);
+  const d = fromIso(raw);
+  return isEnglish ? raw : d.toLocaleDateString("fr-FR");
+}
+
 function isSameDay(a: Date, b: Date) {
   return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
 }
@@ -123,7 +131,7 @@ export default function AirbnbCalendarMvp({
   /** Jours explicitement bloqués par des réservations (coloration visuelle prioritaire). */
   blockedDays?: Set<string>;
   /** Périodes publiées (charterSlots) : une réservation = une seule période entière. */
-  charterPeriods?: Array<{ id: number; startIso: string; endIso: string }>;
+  charterPeriods?: Array<{ id: number; startIso: string; endIso: string; publicNote?: string | null }>;
   /** Occupation cabines / privatif par id de période (API blocked-days). */
   slotOccupancy?: Record<string, { reservedUnits: number; hasPrivate: boolean }>;
 }) {
@@ -334,6 +342,14 @@ export default function AirbnbCalendarMvp({
         : { reservedUnits: 0, hasPrivate: false };
     return { slot: p, occ };
   }, [charterPeriods, endDate, slotOccupancy, startDate]);
+
+  const selectedPeriodPublicNote = useMemo(() => {
+    if (!startDate) return null;
+    const end = endDate || startDate;
+    const slot = charterPeriods.find((s) => s.startIso === startDate && s.endIso === end);
+    const note = String(slot?.publicNote || "").trim();
+    return note || null;
+  }, [charterPeriods, endDate, startDate]);
 
   const cabinsLeftByDay = useMemo(() => {
     const out = new Map<string, number>();
@@ -652,11 +668,11 @@ export default function AirbnbCalendarMvp({
         <div className="mt-4 space-y-3 text-sm">
           <div className="rounded-xl border border-slate-200 bg-white p-3">
             <p className="text-xs uppercase tracking-wide text-slate-500">{isEnglish ? "Arrival" : "Arrivée"}</p>
-            <p className="mt-1 font-semibold text-slate-900">{startDate ?? (isEnglish ? "Not selected" : "Non sélectionnée")}</p>
+            <p className="mt-1 font-semibold text-slate-900">{formatDateForPanel(startDate, isEnglish)}</p>
           </div>
           <div className="rounded-xl border border-slate-200 bg-white p-3">
             <p className="text-xs uppercase tracking-wide text-slate-500">{isEnglish ? "Departure" : "Départ"}</p>
-            <p className="mt-1 font-semibold text-slate-900">{endDate ?? (isEnglish ? "Not selected" : "Non sélectionnée")}</p>
+            <p className="mt-1 font-semibold text-slate-900">{formatDateForPanel(endDate, isEnglish)}</p>
           </div>
           <div className="rounded-xl border border-slate-200 bg-white p-3">
             <p className="text-xs uppercase tracking-wide text-slate-500">{isEnglish ? "Duration" : "Durée"}</p>
@@ -664,6 +680,12 @@ export default function AirbnbCalendarMvp({
               {nights > 0 ? `${nights} ${isEnglish ? "day(s)" : "jour(s)"}` : isEnglish ? "Choose your dates" : "Choisissez vos dates"}
             </p>
           </div>
+          {selectedPeriodPublicNote && (
+            <div className="rounded-xl border border-[#d8c1a6] bg-[#fff8ee] p-3">
+              <p className="text-xs uppercase tracking-wide text-[#6d552a]">{isEnglish ? "Itinerary" : "Itinéraire"}</p>
+              <p className="mt-1 text-sm font-medium text-[#5b3d14]">{selectedPeriodPublicNote}</p>
+            </div>
+          )}
           {pricePanel.kind !== "empty" && (
             <div className="rounded-xl border border-slate-200 bg-white p-3">
               <p className="text-xs uppercase tracking-wide text-slate-500">{isEnglish ? "Booking options" : "Options de réservation"}</p>

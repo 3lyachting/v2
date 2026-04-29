@@ -137,6 +137,11 @@ function getDaysInMonth(date: Date): number {
   return new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
 }
 
+function reservationDisplayName(reservation: Reservation | null | undefined) {
+  if (!reservation) return "";
+  return `${reservation.prenomClient ? `${reservation.prenomClient} ` : ""}${reservation.nomClient || ""}`.trim();
+}
+
 function getFirstDayOfMonth(date: Date): number {
   // Align calendar grid with Monday-first headers (Lun -> Dim).
   return (new Date(date.getFullYear(), date.getMonth(), 1).getDay() + 6) % 7;
@@ -444,9 +449,13 @@ export default function AdminCalendarView({
               const isToday = isSameDay(dateKey, toLocalIsoDay(new Date()));
               const dayReservations = reservationsByDate.get(dateKey) || [];
               const primaryReservation = dayReservations[0] || null;
-              const reservationLabel = primaryReservation
-                ? `${primaryReservation.prenomClient ? `${primaryReservation.prenomClient} ` : ""}${primaryReservation.nomClient || ""}`.trim()
-                : null;
+              const reservationLabel = reservationDisplayName(primaryReservation) || null;
+              const isSaturday = day.getDay() === 6;
+              const departuresToday = dayReservations.filter((r) => toIsoDay(r.dateFin) === dateKey);
+              const arrivalsToday = dayReservations.filter((r) => toIsoDay(r.dateDebut) === dateKey);
+              const departureLabel = reservationDisplayName(departuresToday[0]);
+              const arrivalLabel = reservationDisplayName(arrivalsToday[0]);
+              const showSplitSaturday = isSaturday && (departuresToday.length > 0 || arrivalsToday.length > 0);
               const hasSelectedDispo = Boolean(selectedDispo && dispos.some((item) => item.id === selectedDispo.id));
               const hasSelectedReservation = Boolean(selectedReservation && dayReservations.some((item) => item.id === selectedReservation.id));
 
@@ -469,6 +478,16 @@ export default function AdminCalendarView({
                     </span>
                     {primaryDispo && (
                       <div className="flex-1 flex flex-col gap-0.5 mt-0.5 min-w-0">
+                        {showSplitSaturday && (
+                          <div className="mb-0.5 grid grid-rows-2 gap-0.5">
+                            <div className="rounded border border-amber-300 bg-amber-50 px-1 py-0.5 text-[8px] font-semibold text-amber-900 truncate">
+                              {departureLabel ? `09h débarq: ${departureLabel}` : "09h débarq"}
+                            </div>
+                            <div className="rounded border border-emerald-300 bg-emerald-50 px-1 py-0.5 text-[8px] font-semibold text-emerald-900 truncate">
+                              {arrivalLabel ? `15h embarq: ${arrivalLabel}` : "15h embarq"}
+                            </div>
+                          </div>
+                        )}
                         <div className={`text-[9px] font-semibold px-1 py-0.5 rounded truncate border ${getStatutColor(primaryDispo.statut)}`}>
                           {reservationLabel || primaryDispo.destination.split(" ")[0]}
                         </div>
