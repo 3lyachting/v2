@@ -352,6 +352,8 @@ router.post("/request", async (req, res) => {
         dateDebut,
         dateFin,
         destination: effectiveDestination,
+        formule: typeof formule === "string" ? formule : null,
+        charterProduct: charterProductBody || lockedCharterSlot?.product || null,
         typeReservation: normalizedTypeReservation,
         nbCabines: normalizedTypeReservation === "cabine" ? computedNbCabines : null,
       });
@@ -409,7 +411,7 @@ router.post("/request", async (req, res) => {
     let reservationId: number | undefined;
     await db.transaction(async (tx: any) => {
       if (lockedCharterSlot) {
-        await tx.execute(sql`select id from charterSlots where id = ${lockedCharterSlot.id} for update`);
+        await tx.execute(sql`select id from "charterSlots" where id = ${lockedCharterSlot.id} for update`);
         const overlappingRes = await tx
           .select({
             typeReservation: reservations.typeReservation,
@@ -725,6 +727,7 @@ router.put("/:id", requireAdmin, async (req, res) => {
       dateDebut: effectiveDateDebut,
       dateFin: effectiveDateFin,
       destination: effectiveDestination,
+      formule: (formule as string | undefined) || existing[0].formule || null,
       typeReservation: selectedTypeReservation,
       nbCabines: selectedTypeReservation === "cabine" ? selectedNbCabines : null,
     });

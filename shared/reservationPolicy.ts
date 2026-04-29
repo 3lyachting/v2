@@ -46,6 +46,8 @@ export function validateReservationPolicy(input: {
   dateDebut: string | Date;
   dateFin: string | Date;
   destination?: string | null;
+  formule?: string | null;
+  charterProduct?: string | null;
   typeReservation?: "bateau_entier" | "cabine" | "place" | null;
   nbCabines?: number | null;
   now?: Date;
@@ -74,10 +76,16 @@ export function validateReservationPolicy(input: {
     isInsideWindow(startIso, endIso, transatReturnStart, transatReturnEnd) ||
     isInsideWindow(startIso, endIso, transatOutboundStart, transatOutboundEnd);
 
-  if (isTransatDestination(input.destination) && !insideTransatWindow) {
+  const isTransatBooking =
+    isTransatDestination(input.destination) ||
+    String(input.formule || "").toLowerCase().includes("transat") ||
+    String(input.charterProduct || "").toLowerCase() === "transat" ||
+    isTransatType(inferredSlotType);
+
+  if (isTransatBooking && !insideTransatWindow) {
     return { ok: false, reason: "Les transats sont autorisées uniquement du 05/04 au 15/05 et du 05/11 au 05/12." };
   }
-  if (isTransatType(inferredSlotType) && insideTransatWindow) {
+  if (isTransatBooking && insideTransatWindow) {
     return { ok: true, policy: "transat_window" };
   }
 

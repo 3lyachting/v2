@@ -53,6 +53,32 @@ function getSmtpConfig() {
   return { host, user, pass, fromEmail, port, secure };
 }
 
+type MolliePaymentLookup = {
+  _links?: { checkout?: { href?: string } };
+};
+
+async function resolveMollieCheckoutUrlFromReservation(reservation: any): Promise<string | null> {
+  const paymentRef = String(reservation?.stripeSessionId || "").trim();
+  if (!paymentRef.startsWith("mollie:")) return null;
+  const paymentId = paymentRef.replace(/^mollie:/, "").trim();
+  if (!paymentId) return null;
+  const mollieApiKey = String(process.env.MOLLIE_API_KEY || "").trim();
+  if (!mollieApiKey) return null;
+
+  try {
+    const response = await fetch(`https://api.mollie.com/v2/payments/${encodeURIComponent(paymentId)}`, {
+      method: "GET",
+      headers: { Authorization: `Bearer ${mollieApiKey}` },
+    });
+    if (!response.ok) return null;
+    const payment = (await response.json().catch(() => null)) as MolliePaymentLookup | null;
+    const checkoutHref = String(payment?._links?.checkout?.href || "").trim();
+    return /^https?:\/\//i.test(checkoutHref) ? checkoutHref : null;
+  } catch {
+    return null;
+  }
+}
+
 router.post("/reservations/:id/owner-validate", requireAdmin, async (req, res) => {
   try {
     const reservationId = parseInt(req.params.id, 10);
@@ -273,7 +299,11 @@ router.post("/reservations/:id/send-proposal-email", requireAdmin, async (req, r
     const contractUrlRaw = latestContract?.pdfStorageKey ? await storageGetSignedUrl(latestContract.pdfStorageKey).catch(() => null) : null;
     const quoteUrl = toAbsoluteUrl(req, quoteUrlRaw);
     const contractUrl = toAbsoluteUrl(req, contractUrlRaw);
-    const paymentUrl = String(req.body?.paymentUrl || "").trim() || null;
+    const paymentUrlRaw = String(req.body?.paymentUrl || "").trim();
+    const paymentUrlFromBody = /^https?:\/\//i.test(paymentUrlRaw) ? paymentUrlRaw : null;
+    const looksLikeSiteResultPage = /\/reservation\/(succes|annule)(\/|$|\?)/i.test(paymentUrlFromBody || "");
+    const paymentUrl =
+      (!looksLikeSiteResultPage && paymentUrlFromBody) || (await resolveMollieCheckoutUrlFromReservation(r)) || null;
 
     const smtp = getSmtpConfig();
     if (!smtp.host || !smtp.user || !smtp.pass || !smtp.fromEmail) {

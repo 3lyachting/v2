@@ -50,6 +50,8 @@ type ReservationRow = {
   internalComment?: string | null;
 };
 
+type BookingOrigin = "direct" | "clicknboat" | "skippair" | "samboat";
+
 type ReservationEditState = {
   id: number;
   nomClient: string;
@@ -69,6 +71,7 @@ type ReservationEditState = {
   message: string;
   internalComment: string;
   reservationStatus: ReservationStatus;
+  bookingOrigin: BookingOrigin;
 };
 
 type ReservationStatus = "nouvelle" | "devis_envoye" | "validee_acompte" | "terminee_solde";
@@ -100,6 +103,13 @@ type CalendarDispo = {
   capaciteTotale?: number;
   cabinesReservees?: number;
 };
+
+const BOOKING_ORIGIN_OPTIONS: Array<{ value: BookingOrigin; label: string }> = [
+  { value: "direct", label: "Direct" },
+  { value: "clicknboat", label: "ClicknBoat" },
+  { value: "skippair", label: "Skippair" },
+  { value: "samboat", label: "Samboat" },
+];
 
 function toInputDateFromApi(iso: string) {
   return iso.slice(0, 10);
@@ -199,6 +209,7 @@ export default function CharterSlotManager() {
     typeReservation: "bateau_entier" | "cabine" | "place";
     montantTotalEur: number;
     message: string;
+    bookingOrigin: BookingOrigin;
   }>({
     slotId: "",
     nomClient: "",
@@ -208,6 +219,7 @@ export default function CharterSlotManager() {
     typeReservation: "cabine",
     montantTotalEur: 0,
     message: "Réservation prise par téléphone/email",
+    bookingOrigin: "direct",
   });
   const [form, setForm] = useState<{
     product: CharterProductCode;
@@ -410,7 +422,7 @@ export default function CharterSlotManager() {
         formule: selected.product === "journee" ? "journee_privee" : "semaine",
         montantTotal: Math.max(100, Math.round((manualReservation.montantTotalEur || 0) * 100)),
         message: manualReservation.message || "Réservation backoffice",
-        bookingOrigin: "direct",
+        bookingOrigin: manualReservation.bookingOrigin,
         simpleRequest: true,
       };
       const res = await fetch(apiUrl("/api/reservations/request"), {
@@ -428,6 +440,7 @@ export default function CharterSlotManager() {
         telClient: "",
         nbPersonnes: 2,
         montantTotalEur: 0,
+        bookingOrigin: "direct",
       }));
       await load();
     } catch (e: any) {
@@ -526,6 +539,7 @@ export default function CharterSlotManager() {
       message: r.message || "",
       internalComment: r.internalComment || "",
       reservationStatus: getReservationStatus(r),
+      bookingOrigin: (r.bookingOrigin as BookingOrigin) || "direct",
     });
   };
 
@@ -552,6 +566,7 @@ export default function CharterSlotManager() {
         formule: editingReservation.formule,
         message: editingReservation.message,
         internalComment: editingReservation.internalComment,
+        bookingOrigin: editingReservation.bookingOrigin,
       };
       const res = await fetch(apiUrl(`/api/reservations/${editingReservation.id}`), {
         method: "PUT",
@@ -1039,6 +1054,19 @@ export default function CharterSlotManager() {
                 value={manualReservation.telClient}
                 onChange={(e) => setManualReservation((m) => ({ ...m, telClient: e.target.value }))}
               />
+              <select
+                className="rounded-lg border border-slate-200 px-3 py-2"
+                value={manualReservation.bookingOrigin}
+                onChange={(e) =>
+                  setManualReservation((m) => ({ ...m, bookingOrigin: e.target.value as BookingOrigin }))
+                }
+              >
+                {BOOKING_ORIGIN_OPTIONS.map((origin) => (
+                  <option key={origin.value} value={origin.value}>
+                    Origine: {origin.label}
+                  </option>
+                ))}
+              </select>
               <div className="grid grid-cols-2 gap-2">
                 <input
                   className="rounded-lg border border-slate-200 px-3 py-2"
@@ -1164,6 +1192,17 @@ export default function CharterSlotManager() {
                 <option value="paye">paye</option>
                 <option value="echec">echec</option>
                 <option value="rembourse">rembourse</option>
+              </select>
+              <select
+                className="rounded-lg border border-slate-200 px-3 py-2 text-sm"
+                value={editingReservation.bookingOrigin}
+                onChange={(e) => setEditingReservation((s) => (s ? { ...s, bookingOrigin: e.target.value as BookingOrigin } : s))}
+              >
+                {BOOKING_ORIGIN_OPTIONS.map((origin) => (
+                  <option key={origin.value} value={origin.value}>
+                    Origine: {origin.label}
+                  </option>
+                ))}
               </select>
               <select
                 className="rounded-lg border border-slate-200 px-3 py-2 text-sm"

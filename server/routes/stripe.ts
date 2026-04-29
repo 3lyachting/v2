@@ -50,6 +50,7 @@ router.post("/create-checkout-session", async (req, res) => {
       dateDebut,
       dateFin,
       destination,
+      formule,
       typeReservation,
       nbCabines: typeReservation === "cabine" ? Math.max(1, parseInt(nbCabines) || 1) : null,
     });
