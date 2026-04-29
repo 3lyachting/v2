@@ -214,7 +214,7 @@ export default function CustomerPortal() {
 
   if (!me) {
     return (
-      <div className="relative min-h-screen text-white px-6 py-16 overflow-hidden">
+      <div className="relative min-h-screen text-slate-900 px-6 py-16 overflow-hidden">
         <div className="absolute inset-0 -z-20">
           <iframe
             src="https://www.youtube.com/embed/8SaiovLCOHQ?autoplay=1&mute=1&controls=0&loop=1&playlist=8SaiovLCOHQ&modestbranding=1&showinfo=0&rel=0"
@@ -223,38 +223,38 @@ export default function CustomerPortal() {
             allow="autoplay; encrypted-media"
           />
         </div>
-        <div className="absolute inset-0 -z-10 bg-[linear-gradient(160deg,rgba(0,56,74,0.84),rgba(1,32,42,0.88))] backdrop-blur-[1px]" />
-        <div className="absolute inset-0 -z-[9] bg-[radial-gradient(circle_at_top_right,rgba(216,193,158,0.28),transparent_50%)]" />
+        <div className="absolute inset-0 -z-10 bg-[linear-gradient(160deg,rgba(245,241,232,0.88),rgba(239,229,214,0.86))] backdrop-blur-[1px]" />
+        <div className="absolute inset-0 -z-[9] bg-[radial-gradient(circle_at_top_right,rgba(216,193,158,0.38),transparent_50%)]" />
         <div className="max-w-lg mx-auto">
           <a href={withBasePath("/")} className="inline-flex items-center mb-4" aria-label="Retour à l'accueil">
             <img src="/logo-sabine.png" alt="Sabine Sailing" className="h-14 w-auto object-contain" />
           </a>
         </div>
-        <div className="max-w-lg mx-auto border shadow-2xl rounded-2xl p-6" style={{ backgroundColor: "rgba(255,255,255,0.12)", borderColor: "rgba(216,193,158,0.55)" }}>
+        <div className="max-w-lg mx-auto border shadow-2xl rounded-2xl p-6" style={{ backgroundColor: "rgba(255,255,255,0.88)", borderColor: "rgba(216,193,158,0.75)" }}>
           <h1 className="text-2xl font-bold mb-2" style={{ color: BRAND_SAND }}>Espace client</h1>
-          <p className="text-white/75 text-sm mb-5">Connectez-vous avec vos identifiants reçus par email, ou demandez un lien sécurisé.</p>
+          <p className="text-slate-600 text-sm mb-5">Connectez-vous avec vos identifiants reçus par email, ou demandez un lien sécurisé.</p>
           <div className="space-y-3">
             <input
               type="email"
               value={email}
               onChange={e => setEmail(e.target.value)}
-              className="w-full bg-white/15 border rounded-xl px-4 py-2.5 text-sm placeholder:text-white/50"
-              style={{ borderColor: "rgba(216,193,158,0.5)" }}
+              className="w-full bg-white/95 border rounded-xl px-4 py-2.5 text-sm placeholder:text-slate-400"
+              style={{ borderColor: "rgba(0,56,74,0.22)" }}
               placeholder="Votre email"
             />
             <input
               type="password"
               value={password}
               onChange={e => setPassword(e.target.value)}
-              className="w-full bg-white/15 border rounded-xl px-4 py-2.5 text-sm placeholder:text-white/50"
-              style={{ borderColor: "rgba(216,193,158,0.5)" }}
+              className="w-full bg-white/95 border rounded-xl px-4 py-2.5 text-sm placeholder:text-slate-400"
+              style={{ borderColor: "rgba(0,56,74,0.22)" }}
               placeholder="Mot de passe"
             />
             <button
               onClick={loginWithPassword}
               disabled={loading || !email || !password}
               className="w-full py-2.5 rounded-xl font-bold disabled:opacity-50"
-              style={{ backgroundColor: BRAND_SAND, color: BRAND_DEEP }}
+              style={{ backgroundColor: BRAND_DEEP, color: "#fff" }}
             >
               {loading ? "Connexion..." : "Se connecter"}
             </button>
@@ -262,16 +262,16 @@ export default function CustomerPortal() {
               onClick={requestLink}
               disabled={loading || !email}
               className="w-full py-2.5 rounded-xl font-bold disabled:opacity-50 flex items-center justify-center gap-2"
-              style={{ backgroundColor: BRAND_DEEP, color: BRAND_SAND, border: `1px solid ${BRAND_SAND}` }}
+              style={{ backgroundColor: "#fff", color: BRAND_DEEP, border: `1px solid ${BRAND_DEEP}` }}
             >
               <Mail className="w-4 h-4" /> {loading ? "Envoi..." : "Recevoir un lien de secours"}
             </button>
-            {message && <p className="text-xs text-white/75">{message}</p>}
+            {message && <p className="text-xs text-slate-600">{message}</p>}
             {loginLink && (
               <a
                 href={loginLink}
-                className="block w-full py-2.5 rounded-xl border text-white text-center text-sm font-bold hover:bg-white/20 transition-colors"
-                style={{ borderColor: "rgba(216,193,158,0.7)" }}
+                className="block w-full py-2.5 rounded-xl border text-center text-sm font-bold hover:bg-slate-50 transition-colors"
+                style={{ borderColor: "rgba(0,56,74,0.28)", color: BRAND_DEEP }}
               >
                 Ouvrir mon espace client
               </a>
@@ -283,7 +283,7 @@ export default function CustomerPortal() {
   }
 
   return (
-    <div className="relative min-h-screen text-white px-6 py-12 overflow-hidden">
+    <div className="relative min-h-screen text-slate-900 px-6 py-12 overflow-hidden">
       <div className="absolute inset-0 -z-20">
         <iframe
           src="https://www.youtube.com/embed/8SaiovLCOHQ?autoplay=1&mute=1&controls=0&loop=1&playlist=8SaiovLCOHQ&modestbranding=1&showinfo=0&rel=0"
@@ -292,47 +292,47 @@ export default function CustomerPortal() {
           allow="autoplay; encrypted-media"
         />
       </div>
-      <div className="absolute inset-0 -z-10 bg-[linear-gradient(160deg,rgba(0,56,74,0.86),rgba(1,32,42,0.9))] backdrop-blur-[1px]" />
-      <div className="absolute inset-0 -z-[9] bg-[radial-gradient(circle_at_top_right,rgba(216,193,158,0.28),transparent_50%)]" />
+      <div className="absolute inset-0 -z-10 bg-[linear-gradient(160deg,rgba(245,241,232,0.9),rgba(239,229,214,0.88))] backdrop-blur-[1px]" />
+      <div className="absolute inset-0 -z-[9] bg-[radial-gradient(circle_at_top_right,rgba(216,193,158,0.38),transparent_50%)]" />
       <div className="max-w-5xl mx-auto">
         <a href={withBasePath("/")} className="inline-flex items-center mb-4" aria-label="Retour à l'accueil">
           <img src="/logo-sabine.png" alt="Sabine Sailing" className="h-14 w-auto object-contain" />
         </a>
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h1 className="text-3xl font-bold" style={{ color: BRAND_SAND }}>Espace client</h1>
-            <p className="text-white/75 text-sm">{me.email}</p>
+            <h1 className="text-3xl font-bold" style={{ color: BRAND_DEEP }}>Espace client</h1>
+            <p className="text-slate-600 text-sm">{me.email}</p>
           </div>
-          <button onClick={logout} className="px-4 py-2 rounded-xl border text-sm flex items-center gap-2" style={{ borderColor: "rgba(216,193,158,0.6)", color: BRAND_SAND }}>
+          <button onClick={logout} className="px-4 py-2 rounded-xl border text-sm flex items-center gap-2 bg-white/80" style={{ borderColor: "rgba(0,56,74,0.28)", color: BRAND_DEEP }}>
             <LogOut className="w-4 h-4" /> Déconnexion
           </button>
         </div>
 
         <div className="grid gap-6">
-          <div className="border rounded-2xl p-5 shadow-xl" style={{ backgroundColor: "rgba(255,255,255,0.12)", borderColor: "rgba(216,193,158,0.55)" }}>
-            <h2 className="text-lg font-bold mb-3" style={{ color: BRAND_SAND }}>Mes réservations</h2>
+          <div className="border rounded-2xl p-5 shadow-xl" style={{ backgroundColor: "rgba(255,255,255,0.9)", borderColor: "rgba(216,193,158,0.75)" }}>
+            <h2 className="text-lg font-bold mb-3" style={{ color: BRAND_DEEP }}>Mes réservations</h2>
             {reservations.length === 0 ? (
-              <p className="text-white/75 text-sm">Aucune réservation liée à cet email.</p>
+              <p className="text-slate-600 text-sm">Aucune réservation liée à cet email.</p>
             ) : (
               <div className="space-y-3">
                 {reservations.map(r => (
-                  <div key={r.id} className="p-3 rounded-xl border" style={{ backgroundColor: "rgba(0,0,0,0.22)", borderColor: "rgba(216,193,158,0.42)" }}>
+                  <div key={r.id} className="p-3 rounded-xl border" style={{ backgroundColor: "rgba(255,255,255,0.94)", borderColor: "rgba(0,56,74,0.18)" }}>
                     <p className="font-medium">#{r.id} — {r.destination}</p>
-                    <p className="text-xs text-white/90">{getCroisiereLabel(r)}</p>
-                    <p className="text-xs text-white/75">
+                    <p className="text-xs text-slate-700">{getCroisiereLabel(r)}</p>
+                    <p className="text-xs text-slate-600">
                       {new Date(r.dateDebut).toLocaleDateString("fr-FR")} {"->"} {new Date(r.dateFin).toLocaleDateString("fr-FR")}
                     </p>
-                    <p className="text-xs text-white/75">{(r.montantTotal / 100).toLocaleString("fr-FR")} EUR</p>
-                    <p className="text-xs text-white/85">Passagers: {r.nbPersonnes || 0}</p>
-                    {r.workflowStatut && <p className="text-[10px] uppercase mt-1" style={{ color: BRAND_SAND }}>{r.workflowStatut.replaceAll("_", " ")}</p>}
+                    <p className="text-xs text-slate-600">{(r.montantTotal / 100).toLocaleString("fr-FR")} EUR</p>
+                    <p className="text-xs text-slate-700">Passagers: {r.nbPersonnes || 0}</p>
+                    {r.workflowStatut && <p className="text-[10px] uppercase mt-1" style={{ color: BRAND_DEEP }}>{r.workflowStatut.replaceAll("_", " ")}</p>}
                     {(() => {
                       const passengers = passengersForReservation(r.id);
                       if (!passengers.length) return null;
                       return (
-                        <div className="mt-2 rounded-lg border p-2" style={{ backgroundColor: "rgba(0,0,0,0.25)", borderColor: "rgba(216,193,158,0.28)" }}>
-                          <p className="text-[11px] font-semibold text-white/85 mb-1">Liste passagers</p>
+                        <div className="mt-2 rounded-lg border p-2" style={{ backgroundColor: "#f8f4eb", borderColor: "rgba(0,56,74,0.18)" }}>
+                          <p className="text-[11px] font-semibold text-slate-700 mb-1">Liste passagers</p>
                           {passengers.map((p) => (
-                            <p key={`${r.id}-${p}`} className="text-[11px] text-white/75 flex items-center gap-1.5">
+                            <p key={`${r.id}-${p}`} className="text-[11px] text-slate-600 flex items-center gap-1.5">
                               <Check className="w-3.5 h-3.5 text-emerald-400" />
                               <span>{p}</span>
                             </p>
@@ -343,21 +343,21 @@ export default function CustomerPortal() {
                     {(() => {
                       const recap = workflowRecap(r);
                       return (
-                        <div className="mt-2 p-2.5 rounded-lg border text-[11px] space-y-1" style={{ backgroundColor: "rgba(0,0,0,0.25)", borderColor: "rgba(216,193,158,0.28)" }}>
-                          <p className="font-semibold text-white/90">Récapitulatif dossier</p>
-                          <p className={recap.quoteSigned ? "text-emerald-300" : "text-white/70"}>
+                        <div className="mt-2 p-2.5 rounded-lg border text-[11px] space-y-1" style={{ backgroundColor: "#f8f4eb", borderColor: "rgba(0,56,74,0.18)" }}>
+                          <p className="font-semibold text-slate-700">Récapitulatif dossier</p>
+                          <p className={recap.quoteSigned ? "text-emerald-700" : "text-slate-600"}>
                             {recap.quoteSigned ? "✓" : "•"} Devis / contrat signé
                           </p>
-                          <p className={recap.acompteReceived ? "text-emerald-300" : "text-white/70"}>
+                          <p className={recap.acompteReceived ? "text-emerald-700" : "text-slate-600"}>
                             {recap.acompteReceived ? "✓" : "•"} Acompte reçu
                             {typeof r.acompteMontant === "number" && r.acompteMontant > 0
                               ? ` (${(r.acompteMontant / 100).toLocaleString("fr-FR")} EUR)`
                               : ""}
                           </p>
-                          <p className={recap.reservationValidated ? "text-emerald-300" : "text-white/70"}>
+                          <p className={recap.reservationValidated ? "text-emerald-700" : "text-slate-600"}>
                             {recap.reservationValidated ? "✓" : "•"} Réservation validée
                           </p>
-                          <p className={recap.soldeExpected ? "text-amber-300" : "text-emerald-300"}>
+                          <p className={recap.soldeExpected ? "text-amber-700" : "text-emerald-700"}>
                             {recap.soldeExpected ? "•" : "✓"} Solde {recap.soldeExpected ? "attendu" : "versé"}
                             {r.soldeEcheanceAt
                               ? ` (échéance ${new Date(r.soldeEcheanceAt).toLocaleDateString("fr-FR")})`
@@ -369,9 +369,9 @@ export default function CustomerPortal() {
                         </div>
                       );
                     })()}
-                    <div className="mt-3 p-2.5 rounded-lg border" style={{ backgroundColor: "rgba(0,0,0,0.25)", borderColor: "rgba(216,193,158,0.28)" }}>
-                      <p className="font-semibold text-white/90 text-[11px] mb-2">Passagers & pièces d'identité</p>
-                      <p className="text-[11px] text-white/70 mb-2">
+                    <div className="mt-3 p-2.5 rounded-lg border" style={{ backgroundColor: "#f8f4eb", borderColor: "rgba(0,56,74,0.18)" }}>
+                      <p className="font-semibold text-slate-700 text-[11px] mb-2">Passagers & pièces d'identité</p>
+                      <p className="text-[11px] text-slate-600 mb-2">
                         {requiresPassportOnly(r)
                           ? "Passeport obligatoire (Caraïbe/Transat)."
                           : "Croisière Med: CNI, passeport ou permis acceptés."}
@@ -389,8 +389,8 @@ export default function CustomerPortal() {
                               },
                             }))
                           }
-                          className="bg-white/15 border rounded px-2 py-1.5 text-[11px]"
-                          style={{ borderColor: "rgba(216,193,158,0.45)" }}
+                          className="bg-white border rounded px-2 py-1.5 text-[11px]"
+                          style={{ borderColor: "rgba(0,56,74,0.2)" }}
                           placeholder="Prénom passager"
                         />
                         <input
@@ -405,8 +405,8 @@ export default function CustomerPortal() {
                               },
                             }))
                           }
-                          className="bg-white/15 border rounded px-2 py-1.5 text-[11px]"
-                          style={{ borderColor: "rgba(216,193,158,0.45)" }}
+                          className="bg-white border rounded px-2 py-1.5 text-[11px]"
+                          style={{ borderColor: "rgba(0,56,74,0.2)" }}
                           placeholder="Nom passager"
                         />
                         <select
@@ -421,14 +421,14 @@ export default function CustomerPortal() {
                               },
                             }))
                           }
-                          className="border rounded px-2 py-1.5 text-[11px] text-white"
-                          style={{ backgroundColor: "rgba(0,56,74,0.68)", borderColor: "rgba(216,193,158,0.45)" }}
+                          className="border rounded px-2 py-1.5 text-[11px] text-slate-800 bg-white"
+                          style={{ borderColor: "rgba(0,56,74,0.2)" }}
                         >
                           {!requiresPassportOnly(r) && <option value="cni">CNI</option>}
                           <option value="passeport">Passeport</option>
                           {!requiresPassportOnly(r) && <option value="permis">Permis</option>}
                         </select>
-                        <label className="cursor-pointer border rounded px-2 py-1.5 text-[11px] text-center hover:bg-white/20 transition-colors" style={{ backgroundColor: "rgba(216,193,158,0.14)", borderColor: "rgba(216,193,158,0.5)", color: BRAND_SAND }}>
+                        <label className="cursor-pointer border rounded px-2 py-1.5 text-[11px] text-center hover:bg-slate-50 transition-colors" style={{ backgroundColor: "#fff", borderColor: "rgba(0,56,74,0.28)", color: BRAND_DEEP }}>
                           {uploading ? "Envoi..." : "Ajouter pièce"}
                           <input
                             type="file"
@@ -446,7 +446,7 @@ export default function CustomerPortal() {
                             const [, first = "", last = "", kind = ""] = d.docType.split("|");
                             const kindLabel = kind === "cni" ? "CNI" : kind === "permis" ? "Permis" : "Passeport";
                             return (
-                              <p key={d.id} className="text-[10px] text-white/70">
+                              <p key={d.id} className="text-[10px] text-slate-600">
                                 {first} {last} — {kindLabel} — {d.originalName}
                               </p>
                             );
@@ -460,7 +460,7 @@ export default function CustomerPortal() {
             )}
           </div>
         </div>
-        {message && <p className="text-xs text-white/75 mt-3">{message}</p>}
+        {message && <p className="text-xs text-slate-600 mt-3">{message}</p>}
       </div>
     </div>
   );

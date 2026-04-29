@@ -967,7 +967,7 @@ function SectionEquipage({ isEnglish = false }: { isEnglish?: boolean }) {
             <p className="mt-4 text-white/60 max-w-xl mx-auto">
               {isEnglish
                 ? "Professional skipper profile with over 10 years of experience across the Mediterranean, Atlantic and Caribbean."
-                : "Deux marins professionnels, brevets capitaine 500 UMS et capitaine 200 voile, avec plus de 10 ans d'experience en Mediterranee, Atlantique et Caraibes."}
+                : "Deux marins professionnels a bord : Capitaine Victor (brevet capitaine 500 UMS) et un deuxième marin titulaire du certificat de matelot de pont, avec plus de 10 ans d'experience en Mediterranee, Atlantique et Caraibes."}
             </p>
           </div>
         </Reveal>
