@@ -1,7 +1,6 @@
 import { Router } from "express";
 import { and, eq } from "drizzle-orm";
 import nodemailer from "nodemailer";
-import crypto from "node:crypto";
 import { getDb } from "../db";
 import { storagePut } from "../storage";
 import { requireAdmin } from "../_core/authz";
@@ -15,8 +14,7 @@ import {
   reservationStatusHistory,
   esignEvents,
 } from "../../drizzle/schema";
-import { buildInvoicePdf, buildQuotePdf, buildContractPdf } from "../_core/commercialDocs";
-import { dispatchEsign } from "../_core/esign";
+import { buildInvoicePdf, buildQuoteContractPdf } from "../_core/commercialDocs";
 import { storageGetSignedUrl } from "../storage";
 import {
   resolveDisponibiliteIdForReservation,
@@ -53,35 +51,6 @@ function getSmtpConfig() {
   const port = Number(process.env.SMTP_PORT || 587);
   const secure = process.env.SMTP_SECURE === "true";
   return { host, user, pass, fromEmail, port, secure };
-}
-
-function normalizeSignature(input: string) {
-  const value = String(input || "").trim().toLowerCase();
-  if (!value) return "";
-  if (value.startsWith("sha256=")) return value.slice("sha256=".length).trim();
-  return value;
-}
-
-function safeEqualHex(expectedHex: string, incoming: string) {
-  const a = Buffer.from(normalizeSignature(expectedHex), "utf8");
-  const b = Buffer.from(normalizeSignature(incoming), "utf8");
-  if (!a.length || !b.length || a.length !== b.length) return false;
-  return crypto.timingSafeEqual(a, b);
-}
-
-function verifyYousignSignature(rawBody: Buffer, secret: string, headers: Record<string, unknown>) {
-  const candidateHeaderKeys = [
-    "x-yousign-signature-256",
-    "x-yousign-signature",
-    "yousign-signature",
-    "x-signature",
-  ];
-  const provided = candidateHeaderKeys
-    .map((k) => String(headers[k] || "").trim())
-    .find((v) => v.length > 0);
-  if (!provided) return false;
-  const expectedHex = crypto.createHmac("sha256", secret).update(rawBody).digest("hex");
-  return safeEqualHex(expectedHex, provided);
 }
 
 router.post("/reservations/:id/owner-validate", requireAdmin, async (req, res) => {
@@ -127,17 +96,10 @@ router.post("/reservations/:id/owner-validate", requireAdmin, async (req, res) =
 
     const quoteNumber = buildQuoteNumber(reservationId);
     const contractNumber = buildContractNumber(reservationId);
-    const quotePdf = await buildQuotePdf(r, quoteNumber, optionExpiresAt);
-    const quoteFile = await storagePut(
-      `commercial/quotes/devis-${reservationId}.pdf`,
-      quotePdf,
-      "application/pdf"
-    );
-
-    const contractPdf = await buildContractPdf(r, contractNumber);
-    const contractFile = await storagePut(
-      `commercial/contracts/contrat-${reservationId}.pdf`,
-      contractPdf,
+    const proposalPdf = await buildQuoteContractPdf(r, quoteNumber, contractNumber, optionExpiresAt);
+    const proposalFile = await storagePut(
+      `commercial/proposals/proposition-${reservationId}.pdf`,
+      proposalPdf,
       "application/pdf"
     );
 
@@ -151,7 +113,7 @@ router.post("/reservations/:id/owner-validate", requireAdmin, async (req, res) =
           quoteNumber,
           totalAmount: r.montantTotal,
           currency: "EUR",
-          pdfStorageKey: quoteFile.key,
+          pdfStorageKey: proposalFile.key,
         })
         .where(eq(quotes.id, existingQuote.id));
       quoteId = existingQuote.id;
@@ -163,7 +125,7 @@ router.post("/reservations/:id/owner-validate", requireAdmin, async (req, res) =
           quoteNumber,
           totalAmount: r.montantTotal,
           currency: "EUR",
-          pdfStorageKey: quoteFile.key,
+          pdfStorageKey: proposalFile.key,
         })
         .returning({ id: quotes.id });
       quoteId = quoteInsert[0]?.id ?? null;
@@ -178,13 +140,13 @@ router.post("/reservations/:id/owner-validate", requireAdmin, async (req, res) =
         .set({
           quoteId,
           contractNumber,
-          pdfStorageKey: contractFile.key,
+          pdfStorageKey: proposalFile.key,
         })
         .where(eq(contracts.id, existingContract.id));
       createdContract = {
         id: existingContract.id,
         contractNumber,
-        pdfStorageKey: contractFile.key,
+        pdfStorageKey: proposalFile.key,
       };
     } else {
       const contractInsert = await db
@@ -193,7 +155,7 @@ router.post("/reservations/:id/owner-validate", requireAdmin, async (req, res) =
           reservationId,
           quoteId,
           contractNumber,
-          pdfStorageKey: contractFile.key,
+          pdfStorageKey: proposalFile.key,
           esignProvider: "other",
         })
         .returning({ id: contracts.id, contractNumber: contracts.contractNumber, pdfStorageKey: contracts.pdfStorageKey });
@@ -221,8 +183,8 @@ router.post("/reservations/:id/owner-validate", requireAdmin, async (req, res) =
       soldeMontant,
       soldeEcheanceAt,
       optionExpiresAt,
-      quoteUrl: quoteFile.url,
-      contractUrl: contractFile.url,
+      quoteUrl: proposalFile.url,
+      contractUrl: proposalFile.url,
       contractId: createdContract.id,
     });
   } catch (error: any) {
@@ -249,58 +211,14 @@ router.post("/reservations/:id/send-contract", requireAdmin, async (req, res) =>
       return res.status(400).json({ error: "Contrat sans fichier PDF." });
     }
 
-    const configuredProvider = (process.env.ESIGN_PROVIDER || "other").toLowerCase();
-    const strictEsign =
-      configuredProvider === "yousign" || configuredProvider === "docusign" || configuredProvider === "docuseal";
-    let esignProvider: "yousign" | "docusign" | "docuseal" | "other" = "other";
-    let esignProviderDb: "yousign" | "docusign" | "other" = "other";
-    let esignEnvelopeId = `manual-${reservationId}-${Date.now()}`;
-    let signUrl: string | null = null;
-    let sentAt: Date | null = null;
-    let fallbackReason: string | null = null;
-
-    try {
-      const signedUrl = await storageGetSignedUrl(contract.pdfStorageKey);
-      const quoteRows = await db.select().from(quotes).where(eq(quotes.reservationId, reservationId));
-      const latestQuote = quoteRows.slice().sort((a, b) => b.id - a.id)[0] || null;
-      const quoteSignedUrl = latestQuote?.pdfStorageKey
-        ? await storageGetSignedUrl(latestQuote.pdfStorageKey).catch(() => null)
-        : null;
-      const webhookBase = `${req.protocol}://${req.get("host")}`;
-      const result = await dispatchEsign({
-        contractNumber: contract.contractNumber,
-        signerName: r.nomClient,
-        signerEmail: r.emailClient,
-        contractDownloadUrl: signedUrl,
-        webhookUrl: `${webhookBase}/api/workflow/esign/webhook`,
-        additionalDocuments: quoteSignedUrl
-          ? [{ name: `Devis reservation ${reservationId}.pdf`, downloadUrl: quoteSignedUrl }]
-          : [],
-      });
-      esignProvider = result.provider;
-      esignProviderDb = result.provider === "docuseal" ? "other" : result.provider;
-      esignEnvelopeId = result.envelopeId;
-      signUrl = result.signUrl;
-      sentAt = result.sentAt;
-    } catch (error: any) {
-      const reason = error?.message || "Erreur envoi e-sign";
-      if (strictEsign) {
-        return res.status(502).json({
-          error: `Échec ${configuredProvider}: ${reason}`,
-        });
-      }
-      esignProvider = "other";
-      esignProviderDb = "other";
-      esignEnvelopeId = `manual-${reservationId}-${Date.now()}`;
-      sentAt = new Date();
-      fallbackReason = reason;
-    }
+    const sentAt = new Date();
+    const proposalUrl = await storageGetSignedUrl(contract.pdfStorageKey).catch(() => null);
 
     await db
       .update(contracts)
       .set({
-        esignProvider: esignProviderDb,
-        esignEnvelopeId,
+        esignProvider: "other",
+        esignEnvelopeId: null,
         sentAt,
       })
       .where(eq(contracts.id, contract.id));
@@ -323,18 +241,12 @@ router.post("/reservations/:id/send-contract", requireAdmin, async (req, res) =>
       fromStatut: r.workflowStatut,
       toStatut: "contrat_envoye",
       actorType: "admin",
-      note: "Contrat envoyé au client pour signature.",
+      note: "Proposition PDF (devis + contrat) envoyée au client.",
     });
 
     return res.json({
       success: true,
-      esign: {
-        provider: esignProvider,
-        envelopeId: esignEnvelopeId,
-        signUrl,
-        fallbackReason,
-        webhookUrl: "/api/workflow/esign/webhook",
-      },
+      proposalUrl,
     });
   } catch (error: any) {
     return res.status(500).json({ error: error?.message || "Erreur envoi contrat" });
@@ -362,7 +274,6 @@ router.post("/reservations/:id/send-proposal-email", requireAdmin, async (req, r
     const quoteUrl = toAbsoluteUrl(req, quoteUrlRaw);
     const contractUrl = toAbsoluteUrl(req, contractUrlRaw);
     const paymentUrl = String(req.body?.paymentUrl || "").trim() || null;
-    const contractSignUrl = toAbsoluteUrl(req, String(req.body?.contractSignUrl || "").trim() || null);
 
     const smtp = getSmtpConfig();
     if (!smtp.host || !smtp.user || !smtp.pass || !smtp.fromEmail) {
@@ -384,11 +295,7 @@ router.post("/reservations/:id/send-proposal-email", requireAdmin, async (req, r
       `Bonjour ${r.nomClient || ""},`,
       "",
       "Votre proposition est prête.",
-      contractSignUrl
-        ? `Signature électronique (contrat + devis): ${contractSignUrl}`
-        : "Signature électronique: indisponible",
-      quoteUrl ? `Devis (PDF): ${quoteUrl}` : "Devis (PDF): indisponible",
-      contractUrl ? `Contrat (PDF): ${contractUrl}` : "Contrat (PDF): indisponible",
+      contractUrl ? `Proposition (devis + contrat PDF): ${contractUrl}` : "Proposition PDF: indisponible",
       paymentUrl ? `Lien de paiement acompte (20%): ${paymentUrl}` : "Lien de paiement: indisponible",
       "",
       "N'hésitez pas à répondre à cet email si vous avez des questions.",
@@ -410,13 +317,7 @@ router.post("/reservations/:id/send-proposal-email", requireAdmin, async (req, r
             Nous vous remercions pour votre demande. Vous pouvez maintenant consulter vos documents et finaliser votre dossier.
           </p>
           <div style="margin:0 0 16px; padding:14px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px;">
-            ${
-              contractSignUrl
-                ? `<p style="margin:0 0 10px;"><a href="${contractSignUrl}" style="display:inline-block; background:#0b3a53; color:#ffffff; text-decoration:none; padding:10px 14px; border-radius:8px; font-weight:600;">Signer en ligne (Yousign)</a></p>`
-                : `<p style="margin:0 0 10px; color:#64748b;">Lien de signature en ligne indisponible pour le moment.</p>`
-            }
-            <p style="margin:0 0 6px;">${quoteUrl ? `<a href="${quoteUrl}" style="color:#0b3a53;">Télécharger le devis (PDF)</a>` : "Devis PDF indisponible"}</p>
-            <p style="margin:0;">${contractUrl ? `<a href="${contractUrl}" style="color:#0b3a53;">Télécharger le contrat (PDF)</a>` : "Contrat PDF indisponible"}</p>
+            <p style="margin:0;">${contractUrl ? `<a href="${contractUrl}" style="color:#0b3a53; font-weight:600;">Télécharger la proposition (devis + contrat PDF)</a>` : "Proposition PDF indisponible"}</p>
           </div>
           <p style="margin:0 0 16px;">
             ${
@@ -431,7 +332,7 @@ router.post("/reservations/:id/send-proposal-email", requireAdmin, async (req, r
       `,
     });
 
-    return res.json({ success: true, quoteUrl, contractUrl, contractSignUrl, paymentUrl });
+    return res.json({ success: true, quoteUrl, contractUrl, paymentUrl });
   } catch (error: any) {
     return res.status(500).json({ error: error?.message || "Erreur envoi email proposition" });
   }
@@ -739,91 +640,10 @@ router.get("/reservations/:id/documents", requireAdmin, async (req, res) => {
   }
 });
 
-// Webhook générique e-sign (Yousign/DocuSign/other)
+// Webhook conservé en no-op pour compatibilité (e-sign désactivé)
 router.post("/esign/webhook", async (req, res) => {
-  try {
-    const expectedSecret = process.env.ESIGN_WEBHOOK_SECRET || ENV.cookieSecret;
-    const rawBody =
-      Buffer.isBuffer(req.body)
-        ? req.body
-        : Buffer.from(typeof req.body === "string" ? req.body : JSON.stringify(req.body || {}), "utf8");
-    const incomingSecret = String(req.headers["x-webhook-secret"] || "");
-    const bySharedHeader = Boolean(expectedSecret && incomingSecret && incomingSecret === expectedSecret);
-    const byYousignSignature = Boolean(
-      expectedSecret && verifyYousignSignature(rawBody, expectedSecret, req.headers as Record<string, unknown>)
-    );
-    if (!bySharedHeader && !byYousignSignature) {
-      return res.status(401).json({ error: "Webhook non autorisé (signature invalide)." });
-    }
-
-    let body: any = {};
-    try {
-      body = JSON.parse(rawBody.toString("utf8"));
-    } catch {
-      body = typeof req.body === "object" && req.body ? req.body : {};
-    }
-    const { contractId, envelopeId, provider, eventType, payload } = body || {};
-    if (!eventType || (!contractId && !envelopeId)) {
-      return res.status(400).json({ error: "eventType + (contractId ou envelopeId) requis" });
-    }
-    const db = await getDb();
-    if (!db) return res.status(500).json({ error: "Base de données non disponible" });
-
-    let resolvedContractId: number | null = contractId ? parseInt(contractId, 10) : null;
-    if (!resolvedContractId && envelopeId) {
-      const matched = await db.select().from(contracts).where(eq(contracts.esignEnvelopeId, String(envelopeId)));
-      resolvedContractId = matched[0]?.id ?? null;
-    }
-    if (!resolvedContractId) {
-      return res.status(404).json({ error: "Contrat e-sign introuvable" });
-    }
-
-    await db.insert(esignEvents).values({
-      contractId: resolvedContractId,
-      provider: provider || "other",
-      eventType: String(eventType),
-      payload: payload ? JSON.stringify(payload) : null,
-    });
-
-    const event = String(eventType).toLowerCase();
-    const isSigned =
-      event.includes("signed") ||
-      event.includes("completed") ||
-      event.includes("done") ||
-      event.includes("signature_request.done");
-    if (isSigned) {
-      await db
-        .update(contracts)
-        .set({ signedAt: new Date() })
-        .where(eq(contracts.id, resolvedContractId));
-
-      const linked = await db.select().from(contracts).where(eq(contracts.id, resolvedContractId));
-      const reservationId = linked[0]?.reservationId;
-      if (reservationId) {
-        const current = await listReservationsByIdSafe(db, reservationId);
-        const previous = current[0];
-        await db
-          .update(reservations)
-          .set({ workflowStatut: "contrat_signe", updatedAt: new Date() })
-          .where(eq(reservations.id, reservationId));
-        const linkedDisponibiliteId = await resolveDisponibiliteIdForReservation(db, previous);
-        if (linkedDisponibiliteId) {
-          await refreshDisponibiliteBookingState(db, linkedDisponibiliteId);
-        }
-        await db.insert(reservationStatusHistory).values({
-          reservationId,
-          fromStatut: previous?.workflowStatut || null,
-          toStatut: "contrat_signe",
-          actorType: "system",
-          note: "Contrat signé via webhook e-sign.",
-        });
-      }
-    }
-
-    return res.json({ success: true });
-  } catch (error: any) {
-    return res.status(500).json({ error: error?.message || "Erreur webhook e-sign" });
-  }
+  void req;
+  return res.json({ success: true, ignored: true });
 });
 
 export default router;

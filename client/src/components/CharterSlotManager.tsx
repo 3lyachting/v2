@@ -477,7 +477,7 @@ export default function CharterSlotManager() {
         method: "POST",
         credentials: "include",
       });
-      const sendContractData = await handleApiResponse<{ esign?: { signUrl?: string | null } }>(sendContractRes);
+      await handleApiResponse(sendContractRes);
 
       const paymentRes = await fetch(apiUrl("/api/mollie/create-payment-link"), {
         method: "POST",
@@ -493,7 +493,6 @@ export default function CharterSlotManager() {
         credentials: "include",
         body: JSON.stringify({
           paymentUrl: paymentData?.checkoutUrl || null,
-          contractSignUrl: sendContractData?.esign?.signUrl || null,
         }),
       });
       await handleApiResponse(sendProposalEmailRes);

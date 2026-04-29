@@ -295,13 +295,13 @@ function Hero({ isEnglish = false }: { isEnglish?: boolean }) {
           >
             {isEnglish ? (
               <>
-                Sail aboard <strong className="text-white">"Sabine"</strong>, a fully refitted Lagoon 570 with Victor.
+                Sail aboard <strong className="text-white">"Sabine"</strong>, a fully refitted Lagoon 570 with Captain Victor.
                 {" "}Corsica & Sardinia in summer, Martinique & the Grenadines in winter.
               </>
             ) : (
               <>
                 Naviguez à bord de <strong className="text-white">« Sabine »</strong>, un Lagoon 570
-                entièrement rénové, avec Victor.
+                entièrement rénové, avec Capitaine Victor.
                 Corse & Sardaigne l'été, Martinique & Grenadines l'hiver.
               </>
             )}
@@ -757,7 +757,7 @@ function SectionProgramme({ isEnglish = false }: { isEnglish?: boolean }) {
   const programmeVideoSrc = "/photos%20site/dji_fly_20260311_123045_0_1773228645468_video_low_quality.mp4";
   const activites = isEnglish
     ? [
-        { icon: <Wind className="w-7 h-7" />, titre: "Sailing", desc: "Take the helm or simply relax. Victor adapts to your level and your pace." },
+        { icon: <Wind className="w-7 h-7" />, titre: "Sailing", desc: "Take the helm or simply relax. Captain Victor adapts to your level and your pace." },
         { icon: <Waves className="w-7 h-7" />, titre: "Paddle & Kayak", desc: "Explore coves and anchorages with 2 SUP boards and a 2-seat rigid kayak." },
         { icon: <Fish className="w-7 h-7" />, titre: "Snorkeling", desc: "Masks, fins and snorkels on board. Discover crystal-clear waters and marine life." },
         { icon: <Sun className="w-7 h-7" />, titre: "Sun, drinks and chill", desc: "Front trampolines, sunbeds and sunset cocktails for true sea-side relaxation." },
@@ -765,7 +765,7 @@ function SectionProgramme({ isEnglish = false }: { isEnglish?: boolean }) {
         { icon: <Sunset className="w-7 h-7" />, titre: "Sunsets", desc: "Mediterranean and Caribbean sunsets from the cockpit, glass in hand." },
       ]
     : [
-        { icon: <Wind className="w-7 h-7" />, titre: "Navigation à la voile", desc: "Prenez la barre ou laissez-vous porter. Victor s'adapte à votre niveau et vos envies." },
+        { icon: <Wind className="w-7 h-7" />, titre: "Navigation à la voile", desc: "Prenez la barre ou laissez-vous porter. Capitaine Victor s'adapte à votre niveau et vos envies." },
         { icon: <Waves className="w-7 h-7" />, titre: "Paddle & Kayak", desc: "Explorez les criques et mouillages à votre rythme avec nos 2 SUP et notre kayak 2 places." },
         { icon: <Fish className="w-7 h-7" />, titre: "Snorkeling", desc: "Masques, palmes et tubas pour tous. Plongez dans des eaux cristallines et découvrez les fonds marins." },
         { icon: <Sun className="w-7 h-7" />, titre: "Bronzette, apéro et farniente", desc: "Trampolines avant, bains de soleil, cocktails au coucher du soleil — la dolce vita en mer." },
@@ -962,7 +962,7 @@ function SectionEquipage({ isEnglish = false }: { isEnglish?: boolean }) {
           <div className="text-center mb-16">
             <span className="inline-block text-sm font-bold tracking-widest uppercase mb-3" style={{ color: BRAND_SAND }}>{isEnglish ? "Crew" : "L'Équipage"}</span>
               <h2 className="text-4xl lg:text-5xl font-extrabold text-white" style={{ fontFamily: "Cormorant Garamond, Times New Roman, serif" }}>
-              Victor
+              Capitaine Victor
             </h2>
             <p className="mt-4 text-white/60 max-w-xl mx-auto">
               {isEnglish
@@ -975,12 +975,12 @@ function SectionEquipage({ isEnglish = false }: { isEnglish?: boolean }) {
         <div className="grid grid-cols-1 max-w-2xl mx-auto gap-8 mb-12">
           {[
             {
-              nom: "Victor",
+              nom: "Capitaine Victor",
               age: isEnglish ? "34 years old" : "34 ans",
               titre: "Capitaine 500",
               desc: isEnglish
-                ? "Victor grew up in La Ciotat with the sea as his natural horizon. For the last 8 years he has alternated between the Caribbean in winter and the Mediterranean in summer. After 3 Atlantic crossings and extensive experience on monohulls, catamarans, trimarans and classic rigs, he focuses on safe, authentic and accessible sailing experiences."
-                : "Victor a grandi à La Ciotat, avec la mer comme horizon depuis toujours. À 34 ans, il partage sa vie entre les Antilles l'hiver et la Méditerranée l'été, un rythme qu'il suit depuis 8 ans. Après 3 transatlantiques et des navigations sur monocoques, catamarans, trimarans et vieux gréements, il aime surtout transmettre une mer simple, vraie et accessible à bord de Sabine.",
+                ? "Captain Victor grew up in La Ciotat with the sea as his natural horizon. For the last 8 years he has alternated between the Caribbean in winter and the Mediterranean in summer. After 3 Atlantic crossings and extensive experience on monohulls, catamarans, trimarans and classic rigs, he focuses on safe, authentic and accessible sailing experiences."
+                : "Capitaine Victor a grandi à La Ciotat, avec la mer comme horizon depuis toujours. À 34 ans, il partage sa vie entre les Antilles l'hiver et la Méditerranée l'été, un rythme qu'il suit depuis 8 ans. Après 3 transatlantiques et des navigations sur monocoques, catamarans, trimarans et vieux gréements, il aime surtout transmettre une mer simple, vraie et accessible à bord de Sabine.",
               color: "oklch(0.72_0.11_85)",
               img: "/photos%20site/victor-portrait.png",
             },
@@ -1279,8 +1279,8 @@ function SectionContact({ isEnglish = false }: { isEnglish?: boolean }) {
               </h2>
               <p className="text-[oklch(0.4_0.03_240)] text-lg leading-relaxed mb-10">
                 {isEnglish
-                  ? "Planning a cruise? Need details about availability or rates? Victor replies personally within 24 hours."
-                  : "Vous avez un projet de croisière ? Une question sur les disponibilités ou les tarifs ? Victor vous répond personnellement dans les 24h."}
+                  ? "Planning a cruise? Need details about availability or rates? Captain Victor replies personally within 24 hours."
+                  : "Vous avez un projet de croisière ? Une question sur les disponibilités ou les tarifs ? Capitaine Victor vous répond personnellement dans les 24h."}
               </p>
               <div className="mb-6 rounded-xl border border-[oklch(0.88_0.02_220)] bg-white px-4 py-3 text-sm text-[oklch(0.35_0.03_240)]">
                 {isEnglish ? "For all requests, please use the booking form." : "Pour toute demande, merci d'utiliser le formulaire ci-contre."}
@@ -1358,7 +1358,7 @@ function SectionContact({ isEnglish = false }: { isEnglish?: boolean }) {
                     <Anchor className="w-8 h-8 text-[oklch(0.2_0.06_240)]" />
                   </div>
                   <h3 className="text-xl font-bold text-[oklch(0.2_0.06_240)] mb-2" style={{ fontFamily: "Cormorant Garamond, Times New Roman, serif" }}>Message envoyé !</h3>
-                  <p className="text-[oklch(0.45_0.03_240)] text-sm">Victor vous répondra dans les 24h. Bon vent !</p>
+                  <p className="text-[oklch(0.45_0.03_240)] text-sm">Capitaine Victor vous répondra dans les 24h. Bon vent !</p>
                   <button onClick={() => setSent(false)} className="mt-4 text-[oklch(0.2_0.06_240)] text-sm hover:underline">
                     Envoyer un autre message
                   </button>

@@ -53,7 +53,7 @@ export function ReservationSucces() {
           <Mail className="w-5 h-5 text-[oklch(0.82_0.1_85)] mx-auto mb-3" />
           <p className="text-sm text-white/80">
             Un email de confirmation vous a été envoyé.<br />
-            Victor ou un membre de l'équipage vous contactera sous 24h pour finaliser les détails.
+            Capitaine Victor ou un membre de l'équipage vous contactera sous 24h pour finaliser les détails.
           </p>
         </div>
 
