@@ -14,6 +14,49 @@ export type OccupancyReservation = {
   workflowStatut?: string | null;
 };
 
+const YMD = /^\d{4}-\d{2}-\d{2}$/;
+
+function toYmd(value: unknown): string | null {
+  if (value == null) return null;
+  if (typeof value === "string") {
+    const s = value.slice(0, 10);
+    return YMD.test(s) ? s : null;
+  }
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    return value.toISOString().slice(0, 10);
+  }
+  const parsed = new Date(String(value));
+  if (Number.isNaN(parsed.getTime())) return null;
+  return parsed.toISOString().slice(0, 10);
+}
+
+function addOneDay(iso: string): string {
+  const d = new Date(`${iso}T00:00:00.000Z`);
+  d.setUTCDate(d.getUTCDate() + 1);
+  return d.toISOString().slice(0, 10);
+}
+
+/**
+ * Chevauchement sur logique "séjour" : dateFin est traitée comme exclusive
+ * (sauf créneau d'une seule journée, qui occupe bien 1 jour).
+ */
+export function rangesOverlapForStay(
+  startA: unknown,
+  endA: unknown,
+  startB: unknown,
+  endB: unknown
+): boolean {
+  const aStart = toYmd(startA);
+  const aEnd = toYmd(endA);
+  const bStart = toYmd(startB);
+  const bEnd = toYmd(endB);
+  if (!aStart || !aEnd || !bStart || !bEnd) return false;
+
+  const aEndExclusive = aStart === aEnd ? addOneDay(aEnd) : aEnd;
+  const bEndExclusive = bStart === bEnd ? addOneDay(bEnd) : bEnd;
+  return aStart < bEndExclusive && aEndExclusive > bStart;
+}
+
 /** Aligné sur le calendrier public (blocked-days) : toute résa non refusée/archivée compte. */
 export function isReservationBlockingForCharterCalendar(r: OccupancyReservation): boolean {
   const req = String(r.requestStatus || "");

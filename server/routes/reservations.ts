@@ -24,6 +24,7 @@ import {
   CHARTER_CRUISE_CABIN_UNITS,
   isCruiseMultiUnitProduct,
   isReservationBlockingForCharterCalendar,
+  rangesOverlapForStay,
 } from "@shared/charterCapacity";
 import { validateReservationPolicy } from "@shared/reservationPolicy";
 
@@ -420,7 +421,11 @@ router.post("/request", async (req, res) => {
           })
           .from(reservations)
           .where(and(lte(reservations.dateDebut, lockedCharterSlot.fin), gte(reservations.dateFin, lockedCharterSlot.debut)));
-        const activeReservations = overlappingRes.filter(isReservationBlockingForCharterCalendar);
+        const activeReservations = overlappingRes
+          .filter(isReservationBlockingForCharterCalendar)
+          .filter((r: any) =>
+            rangesOverlapForStay(r.dateDebut, r.dateFin, lockedCharterSlot?.debut, lockedCharterSlot?.fin)
+          );
         if (isCruiseMultiUnitProduct(lockedCharterSlot.product)) {
           const occ = aggregateCruiseCabineOccupancy(activeReservations);
           if (occ.hasPrivate && (normalizedTypeReservation === "cabine" || normalizedTypeReservation === "place")) {

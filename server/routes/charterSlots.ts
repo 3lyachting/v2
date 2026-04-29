@@ -9,6 +9,7 @@ import {
   CHARTER_CRUISE_CABIN_UNITS,
   isCruiseMultiUnitProduct,
   isReservationBlockingForCharterCalendar,
+  rangesOverlapForStay,
 } from "@shared/charterCapacity";
 import { CHARTER_PRODUCTS, isCharterProductCode, type CharterProductCode } from "@shared/charterProduct";
 
@@ -209,12 +210,9 @@ router.get("/blocked-days", async (req, res) => {
       if (!slotStartIso || !slotEndIso || !YMD.test(slotStartIso) || !YMD.test(slotEndIso) || slotStartIso > slotEndIso)
         continue;
 
-      const overlapping = blockingRows.filter((r) => {
-        const rs = toYmdUtc(r.dateDebut);
-        const re = toYmdUtc(r.dateFin);
-        if (!rs || !re || rs > re) return false;
-        return rs <= slotEndIso && re >= slotStartIso;
-      });
+      const overlapping = blockingRows.filter((r) =>
+        rangesOverlapForStay(r.dateDebut, r.dateFin, slotStartIso, slotEndIso)
+      );
 
       if (cruiseMulti) {
         const occ = aggregateCruiseCabineOccupancy(overlapping);

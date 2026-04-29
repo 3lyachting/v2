@@ -11,6 +11,7 @@ import {
   CHARTER_CRUISE_CABIN_UNITS,
   isCruiseMultiUnitProduct,
   isReservationBlockingForCharterCalendar,
+  rangesOverlapForStay,
 } from "@shared/charterCapacity";
 
 const BRAND_DEEP = "#00384A";
@@ -675,7 +676,7 @@ export default function CharterSlotManager() {
           const resEnd = toIsoDay(reservation.dateFin);
           if (!slotStart || !slotEnd || !resStart || !resEnd) return false;
           if (!isReservationBlockingForCharterCalendar(reservation as any)) return false;
-          return resStart <= slotEnd && resEnd >= slotStart;
+          return rangesOverlapForStay(resStart, resEnd, slotStart, slotEnd);
         });
 
         let reservedUnits = 0;
