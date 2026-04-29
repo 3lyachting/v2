@@ -445,6 +445,10 @@ export default function AdminCalendarView({
               const primaryDispo = pickPrimaryDispo(dispos);
               const isToday = isSameDay(dateKey, toLocalIsoDay(new Date()));
               const dayReservations = reservationsByDate.get(dateKey) || [];
+              const primaryReservation = dayReservations[0] || null;
+              const reservationLabel = primaryReservation
+                ? `${primaryReservation.prenomClient ? `${primaryReservation.prenomClient} ` : ""}${primaryReservation.nomClient || ""}`.trim()
+                : null;
               const hasSelectedDispo = Boolean(selectedDispo && dispos.some((item) => item.id === selectedDispo.id));
               const hasSelectedReservation = Boolean(selectedReservation && dayReservations.some((item) => item.id === selectedReservation.id));
 
@@ -468,7 +472,7 @@ export default function AdminCalendarView({
                     {primaryDispo && (
                       <div className="flex-1 flex flex-col gap-0.5 mt-0.5 min-w-0">
                         <div className={`text-[9px] font-semibold px-1 py-0.5 rounded truncate border ${getStatutColor(primaryDispo.statut)}`}>
-                          {primaryDispo.destination.split(" ")[0]}
+                          {reservationLabel || primaryDispo.destination.split(" ")[0]}
                         </div>
                         {dispos.length > 1 && <div className="text-[9px] text-slate-500 px-1">{dispos.length} périodes</div>}
                       </div>

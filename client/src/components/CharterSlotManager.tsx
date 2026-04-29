@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { apiUrl, handleApiResponse } from "@/lib/apiBase";
 import AdminCalendarView from "@/components/AdminCalendarView";
 import {
@@ -181,6 +181,7 @@ export default function CharterSlotManager() {
   const [bulkProduct, setBulkProduct] = useState<CharterProductCode>("journee");
   const [generatingMonth, setGeneratingMonth] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
+  const slotEditorRef = useRef<HTMLDivElement | null>(null);
   const [manualReservation, setManualReservation] = useState<{
     slotId: string;
     nomClient: string;
@@ -220,8 +221,13 @@ export default function CharterSlotManager() {
     try {
       setLoading(true);
       setMessage("");
+      const from = "2020-01-01";
+      const to = "2035-12-31";
       const [slotsRes, reservationsRes] = await Promise.all([
-        fetch(`${apiUrl("/api/charter-slots")}?includeInactive=1`, { credentials: "include" }),
+        fetch(
+          `${apiUrl("/api/charter-slots")}?includeInactive=1&from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`,
+          { credentials: "include" }
+        ),
         fetch(apiUrl("/api/reservations"), { credentials: "include" }),
       ]);
       const slotsData = await handleApiResponse<SlotRow[]>(slotsRes);
@@ -253,6 +259,13 @@ export default function CharterSlotManager() {
       active: r.active,
       note: r.note || "",
       publicNote: r.publicNote || "",
+    });
+  };
+
+  const focusSlotEditor = () => {
+    setCalendarMode("list");
+    requestAnimationFrame(() => {
+      slotEditorRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
     });
   };
 
@@ -760,7 +773,10 @@ export default function CharterSlotManager() {
           reservations={calendarReservations as any}
           onEdit={(d) => {
             const row = rows.find((r) => r.id === d.id);
-            if (row) startEdit(row);
+            if (row) {
+              startEdit(row);
+              focusSlotEditor();
+            }
           }}
           onDelete={async (id) => {
             try {
@@ -1185,7 +1201,7 @@ export default function CharterSlotManager() {
       )}
 
       <div className="grid gap-6 lg:grid-cols-[1fr_1.2fr]">
-        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm" style={{ borderColor: "#d7e3e8" }}>
+        <div ref={slotEditorRef} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm" style={{ borderColor: "#d7e3e8" }}>
           <div className="mb-4 flex items-center justify-between">
             <h3 className="text-lg font-bold" style={{ color: BRAND_DEEP }}>
               {editingId ? "Modifier la periode" : "Nouvelle periode"}
