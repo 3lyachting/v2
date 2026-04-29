@@ -103,6 +103,8 @@ export default function Reservation() {
   const [typeReservation, setTypeReservation] = useState<TypeReservation>("bateau_entier");
   const [durationDays, setDurationDays] = useState(7);
   const [selectedStartDay, setSelectedStartDay] = useState<string>("");
+  /** Fin de période imposée par l'URL (calendrier = une seule période charterSlots). */
+  const [prefilledEndIso, setPrefilledEndIso] = useState<string | null>(null);
   const [disponibilites, setDisponibilites] = useState<Disponibilite[]>([]);
   const [icalEvents, setIcalEvents] = useState<IcalEvent[]>([]);
 
@@ -160,6 +162,11 @@ export default function Reservation() {
 
     if (dateDebut) {
       setSelectedStartDay(dateDebut);
+    }
+    if (dateFin) {
+      setPrefilledEndIso(dateFin);
+    } else {
+      setPrefilledEndIso(null);
     }
     if (dateDebut && dateFin) {
       const duration = daysBetweenInclusive(dateDebut, dateFin);
@@ -261,7 +268,12 @@ export default function Reservation() {
   const isAprilMaySelection = selectedMonth === 4 || selectedMonth === 5;
   const isSummerSelection = selectedMonth === 6 || selectedMonth === 7 || selectedMonth === 8;
   const effectiveDuration = selectedRule?.fixedDuration || durationDays;
-  const selectedEnd = selectedStart ? addDays(selectedStart, effectiveDuration - 1) : "";
+  const selectedEnd =
+    prefilledEndIso && selectedStart && prefilledEndIso >= selectedStart
+      ? prefilledEndIso
+      : selectedStart
+        ? addDays(selectedStart, effectiveDuration - 1)
+        : "";
 
   useEffect(() => {
     if (!selectedRule) return;
@@ -379,7 +391,12 @@ export default function Reservation() {
     setLoading(true);
     setError("");
     try {
-      const payload = {
+      const sp = new URLSearchParams(window.location.search);
+      const charterSlotIdRaw = sp.get("charterSlotId");
+      const charterProduct = sp.get("produit");
+      const charterSlotId =
+        charterSlotIdRaw && /^\d+$/.test(charterSlotIdRaw.trim()) ? parseInt(charterSlotIdRaw.trim(), 10) : null;
+      const payload: Record<string, unknown> = {
         nomClient: form.nomClient,
         prenomClient: form.prenomClient,
         emailClient: form.emailClient,
@@ -390,11 +407,15 @@ export default function Reservation() {
         message: form.message,
         destination,
         formule: formuleKey,
-        disponibiliteId: pricingDispo?.id || null,
+        disponibiliteId: charterSlotId ? null : pricingDispo?.id || null,
         montantTotal,
         dateDebut: `${selectedStart}T00:00:00.000Z`,
         dateFin: `${selectedEnd}T00:00:00.000Z`,
       };
+      if (charterSlotId) {
+        payload.charterSlotId = charterSlotId;
+        if (charterProduct) payload.charterProduct = charterProduct;
+      }
       const res = await fetch("/api/reservations/request", {
         method: "POST",
         headers: { "Content-Type": "application/json" },

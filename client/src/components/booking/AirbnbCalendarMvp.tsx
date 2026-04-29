@@ -107,6 +107,7 @@ export default function AirbnbCalendarMvp({
   product,
   dayAvailability,
   blockedDays = new Set<string>(),
+  charterPeriods = [],
 }: {
   isEnglish?: boolean;
   onSelectionChange?: (startIso: string | null, endIso: string | null) => void;
@@ -119,6 +120,8 @@ export default function AirbnbCalendarMvp({
   dayAvailability: Set<string> | null;
   /** Jours explicitement bloqués par des réservations (coloration visuelle prioritaire). */
   blockedDays?: Set<string>;
+  /** Périodes publiées (charterSlots) : une réservation = une seule période entière. */
+  charterPeriods?: Array<{ id: number; startIso: string; endIso: string }>;
 }) {
   const [month, setMonth] = useState(() => new Date(new Date().getFullYear(), new Date().getMonth(), 1));
   const [selectionMode, setSelectionMode] = useState<SelectionMode>("range");
@@ -126,7 +129,6 @@ export default function AirbnbCalendarMvp({
   const [endDate, setEndDate] = useState<string | null>(null);
   const [seasonPricing, setSeasonPricing] = useState<SeasonPricingConfig>(DEFAULT_SEASON_PRICING);
   const [soldDays, setSoldDays] = useState<Set<string>>(new Set());
-  const [slotsForProduct, setSlotsForProduct] = useState<Array<{ id: number; startIso: string; endIso: string }>>([]);
   const [reservationMode, setReservationMode] = useState<ReservationMode>("cabine");
   const [passengerCount, setPassengerCount] = useState<number>(2);
   const today = new Date();
@@ -159,7 +161,6 @@ export default function AirbnbCalendarMvp({
         const rows = (await res.json()) as DisponibiliteLite[];
         if (cancelled) return;
         const set = new Set<string>();
-        const slots: Array<{ id: number; startIso: string; endIso: string }> = [];
         for (const row of rows) {
           const rowProduct = getProductFromDisponibilite({
             debut: row.debut,
@@ -170,9 +171,6 @@ export default function AirbnbCalendarMvp({
           const a = String(row.debut).slice(0, 10);
           const b = String(row.fin).slice(0, 10);
           if (!/^\d{4}-\d{2}-\d{2}$/.test(a) || !/^\d{4}-\d{2}-\d{2}$/.test(b) || a > b) continue;
-          if (row.id && (row.statut === "disponible" || row.statut === "option")) {
-            slots.push({ id: row.id, startIso: a, endIso: b });
-          }
           const sold = Number(row.cabinesReservees || 0) > 0;
           if (!sold) continue;
           let cur = a;
@@ -183,11 +181,9 @@ export default function AirbnbCalendarMvp({
           }
         }
         setSoldDays(set);
-        setSlotsForProduct(slots);
       } catch {
         if (!cancelled) {
           setSoldDays(new Set());
-          setSlotsForProduct([]);
         }
       }
     })();
@@ -229,14 +225,16 @@ export default function AirbnbCalendarMvp({
     if (dayAvailability && !dayAvailability.has(iso)) {
       return;
     }
-    const matchedSlot = slotsForProduct.find((slot) => iso >= slot.startIso && iso <= slot.endIso);
-    if (matchedSlot) {
-      setStartDate(matchedSlot.startIso);
-      setEndDate(matchedSlot.endIso);
+    if (charterPeriods.length > 0) {
+      const matched = charterPeriods.find((slot) => iso >= slot.startIso && iso <= slot.endIso);
+      if (matched) {
+        setStartDate(matched.startIso);
+        setEndDate(matched.endIso);
+      }
       return;
     }
-    const month = Number(iso.slice(5, 7));
-    const shouldAutoWeek = month === 2 || month === 7 || month === 8 || month === 12;
+    const isoMonth = Number(iso.slice(5, 7));
+    const shouldAutoWeek = isoMonth === 2 || isoMonth === 7 || isoMonth === 8 || isoMonth === 12;
     if (shouldAutoWeek && selectionMode === "range") {
       const start = startOfWeekSaturday(iso);
       const end = addDaysLocalIso(start, 7);
@@ -376,7 +374,7 @@ export default function AirbnbCalendarMvp({
     const destination = CHARTER_PRODUCT_LABELS[product];
     const selectedSlot =
       startDate && (endDate || startDate)
-        ? slotsForProduct.find((slot) => slot.startIso === startDate && slot.endIso === (endDate || startDate))
+        ? charterPeriods.find((slot) => slot.startIso === startDate && slot.endIso === (endDate || startDate))
         : null;
     const query = new URLSearchParams({
       produit: product,
@@ -387,7 +385,7 @@ export default function AirbnbCalendarMvp({
       dateDebut: startDate,
       dateFin: endDate || startDate,
       montant: String(totalEur ?? 0),
-      ...(selectedSlot ? { disponibiliteId: String(selectedSlot.id) } : {}),
+      ...(selectedSlot ? { charterSlotId: String(selectedSlot.id), charterProduct: product } : {}),
     });
 
     return {
@@ -419,7 +417,7 @@ export default function AirbnbCalendarMvp({
     product,
     reservationMode,
     startDate,
-    slotsForProduct,
+    charterPeriods,
     maxPassengers,
   ]);
 
@@ -428,24 +426,32 @@ export default function AirbnbCalendarMvp({
       <div className="rounded-3xl border border-[#d7e3e8] bg-white p-5 shadow-[0_12px_30px_rgba(7,38,50,0.09)]">
         <div className="mb-4 flex flex-col gap-3">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div className="inline-flex w-fit max-w-full rounded-full border border-[#d7e3e8] bg-[#f4f8fa] p-1">
-              <button
-                type="button"
-                onClick={() => setSelectionMode("single")}
-                className={`rounded-full px-3 py-1.5 text-xs font-semibold ${selectionMode === "single" ? "text-white" : "text-slate-700"}`}
-                style={selectionMode === "single" ? { backgroundColor: BRAND_DEEP } : {}}
-              >
-                {isEnglish ? "Single date" : "Date unique"}
-              </button>
-              <button
-                type="button"
-                onClick={() => setSelectionMode("range")}
-                className={`rounded-full px-3 py-1.5 text-xs font-semibold ${selectionMode === "range" ? "text-white" : "text-slate-700"}`}
-                style={selectionMode === "range" ? { backgroundColor: BRAND_DEEP } : {}}
-              >
-                {isEnglish ? "Date range" : "Plage de dates"}
-              </button>
-            </div>
+            {charterPeriods.length === 0 ? (
+              <div className="inline-flex w-fit max-w-full rounded-full border border-[#d7e3e8] bg-[#f4f8fa] p-1">
+                <button
+                  type="button"
+                  onClick={() => setSelectionMode("single")}
+                  className={`rounded-full px-3 py-1.5 text-xs font-semibold ${selectionMode === "single" ? "text-white" : "text-slate-700"}`}
+                  style={selectionMode === "single" ? { backgroundColor: BRAND_DEEP } : {}}
+                >
+                  {isEnglish ? "Single date" : "Date unique"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSelectionMode("range")}
+                  className={`rounded-full px-3 py-1.5 text-xs font-semibold ${selectionMode === "range" ? "text-white" : "text-slate-700"}`}
+                  style={selectionMode === "range" ? { backgroundColor: BRAND_DEEP } : {}}
+                >
+                  {isEnglish ? "Date range" : "Plage de dates"}
+                </button>
+              </div>
+            ) : (
+              <p className="max-w-md text-xs font-semibold text-slate-600">
+                {isEnglish
+                  ? "One published period at a time: click any day inside the slot you want."
+                  : "Une seule période publiée à la fois : cliquez sur un jour à l'intérieur de la période souhaitée."}
+              </p>
+            )}
             <div className="text-left sm:text-right">
               <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
                 {isEnglish ? "Product" : "Produit"}
@@ -683,9 +689,13 @@ export default function AirbnbCalendarMvp({
             </div>
           )}
           <p className="pt-2 text-xs text-slate-600">
-            {isEnglish
-              ? "Step 1: click an available date. The full availability slot is selected automatically (no partial range)."
-              : "Étape 1 : cliquez sur un jour disponible. La période complète de la disponibilité est sélectionnée automatiquement (pas de sous-plage)."}
+            {charterPeriods.length > 0
+              ? isEnglish
+                ? "One booking = one published period only. Click inside the period you want; you cannot combine several weeks or days."
+                : "Une réservation = une seule période publiée. Cliquez dans la période voulue ; impossible de combiner plusieurs semaines ou plusieurs journées."
+              : isEnglish
+                ? "Step 1: click an available date. The full availability slot is selected automatically (no partial range)."
+                : "Étape 1 : cliquez sur un jour disponible. La période complète de la disponibilité est sélectionnée automatiquement (pas de sous-plage)."}
           </p>
         </div>
       </aside>

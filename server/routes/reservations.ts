@@ -2,7 +2,7 @@ import { Router } from "express";
 import { eq, sql } from "drizzle-orm";
 import { SignJWT } from "jose";
 import { getDb } from "../db";
-import { customers, disponibilites, reservations } from "../../drizzle/schema";
+import { charterSlots, customers, disponibilites, reservations } from "../../drizzle/schema";
 import { notifyOwner } from "../_core/notification";
 import { requireAdmin } from "../_core/authz";
 import { generateCustomerPassword, hashCustomerPassword, sendCustomerPasswordEmail } from "../_core/customerPassword";
@@ -293,15 +293,45 @@ router.post("/request", async (req, res) => {
       }
     }
 
-    const parsedDisponibiliteIdRaw =
+    let parsedDisponibiliteIdRaw =
       disponibiliteId !== null && disponibiliteId !== undefined ? parseInt(disponibiliteId, 10) : null;
+
+    const charterSlotIdBody = req.body?.charterSlotId;
+    const charterProductBody = typeof req.body?.charterProduct === "string" ? String(req.body.charterProduct).trim() : "";
+    if (!isSimpleRequest && charterSlotIdBody != null && String(charterSlotIdBody).trim() !== "") {
+      const csid = parseInt(String(charterSlotIdBody), 10);
+      if (!Number.isFinite(csid)) {
+        return res.status(400).json({ error: "Identifiant de periode invalide." });
+      }
+      const [slot] = await db.select().from(charterSlots).where(eq(charterSlots.id, csid)).limit(1);
+      if (!slot?.active) {
+        return res.status(400).json({ error: "Periode inconnue ou inactive." });
+      }
+      if (charterProductBody && String(slot.product) !== charterProductBody) {
+        return res.status(400).json({ error: "Le produit ne correspond pas a la periode selectionnee." });
+      }
+      const rs = toIsoDay(dateDebut);
+      const re = toIsoDay(dateFin);
+      const ss = toIsoDay(slot.debut as Date | string);
+      const se = toIsoDay(slot.fin as Date | string);
+      if (!rs || !re || !ss || !se || rs !== ss || re !== se) {
+        return res.status(400).json({
+          error: "Les dates doivent correspondre exactement a la periode publiee (une seule selection).",
+        });
+      }
+      parsedDisponibiliteIdRaw = null;
+    }
 
     const selectedDispoForPolicy =
       parsedDisponibiliteIdRaw && Number.isFinite(parsedDisponibiliteIdRaw)
         ? await db.select().from(disponibilites).where(eq(disponibilites.id, parsedDisponibiliteIdRaw)).limit(1)
         : [];
     const effectiveDestination = destination || selectedDispoForPolicy[0]?.destination || "";
-    const isCalendarBoundRequest = !isSimpleRequest && parsedDisponibiliteIdRaw && Number.isFinite(parsedDisponibiliteIdRaw);
+    const hasCharterSlotBinding =
+      !isSimpleRequest && charterSlotIdBody != null && String(charterSlotIdBody).trim() !== "";
+    const isCalendarBoundRequest =
+      !isSimpleRequest &&
+      (hasCharterSlotBinding || (Boolean(parsedDisponibiliteIdRaw) && Number.isFinite(parsedDisponibiliteIdRaw)));
     if (isCalendarBoundRequest) {
       const policyCheck = validateReservationPolicy({
         dateDebut,
@@ -319,11 +349,13 @@ router.post("/request", async (req, res) => {
 
     const parsedDisponibiliteId = isSimpleRequest
       ? null
-      : await resolveDisponibiliteIdForReservation(db, {
-          disponibiliteId: parsedDisponibiliteIdRaw,
-          dateDebut,
-          dateFin,
-        });
+      : charterSlotIdBody != null && String(charterSlotIdBody).trim() !== ""
+        ? null
+        : await resolveDisponibiliteIdForReservation(db, {
+            disponibiliteId: parsedDisponibiliteIdRaw,
+            dateDebut,
+            dateFin,
+          });
 
     // Réservation client depuis le calendrier: la sélection doit correspondre
     // exactement à la disponibilité complète publiée (pas de sous-plage).

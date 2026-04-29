@@ -1056,6 +1056,7 @@ function SectionCalendrier({ isEnglish = false }: { isEnglish?: boolean }) {
   const [product, setProduct] = useState<CharterProductCode>("med");
   const [dayAvailability, setDayAvailability] = useState<Set<string> | null>(null);
   const [blockedDays, setBlockedDays] = useState<Set<string>>(new Set());
+  const [charterPeriods, setCharterPeriods] = useState<Array<{ id: number; startIso: string; endIso: string }>>([]);
 
   const loadSlots = useCallback(async () => {
     try {
@@ -1078,18 +1079,25 @@ function SectionCalendrier({ isEnglish = false }: { isEnglish?: boolean }) {
       if (!slotsRes.ok) {
         return;
       }
-      const rows = (await slotsRes.json()) as { debut: string; fin: string; active: boolean }[];
+      const rows = (await slotsRes.json()) as { id: number; debut: string; fin: string; active: boolean }[];
       const blockedDays = blockedDaysRes.ok
         ? ((await blockedDaysRes.json()) as { days?: string[] })?.days || []
         : [];
       setBlockedDays(new Set(blockedDays.map((d) => String(d || "").slice(0, 10))));
+      const periods: Array<{ id: number; startIso: string; endIso: string }> = [];
       const s = new Set<string>();
       let hasAnyActiveSlot = false;
       for (const r of rows) {
         if (r.active === false) continue;
         hasAnyActiveSlot = true;
+        const startIso = String(r.debut ?? "").slice(0, 10);
+        const endIso = String(r.fin ?? "").slice(0, 10);
+        if (/^\d{4}-\d{2}-\d{2}$/.test(startIso) && /^\d{4}-\d{2}-\d{2}$/.test(endIso) && startIso <= endIso) {
+          periods.push({ id: r.id, startIso, endIso });
+        }
         for (const d of expandCharterSlotDays(r.debut, r.fin)) s.add(d);
       }
+      setCharterPeriods(periods);
       for (const d of blockedDays) s.delete(String(d || "").slice(0, 10));
       // null = aucun slot public pour ce produit ; Set (meme vide) = slots connus et filtrés.
       // Important: Set vide => tout est bloque, il ne faut pas retomber en mode "aucune contrainte".
@@ -1164,6 +1172,7 @@ function SectionCalendrier({ isEnglish = false }: { isEnglish?: boolean }) {
               product={product}
               dayAvailability={dayAvailability}
               blockedDays={blockedDays}
+              charterPeriods={charterPeriods}
             />
           </div>
         </Reveal>
