@@ -29,6 +29,13 @@
       "when": 1778000000000,
       "tag": "0003_charter_slots",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1777444674518,
+      "tag": "0004_rapid_micromax",
+      "breakpoints": true
     }
   ]
 }

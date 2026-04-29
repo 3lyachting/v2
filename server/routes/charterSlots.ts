@@ -4,6 +4,12 @@ import { getDb } from "../db";
 import { charterSlots, reservations } from "../../drizzle/schema";
 import { requireAdmin } from "../_core/authz";
 import { sdk } from "../_core/sdk";
+import {
+  aggregateCruiseCabineOccupancy,
+  CHARTER_CRUISE_CABIN_UNITS,
+  isCruiseMultiUnitProduct,
+  isReservationBlockingForCharterCalendar,
+} from "@shared/charterCapacity";
 import { CHARTER_PRODUCTS, isCharterProductCode, type CharterProductCode } from "@shared/charterProduct";
 
 const router = Router();
@@ -162,10 +168,10 @@ router.get("/blocked-days", async (req, res) => {
     }
 
     const db = await getDb();
-    if (!db) return res.json({ days: [] });
+    if (!db) return res.json({ days: [], slotOccupancy: {} });
 
     const slots = await db
-      .select({ debut: charterSlots.debut, fin: charterSlots.fin })
+      .select({ id: charterSlots.id, debut: charterSlots.debut, fin: charterSlots.fin })
       .from(charterSlots)
       .where(
         and(
@@ -176,7 +182,7 @@ router.get("/blocked-days", async (req, res) => {
         )
       );
 
-    if (!slots.length) return res.json({ days: [] });
+    if (!slots.length) return res.json({ days: [], slotOccupancy: {} });
 
     const overlap = and(lte(reservations.dateDebut, toBound), gte(reservations.dateFin, fromBound));
     const rows = await db
@@ -185,41 +191,63 @@ router.get("/blocked-days", async (req, res) => {
         dateFin: reservations.dateFin,
         requestStatus: reservations.requestStatus,
         workflowStatut: reservations.workflowStatut,
+        typeReservation: reservations.typeReservation,
+        nbCabines: reservations.nbCabines,
       })
       .from(reservations)
       .where(overlap);
 
+    const blockingRows = rows.filter(isReservationBlockingForCharterCalendar);
     const blocked = new Set<string>();
-    for (const r of rows) {
-      const req = String(r.requestStatus || "");
-      const wf = String(r.workflowStatut || "");
-      const isBlockingByRequest = req !== "refusee" && req !== "archivee";
-      const isBlockingByWorkflow = [
-        "validee_owner",
-        "devis_accepte",
-        "contrat_envoye",
-        "contrat_signe",
-        "acompte_confirme",
-        "solde_confirme",
-      ].includes(wf);
-      const isBlocking = isBlockingByRequest || isBlockingByWorkflow;
-      if (!isBlocking) continue;
-      const resStartIso = toYmdUtc(r.dateDebut);
-      const resEndIso = toYmdUtc(r.dateFin);
-      if (!resStartIso || !resEndIso || !YMD.test(resStartIso) || !YMD.test(resEndIso) || resStartIso > resEndIso) continue;
-      for (const slot of slots) {
-        const slotStartIso = toYmdUtc(slot.debut);
-        const slotEndIso = toYmdUtc(slot.fin);
-        if (!slotStartIso || !slotEndIso || !YMD.test(slotStartIso) || !YMD.test(slotEndIso) || slotStartIso > slotEndIso)
-          continue;
-        const overlapStart = resStartIso > slotStartIso ? resStartIso : slotStartIso;
-        const overlapEnd = resEndIso < slotEndIso ? resEndIso : slotEndIso;
-        if (overlapStart > overlapEnd) continue;
-        for (const day of expandYmdRange(overlapStart, overlapEnd)) blocked.add(day);
+    const slotOccupancy: Record<string, { reservedUnits: number; hasPrivate: boolean }> = {};
+
+    const cruiseMulti = isCruiseMultiUnitProduct(productFilter);
+
+    for (const slot of slots) {
+      const slotStartIso = toYmdUtc(slot.debut);
+      const slotEndIso = toYmdUtc(slot.fin);
+      if (!slotStartIso || !slotEndIso || !YMD.test(slotStartIso) || !YMD.test(slotEndIso) || slotStartIso > slotEndIso)
+        continue;
+
+      const overlapping = blockingRows.filter((r) => {
+        const rs = toYmdUtc(r.dateDebut);
+        const re = toYmdUtc(r.dateFin);
+        if (!rs || !re || rs > re) return false;
+        return rs <= slotEndIso && re >= slotStartIso;
+      });
+
+      if (cruiseMulti) {
+        const occ = aggregateCruiseCabineOccupancy(overlapping);
+        slotOccupancy[String(slot.id)] = occ;
+        if (occ.hasPrivate || occ.reservedUnits >= CHARTER_CRUISE_CABIN_UNITS) {
+          const qStart = toYmdUtc(fromBound) || slotStartIso;
+          const qEnd = toYmdUtc(toBound) || slotEndIso;
+          const overlapStart = slotStartIso > qStart ? slotStartIso : qStart;
+          const overlapEnd = slotEndIso < qEnd ? slotEndIso : qEnd;
+          if (overlapStart <= overlapEnd) {
+            for (const day of expandYmdRange(overlapStart, overlapEnd)) blocked.add(day);
+          }
+        }
+      } else {
+        slotOccupancy[String(slot.id)] = {
+          hasPrivate: overlapping.length > 0,
+          reservedUnits: overlapping.length > 0 ? 1 : 0,
+        };
+        if (overlapping.length > 0) {
+          for (const r of overlapping) {
+            const resStartIso = toYmdUtc(r.dateDebut);
+            const resEndIso = toYmdUtc(r.dateFin);
+            if (!resStartIso || !resEndIso || resStartIso > resEndIso) continue;
+            const overlapStart = resStartIso > slotStartIso ? resStartIso : slotStartIso;
+            const overlapEnd = resEndIso < slotEndIso ? resEndIso : slotEndIso;
+            if (overlapStart > overlapEnd) continue;
+            for (const day of expandYmdRange(overlapStart, overlapEnd)) blocked.add(day);
+          }
+        }
       }
     }
 
-    return res.json({ days: Array.from(blocked).sort() });
+    return res.json({ days: Array.from(blocked).sort(), slotOccupancy });
   } catch (error: any) {
     return res.status(500).json({ error: mapDbError(error, "Erreur chargement jours bloques") });
   }

@@ -33,6 +33,17 @@ const buildContractNumber = (id: number) => `CT-${nowYear()}-${pad(id)}`;
 const buildInvoiceNumber = (id: number, type: "acompte" | "solde" | "full") =>
   `FAC-${type.toUpperCase()}-${nowYear()}-${pad(id)}`;
 
+function toAbsoluteUrl(req: any, rawUrl: string | null | undefined): string | null {
+  const value = String(rawUrl || "").trim();
+  if (!value) return null;
+  if (/^https?:\/\//i.test(value)) return value;
+  const baseFromEnv = String(process.env.PUBLIC_APP_URL || process.env.APP_PUBLIC_URL || "").trim().replace(/\/+$/, "");
+  const fallbackBase = `${req.protocol}://${req.get("host")}`.replace(/\/+$/, "");
+  const base = baseFromEnv || fallbackBase;
+  const normalizedPath = value.startsWith("/") ? value : `/${value}`;
+  return `${base}${normalizedPath}`;
+}
+
 function getSmtpConfig() {
   const host = (process.env.SMTP_HOST || "").trim();
   const user = (process.env.SMTP_USER || "").trim();
@@ -218,6 +229,11 @@ router.post("/reservations/:id/send-contract", requireAdmin, async (req, res) =>
 
     try {
       const signedUrl = await storageGetSignedUrl(contract.pdfStorageKey);
+      const quoteRows = await db.select().from(quotes).where(eq(quotes.reservationId, reservationId));
+      const latestQuote = quoteRows.slice().sort((a, b) => b.id - a.id)[0] || null;
+      const quoteSignedUrl = latestQuote?.pdfStorageKey
+        ? await storageGetSignedUrl(latestQuote.pdfStorageKey).catch(() => null)
+        : null;
       const webhookBase = `${req.protocol}://${req.get("host")}`;
       const result = await dispatchEsign({
         contractNumber: contract.contractNumber,
@@ -225,6 +241,9 @@ router.post("/reservations/:id/send-contract", requireAdmin, async (req, res) =>
         signerEmail: r.emailClient,
         contractDownloadUrl: signedUrl,
         webhookUrl: `${webhookBase}/api/workflow/esign/webhook`,
+        additionalDocuments: quoteSignedUrl
+          ? [{ name: `Devis reservation ${reservationId}.pdf`, downloadUrl: quoteSignedUrl }]
+          : [],
       });
       esignProvider = result.provider;
       esignEnvelopeId = result.envelopeId;
@@ -304,9 +323,12 @@ router.post("/reservations/:id/send-proposal-email", requireAdmin, async (req, r
     const latestQuote = quoteRows.slice().sort((a, b) => b.id - a.id)[0] || null;
     const latestContract = contractRows.slice().sort((a, b) => b.id - a.id)[0] || null;
 
-    const quoteUrl = latestQuote?.pdfStorageKey ? await storageGetSignedUrl(latestQuote.pdfStorageKey).catch(() => null) : null;
-    const contractUrl = latestContract?.pdfStorageKey ? await storageGetSignedUrl(latestContract.pdfStorageKey).catch(() => null) : null;
+    const quoteUrlRaw = latestQuote?.pdfStorageKey ? await storageGetSignedUrl(latestQuote.pdfStorageKey).catch(() => null) : null;
+    const contractUrlRaw = latestContract?.pdfStorageKey ? await storageGetSignedUrl(latestContract.pdfStorageKey).catch(() => null) : null;
+    const quoteUrl = toAbsoluteUrl(req, quoteUrlRaw);
+    const contractUrl = toAbsoluteUrl(req, contractUrlRaw);
     const paymentUrl = String(req.body?.paymentUrl || "").trim() || null;
+    const contractSignUrl = toAbsoluteUrl(req, String(req.body?.contractSignUrl || "").trim() || null);
 
     const smtp = getSmtpConfig();
     if (!smtp.host || !smtp.user || !smtp.pass || !smtp.fromEmail) {
@@ -323,14 +345,19 @@ router.post("/reservations/:id/send-proposal-email", requireAdmin, async (req, r
       auth: { user: smtp.user, pass: smtp.pass },
     });
 
-    const subject = `Votre proposition - réservation #${reservationId}`;
+    const subject = `Votre proposition de croisière - réservation #${reservationId}`;
     const textLines = [
       `Bonjour ${r.nomClient || ""},`,
       "",
       "Votre proposition est prête.",
-      quoteUrl ? `Devis: ${quoteUrl}` : "Devis: indisponible",
-      contractUrl ? `Contrat: ${contractUrl}` : "Contrat: indisponible",
+      contractSignUrl
+        ? `Signature électronique (contrat + devis): ${contractSignUrl}`
+        : "Signature électronique: indisponible",
+      quoteUrl ? `Devis (PDF): ${quoteUrl}` : "Devis (PDF): indisponible",
+      contractUrl ? `Contrat (PDF): ${contractUrl}` : "Contrat (PDF): indisponible",
       paymentUrl ? `Lien de paiement acompte (20%): ${paymentUrl}` : "Lien de paiement: indisponible",
+      "",
+      "N'hésitez pas à répondre à cet email si vous avez des questions.",
       "",
       "Merci.",
       "Sabine Sailing",
@@ -342,18 +369,35 @@ router.post("/reservations/:id/send-proposal-email", requireAdmin, async (req, r
       subject,
       text: textLines.join("\n"),
       html: `
-        <p>Bonjour ${String(r.nomClient || "client")},</p>
-        <p>Votre proposition est prête :</p>
-        <ul>
-          <li>${quoteUrl ? `<a href="${quoteUrl}">Devis</a>` : "Devis indisponible"}</li>
-          <li>${contractUrl ? `<a href="${contractUrl}">Contrat</a>` : "Contrat indisponible"}</li>
-          <li>${paymentUrl ? `<a href="${paymentUrl}">Lien de paiement acompte (20%)</a>` : "Lien de paiement indisponible"}</li>
-        </ul>
-        <p>Merci,<br/>Sabine Sailing</p>
+        <div style="font-family: Arial, Helvetica, sans-serif; color:#0f172a; line-height:1.5;">
+          <h2 style="margin:0 0 12px; color:#0b3a53;">Votre proposition est prête</h2>
+          <p style="margin:0 0 14px;">Bonjour ${String(r.nomClient || "client")},</p>
+          <p style="margin:0 0 16px;">
+            Nous vous remercions pour votre demande. Vous pouvez maintenant consulter vos documents et finaliser votre dossier.
+          </p>
+          <div style="margin:0 0 16px; padding:14px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px;">
+            ${
+              contractSignUrl
+                ? `<p style="margin:0 0 10px;"><a href="${contractSignUrl}" style="display:inline-block; background:#0b3a53; color:#ffffff; text-decoration:none; padding:10px 14px; border-radius:8px; font-weight:600;">Signer en ligne (Yousign)</a></p>`
+                : `<p style="margin:0 0 10px; color:#64748b;">Lien de signature en ligne indisponible pour le moment.</p>`
+            }
+            <p style="margin:0 0 6px;">${quoteUrl ? `<a href="${quoteUrl}" style="color:#0b3a53;">Télécharger le devis (PDF)</a>` : "Devis PDF indisponible"}</p>
+            <p style="margin:0;">${contractUrl ? `<a href="${contractUrl}" style="color:#0b3a53;">Télécharger le contrat (PDF)</a>` : "Contrat PDF indisponible"}</p>
+          </div>
+          <p style="margin:0 0 16px;">
+            ${
+              paymentUrl
+                ? `<a href="${paymentUrl}" style="display:inline-block; background:#16a34a; color:#ffffff; text-decoration:none; padding:10px 14px; border-radius:8px; font-weight:600;">Régler l'acompte (20%)</a>`
+                : `<span style="color:#64748b;">Lien de paiement indisponible.</span>`
+            }
+          </p>
+          <p style="margin:0;">N'hésitez pas à répondre à cet email si vous avez des questions.</p>
+          <p style="margin:14px 0 0;">Merci,<br/>Sabine Sailing</p>
+        </div>
       `,
     });
 
-    return res.json({ success: true, quoteUrl, contractUrl, paymentUrl });
+    return res.json({ success: true, quoteUrl, contractUrl, contractSignUrl, paymentUrl });
   } catch (error: any) {
     return res.status(500).json({ error: error?.message || "Erreur envoi email proposition" });
   }

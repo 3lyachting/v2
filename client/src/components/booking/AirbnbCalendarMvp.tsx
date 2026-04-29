@@ -11,6 +11,7 @@ import {
   getSeasonPriceForDate,
   TRANSAT_PER_PERSON_EUR,
 } from "@shared/seasonPricing";
+import { CHARTER_CRUISE_CABIN_UNITS, isCruiseMultiUnitProduct } from "@shared/charterCapacity";
 import { apiUrl } from "@/lib/apiBase";
 
 type SelectionMode = "single" | "range";
@@ -108,6 +109,7 @@ export default function AirbnbCalendarMvp({
   dayAvailability,
   blockedDays = new Set<string>(),
   charterPeriods = [],
+  slotOccupancy = {},
 }: {
   isEnglish?: boolean;
   onSelectionChange?: (startIso: string | null, endIso: string | null) => void;
@@ -122,6 +124,8 @@ export default function AirbnbCalendarMvp({
   blockedDays?: Set<string>;
   /** Périodes publiées (charterSlots) : une réservation = une seule période entière. */
   charterPeriods?: Array<{ id: number; startIso: string; endIso: string }>;
+  /** Occupation cabines / privatif par id de période (API blocked-days). */
+  slotOccupancy?: Record<string, { reservedUnits: number; hasPrivate: boolean }>;
 }) {
   const [month, setMonth] = useState(() => new Date(new Date().getFullYear(), new Date().getMonth(), 1));
   const [selectionMode, setSelectionMode] = useState<SelectionMode>("range");
@@ -317,8 +321,50 @@ export default function AirbnbCalendarMvp({
   const isDayTrip = product === "journee";
   const isTransat = product === "transat";
   const canChooseCabine = !isDayTrip;
-  const canChoosePrivatif = !isTransat;
-  const maxPassengers = maxPassengersByProduct(product);
+
+  const selectedCharterOccupancy = useMemo(() => {
+    if (!startDate) return null;
+    const end = endDate || startDate;
+    const p = charterPeriods.find((s) => s.startIso === startDate && s.endIso === end);
+    if (!p) return null;
+    const raw = slotOccupancy[String(p.id)];
+    const occ =
+      raw && typeof raw.reservedUnits === "number"
+        ? { reservedUnits: raw.reservedUnits, hasPrivate: Boolean(raw.hasPrivate) }
+        : { reservedUnits: 0, hasPrivate: false };
+    return { slot: p, occ };
+  }, [charterPeriods, endDate, slotOccupancy, startDate]);
+
+  const occBlocksPrivatif = Boolean(
+    selectedCharterOccupancy &&
+      (selectedCharterOccupancy.occ.hasPrivate || selectedCharterOccupancy.occ.reservedUnits > 0)
+  );
+
+  const canChoosePrivatif = !isTransat && !occBlocksPrivatif;
+
+  const cruiseCapacityHint = useMemo(() => {
+    if (!selectedCharterOccupancy || !isCruiseMultiUnitProduct(product)) return null;
+    const { occ } = selectedCharterOccupancy;
+    if (occ.hasPrivate) {
+      return isEnglish ? "This period is already under private charter." : "Cette période est déjà en privatif.";
+    }
+    if (occ.reservedUnits > 0) {
+      const left = Math.max(0, CHARTER_CRUISE_CABIN_UNITS - occ.reservedUnits);
+      return isEnglish
+        ? `${occ.reservedUnits} cabin(s) already booked — ${left} left. Whole-boat private charter is unavailable.`
+        : `${occ.reservedUnits} cabine(s) déjà réservée(s) — ${left} restante(s). Le privatif bateau entier n'est pas disponible.`;
+    }
+    return null;
+  }, [isEnglish, product, selectedCharterOccupancy]);
+
+  const maxPassengers = useMemo(() => {
+    const base = maxPassengersByProduct(product);
+    if (!selectedCharterOccupancy || !isCruiseMultiUnitProduct(product) || selectedCharterOccupancy.occ.hasPrivate) {
+      return base;
+    }
+    const left = Math.max(0, CHARTER_CRUISE_CABIN_UNITS - selectedCharterOccupancy.occ.reservedUnits);
+    return Math.max(1, Math.min(base, left * 2));
+  }, [product, selectedCharterOccupancy]);
 
   useEffect(() => {
     setPassengerCount((prev) => Math.max(1, Math.min(maxPassengers, prev)));
@@ -389,7 +435,7 @@ export default function AirbnbCalendarMvp({
     });
 
     return {
-      canBook: Boolean(totalEur != null && isReady),
+      canBook: Boolean(totalEur != null && isReady && (reservationMode !== "priva" || canChoosePrivatif)),
       totalEur,
       info:
         totalEur == null
@@ -687,6 +733,9 @@ export default function AirbnbCalendarMvp({
             <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-900" role="alert">
               {highSeasonError}
             </div>
+          )}
+          {cruiseCapacityHint && (
+            <div className="rounded-xl border border-sky-200 bg-sky-50 px-3 py-2 text-xs text-sky-950">{cruiseCapacityHint}</div>
           )}
           <p className="pt-2 text-xs text-slate-600">
             {charterPeriods.length > 0

@@ -8,7 +8,7 @@
 import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import AirbnbCalendarMvp from "@/components/booking/AirbnbCalendarMvp";
 import { addDays, format, subDays } from "date-fns";
-import { CHARTER_PRODUCT_LABELS, CHARTER_PRODUCTS, type CharterProductCode } from "@shared/charterProduct";
+import { CHARTER_PRODUCT_LABELS, type CharterProductCode } from "@shared/charterProduct";
 import { useLocation } from "wouter";
 import { motion, useInView } from "framer-motion";
 import { withBasePath } from "@/lib/basePath";
@@ -1057,6 +1057,7 @@ function SectionCalendrier({ isEnglish = false }: { isEnglish?: boolean }) {
   const [dayAvailability, setDayAvailability] = useState<Set<string> | null>(null);
   const [blockedDays, setBlockedDays] = useState<Set<string>>(new Set());
   const [charterPeriods, setCharterPeriods] = useState<Array<{ id: number; startIso: string; endIso: string }>>([]);
+  const [slotOccupancy, setSlotOccupancy] = useState<Record<string, { reservedUnits: number; hasPrivate: boolean }>>({});
 
   const loadSlots = useCallback(async () => {
     try {
@@ -1080,10 +1081,15 @@ function SectionCalendrier({ isEnglish = false }: { isEnglish?: boolean }) {
         return;
       }
       const rows = (await slotsRes.json()) as { id: number; debut: string; fin: string; active: boolean }[];
-      const blockedDays = blockedDaysRes.ok
-        ? ((await blockedDaysRes.json()) as { days?: string[] })?.days || []
-        : [];
+      const blockedPayload = blockedDaysRes.ok
+        ? ((await blockedDaysRes.json()) as {
+            days?: string[];
+            slotOccupancy?: Record<string, { reservedUnits: number; hasPrivate: boolean }>;
+          })
+        : { days: [], slotOccupancy: {} };
+      const blockedDays = blockedPayload?.days || [];
       setBlockedDays(new Set(blockedDays.map((d) => String(d || "").slice(0, 10))));
+      setSlotOccupancy(blockedPayload?.slotOccupancy && typeof blockedPayload.slotOccupancy === "object" ? blockedPayload.slotOccupancy : {});
       const periods: Array<{ id: number; startIso: string; endIso: string }> = [];
       const s = new Set<string>();
       let hasAnyActiveSlot = false;
@@ -1146,19 +1152,24 @@ function SectionCalendrier({ isEnglish = false }: { isEnglish?: boolean }) {
 
         <Reveal delay={0.05}>
           <div className="mx-auto mb-6 max-w-6xl">
-            <div className="mb-4 flex flex-wrap justify-center gap-2">
-              {CHARTER_PRODUCTS.map((p) => {
+            <div className="mb-5 flex flex-wrap justify-center gap-3">
+              {(["journee", "med", "transat", "caraibes"] as CharterProductCode[]).map((p) => {
                 const active = p === product;
                 return (
                   <button
                     key={p}
                     type="button"
                     onClick={() => handleProductChange(p)}
-                    className="rounded-full border px-5 py-2.5 text-sm font-bold transition"
+                    className="rounded-2xl border px-7 py-3.5 text-base font-extrabold tracking-wide transition duration-200"
                     style={{
-                      borderColor: active ? "#00384A" : "#d7e3e8",
-                      color: active ? "#ffffff" : "#00384A",
-                      backgroundColor: active ? "#00384A" : "#f4f8fa",
+                      borderColor: active ? "#0c3f53" : "#d8c1a6",
+                      color: active ? "#ffffff" : "#0c3f53",
+                      background: active
+                        ? "linear-gradient(180deg, #0f4b62 0%, #0b3a4e 100%)"
+                        : "linear-gradient(180deg, #f7efe4 0%, #f1e3d3 100%)",
+                      boxShadow: active
+                        ? "0 10px 26px rgba(12,63,83,0.28)"
+                        : "0 8px 20px rgba(168,138,104,0.22)",
                     }}
                   >
                     {CHARTER_PRODUCT_LABELS[p]}
@@ -1173,6 +1184,7 @@ function SectionCalendrier({ isEnglish = false }: { isEnglish?: boolean }) {
               dayAvailability={dayAvailability}
               blockedDays={blockedDays}
               charterPeriods={charterPeriods}
+              slotOccupancy={slotOccupancy}
             />
           </div>
         </Reveal>

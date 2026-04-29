@@ -8,6 +8,7 @@ export type EsignDispatchInput = {
   signerEmail: string;
   contractDownloadUrl: string;
   webhookUrl: string;
+  additionalDocuments?: Array<{ name: string; downloadUrl: string }>;
 };
 
 export type EsignDispatchResult = {
@@ -28,6 +29,17 @@ async function dispatchYousign(input: EsignDispatchInput): Promise<EsignDispatch
   const apiKey = process.env.ESIGN_YOUSIGN_API_KEY;
   const baseUrl = (process.env.ESIGN_YOUSIGN_BASE_URL || "https://api-sandbox.yousign.app/v3").replace(/\/+$/, "");
   if (!apiKey) throw new Error("ESIGN_YOUSIGN_API_KEY manquant");
+
+  const documents = [
+    {
+      name: `Contrat ${input.contractNumber}.pdf`,
+      from_url: input.contractDownloadUrl,
+    },
+    ...(input.additionalDocuments || []).map((doc) => ({
+      name: doc.name,
+      from_url: doc.downloadUrl,
+    })),
+  ];
 
   // Minimal payload: if API contract differs, caller catches and falls back.
   const response = await fetch(`${baseUrl}/signature_requests`, {
@@ -50,12 +62,7 @@ async function dispatchYousign(input: EsignDispatchInput): Promise<EsignDispatch
           signature_level: "electronic_signature",
         },
       ],
-      documents: [
-        {
-          name: `Contrat ${input.contractNumber}.pdf`,
-          from_url: input.contractDownloadUrl,
-        },
-      ],
+      documents,
       metadata: {
         source: "sabine-sailing",
         contractNumber: input.contractNumber,
@@ -88,6 +95,23 @@ async function dispatchDocusign(input: EsignDispatchInput): Promise<EsignDispatc
     throw new Error("ESIGN_DOCUSIGN_ACCOUNT_ID / ESIGN_DOCUSIGN_ACCESS_TOKEN / ESIGN_DOCUSIGN_BASE_PATH manquants");
   }
 
+  const documents = [
+    {
+      documentBase64: null,
+      name: `Contrat ${input.contractNumber}.pdf`,
+      fileExtension: "pdf",
+      documentId: "1",
+      remoteUrl: input.contractDownloadUrl,
+    },
+    ...(input.additionalDocuments || []).map((doc, index) => ({
+      documentBase64: null,
+      name: doc.name,
+      fileExtension: "pdf",
+      documentId: String(index + 2),
+      remoteUrl: doc.downloadUrl,
+    })),
+  ];
+
   const response = await fetch(`${basePath}/v2.1/accounts/${accountId}/envelopes`, {
     method: "POST",
     headers: {
@@ -97,15 +121,7 @@ async function dispatchDocusign(input: EsignDispatchInput): Promise<EsignDispatc
     body: JSON.stringify({
       emailSubject: `Contrat ${input.contractNumber}`,
       status: "sent",
-      documents: [
-        {
-          documentBase64: null,
-          name: `Contrat ${input.contractNumber}.pdf`,
-          fileExtension: "pdf",
-          documentId: "1",
-          remoteUrl: input.contractDownloadUrl,
-        },
-      ],
+      documents,
       recipients: {
         signers: [
           {

@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { eq, sql } from "drizzle-orm";
+import { and, eq, gte, lte, sql } from "drizzle-orm";
 import { SignJWT } from "jose";
 import { getDb } from "../db";
 import { charterSlots, customers, disponibilites, reservations } from "../../drizzle/schema";
@@ -19,6 +19,12 @@ import {
   listReservationsByIdSafe,
   listReservationsSafe,
 } from "../_core/reservationsSafe";
+import {
+  aggregateCruiseCabineOccupancy,
+  CHARTER_CRUISE_CABIN_UNITS,
+  isCruiseMultiUnitProduct,
+  isReservationBlockingForCharterCalendar,
+} from "@shared/charterCapacity";
 import { validateReservationPolicy } from "@shared/reservationPolicy";
 
 const router = Router();
@@ -296,6 +302,8 @@ router.post("/request", async (req, res) => {
     let parsedDisponibiliteIdRaw =
       disponibiliteId !== null && disponibiliteId !== undefined ? parseInt(disponibiliteId, 10) : null;
 
+    let lockedCharterSlot: { id: number; product: string; debut: Date; fin: Date } | null = null;
+
     const charterSlotIdBody = req.body?.charterSlotId;
     const charterProductBody = typeof req.body?.charterProduct === "string" ? String(req.body.charterProduct).trim() : "";
     if (!isSimpleRequest && charterSlotIdBody != null && String(charterSlotIdBody).trim() !== "") {
@@ -320,6 +328,12 @@ router.post("/request", async (req, res) => {
         });
       }
       parsedDisponibiliteIdRaw = null;
+      lockedCharterSlot = {
+        id: slot.id,
+        product: String(slot.product),
+        debut: new Date(slot.debut as Date),
+        fin: new Date(slot.fin as Date),
+      };
     }
 
     const selectedDispoForPolicy =
@@ -393,6 +407,42 @@ router.post("/request", async (req, res) => {
 
     let reservationId: number | undefined;
     await db.transaction(async (tx: any) => {
+      if (lockedCharterSlot) {
+        await tx.execute(sql`select id from charterSlots where id = ${lockedCharterSlot.id} for update`);
+        const overlappingRes = await tx
+          .select({
+            typeReservation: reservations.typeReservation,
+            nbCabines: reservations.nbCabines,
+            requestStatus: reservations.requestStatus,
+            workflowStatut: reservations.workflowStatut,
+            dateDebut: reservations.dateDebut,
+            dateFin: reservations.dateFin,
+          })
+          .from(reservations)
+          .where(and(lte(reservations.dateDebut, lockedCharterSlot.fin), gte(reservations.dateFin, lockedCharterSlot.debut)));
+        const activeReservations = overlappingRes.filter(isReservationBlockingForCharterCalendar);
+        if (isCruiseMultiUnitProduct(lockedCharterSlot.product)) {
+          const occ = aggregateCruiseCabineOccupancy(activeReservations);
+          if (occ.hasPrivate && (normalizedTypeReservation === "cabine" || normalizedTypeReservation === "place")) {
+            throw new Error("Cette période est déjà privatisée.");
+          }
+          if (normalizedTypeReservation === "bateau_entier" && (occ.hasPrivate || occ.reservedUnits > 0)) {
+            throw new Error(
+              "Cette période a déjà des réservations cabines ou une privatisation. Privatisation impossible."
+            );
+          }
+          if (normalizedTypeReservation === "cabine" || normalizedTypeReservation === "place") {
+            if (occ.hasPrivate) throw new Error("Cette période est déjà privatisée.");
+            const nextReserved = occ.reservedUnits + computedNbCabines;
+            if (nextReserved > CHARTER_CRUISE_CABIN_UNITS) {
+              const remaining = Math.max(0, CHARTER_CRUISE_CABIN_UNITS - occ.reservedUnits);
+              throw new Error(`Il ne reste pas assez de cabines disponibles (${remaining} restante(s)).`);
+            }
+          }
+        } else if (activeReservations.length > 0) {
+          throw new Error("Cette période n'est plus disponible.");
+        }
+      }
       if (parsedDisponibiliteId) {
         await lockDisponibiliteForCapacity(tx, parsedDisponibiliteId);
         const { totalUnits } = await getConfirmedBookingUsage(tx, parsedDisponibiliteId);
