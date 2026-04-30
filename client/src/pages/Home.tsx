@@ -747,12 +747,42 @@ function SectionDestinations({ isEnglish = false }: { isEnglish?: boolean }) {
 // ── Section Programme ─────────────────────────────────────────────────────────
 function SectionProgramme({ isEnglish = false }: { isEnglish?: boolean }) {
   const [showVideo, setShowVideo] = useState(false);
+  const [seasonPricing, setSeasonPricing] = useState<Record<string, { highSeasonPrivate?: number | null; lowSeasonPrivate?: number | null }>>({});
 
   useEffect(() => {
     const isDesktop = window.matchMedia("(min-width: 1024px)").matches;
     const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     setShowVideo(isDesktop && !reduceMotion);
   }, []);
+
+  useEffect(() => {
+    const loadSeasonPricing = async () => {
+      try {
+        const response = await fetch("/api/backoffice-ops/season-pricing", { cache: "no-store" });
+        if (!response.ok) return;
+        const payload = await response.json();
+        if (payload && typeof payload === "object") {
+          setSeasonPricing(payload as Record<string, { highSeasonPrivate?: number | null; lowSeasonPrivate?: number | null }>);
+        }
+      } catch {
+        // Fallback silencieux sur les prix statiques
+      }
+    };
+    void loadSeasonPricing();
+  }, []);
+
+  const getStartingPrivatePrice = (product: "med" | "caraibes" | "journee", fallback: number) => {
+    const row = seasonPricing?.[product];
+    const candidates = [row?.highSeasonPrivate, row?.lowSeasonPrivate].filter(
+      (value): value is number => typeof value === "number" && Number.isFinite(value) && value > 0
+    );
+    if (!candidates.length) return fallback;
+    return Math.min(...candidates);
+  };
+  const medFromPrice = getStartingPrivatePrice("med", 14000);
+  const caraibesFromPrice = getStartingPrivatePrice("caraibes", 14000);
+  const journeeFromPrice = getStartingPrivatePrice("journee", 1000);
+  const formatPrice = (value: number) => value.toLocaleString("fr-FR");
 
   const programmeVideoSrc = "/photos%20site/dji_fly_20260311_123045_0_1773228645468_video_low_quality.mp4";
   const activites = isEnglish
@@ -834,7 +864,7 @@ function SectionProgramme({ isEnglish = false }: { isEnglish?: boolean }) {
               ? [
                   {
                     titre: "Mediterranean Week",
-                    prix: "From €14,000 full boat",
+                    prix: `From €${formatPrice(medFromPrice)} full boat`,
                     desc: "Mediterranean elegance: cabin booking or private charter tailored to your trip.",
                     color: "#0f4d62",
                     items: ["Saturday departures", "Corsica / Sardinia", "Professional crew", "Flexible pricing by season"],
@@ -849,14 +879,14 @@ function SectionProgramme({ isEnglish = false }: { isEnglish?: boolean }) {
                   },
                   {
                     titre: "Caribbean Week",
-                    prix: "From €14,000 full boat",
+                    prix: `From €${formatPrice(caraibesFromPrice)} full boat`,
                     desc: "Caribbean escape: 1 to 3 weeks across iconic islands at your own pace.",
                     color: "#2f6f82",
                     items: ["Saturday departures", "Grenadines", "Cabin or private charter", "Tailor-made itinerary"],
                   },
                   {
                     titre: "La Ciotat - Cassis Day Trip",
-                    prix: "€1,000 all-inclusive · full boat",
+                    prix: `From €${formatPrice(journeeFromPrice)} all-inclusive · full boat`,
                     desc: "Route: La Ciotat → Cassis (Arène beach) → return.",
                     color: "#1f5f70",
                     items: ["Periods: April, May and September", "Sailing", "Kayak", "Paddle"],
@@ -865,7 +895,7 @@ function SectionProgramme({ isEnglish = false }: { isEnglish?: boolean }) {
               : [
                   {
                     titre: "Semaine Méditerranée",
-                    prix: "À partir de 14 000€ bateau entier",
+                    prix: `À partir de ${formatPrice(medFromPrice)}€ bateau entier`,
                     desc: "Élégance méditerranéenne: cabine ou privatisation sur mesure",
                     color: "#0f4d62",
                     items: ["Départ le samedi", "Corse / Sardaigne", "Équipage professionnel", "Tarifs modulables selon période"],
@@ -880,14 +910,14 @@ function SectionProgramme({ isEnglish = false }: { isEnglish?: boolean }) {
                   },
                   {
                     titre: "Semaine Caraïbes",
-                    prix: "À partir de 14 000€ bateau entier",
+                    prix: `À partir de ${formatPrice(caraibesFromPrice)}€ bateau entier`,
                     desc: "Évasion caribéenne: de 1 à 3 semaines entre îles iconiques",
                     color: "#2f6f82",
                     items: ["Départ samedi", "Grenadines", "Cabine ou privatisation", "Itinéraire sur mesure"],
                   },
                   {
                     titre: "Journée La Ciotat - Cassis",
-                    prix: "1 000€ tout inclus · bateau entier",
+                    prix: `À partir de ${formatPrice(journeeFromPrice)}€ tout inclus · bateau entier`,
                     desc: "Programme: La Ciotat → Cassis (plage de l'Arène) → retour",
                     color: "#1f5f70",
                     items: ["Périodes: avril, mai et septembre", "Voile", "Kayak", "Paddle"],
