@@ -8,6 +8,7 @@ import {
   type SeasonPricingConfig,
   type SeasonPricingProduct,
   estimateMvpIndicativeTotalEur,
+  getSeasonPrivatePriceForDate,
   getSeasonPriceForDate,
   TRANSAT_PER_PERSON_EUR,
 } from "@shared/seasonPricing";
@@ -442,7 +443,12 @@ export default function AirbnbCalendarMvp({
     if (reservationMode === "cabine") {
       totalEur = pricePanel.total != null ? Math.round(pricePanel.total * safePassengers) : null;
     } else if (canChoosePrivatif) {
-      const base = DEFAULT_PRIVATE_WEEKLY_PRICE[product as Exclude<CharterProductCode, "transat">] ?? 0;
+      const seasonalPrivate =
+        product === "transat"
+          ? null
+          : getSeasonPrivatePriceForDate(seasonPricing, product as Exclude<SeasonPricingProduct, "transat">, startDate);
+      const base =
+        seasonalPrivate ?? DEFAULT_PRIVATE_WEEKLY_PRICE[product as Exclude<CharterProductCode, "transat">] ?? 0;
       totalEur = product === "journee" ? base : base * weekBlocks;
     }
 
@@ -494,6 +500,7 @@ export default function AirbnbCalendarMvp({
     pricePanel,
     product,
     reservationMode,
+    seasonPricing,
     startDate,
     charterPeriods,
     maxPassengers,
