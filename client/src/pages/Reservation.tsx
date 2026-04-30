@@ -370,6 +370,7 @@ export default function Reservation() {
       ? seasonPricing[seasonProduct]?.highSeasonPrivate
       : seasonPricing[seasonProduct]?.lowSeasonPrivate
     : null;
+  const effectivePrivatePriceEur = seasonPrivateEur ?? (isJournee ? dayTripPrivaEur : weeklyPrivaEur);
   const disponibiliteTotalUnits = pricingDispo?.capaciteTotale ?? 4;
   const disponibiliteReservedUnits = pricingDispo?.cabinesReservees ?? 0;
   const disponibiliteFreeUnits = Math.max(0, disponibiliteTotalUnits - disponibiliteReservedUnits);
@@ -750,11 +751,11 @@ export default function Reservation() {
               {isTransatSelection
                 ? `3000€/personne · traversée complète · ${safePersons} place(s)`
                 : isAprilMaySelection
-                ? "950€/journée · privatif unique · départ La Ciotat"
+                ? `${effectivePrivatePriceEur}€/journée · privatif unique · départ La Ciotat`
                 : isJournee
-                ? `${dayTripPrivaEur}€/journée tout inclus · bateau entier`
+                ? `${effectivePrivatePriceEur}€/journée tout inclus · bateau entier`
                 : typeReservation === "bateau_entier"
-                ? `${weeklyPrivaEur}€/semaine bateau entier`
+                ? `${effectivePrivatePriceEur}€/semaine bateau entier`
                 : typeReservation === "cabine"
                   ? `${weeklyCabineEur}€/semaine cabine double × ${requiredCabins} cabine(s)`
                   : `${selectedWeeklyPrice}€/semaine`}
