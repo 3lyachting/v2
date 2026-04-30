@@ -3,15 +3,17 @@ export type SeasonPricingProduct = "med" | "caraibes" | "journee" | "transat";
 export type ProductSeasonPricing = {
   highSeasonPerPassenger: number | null;
   lowSeasonPerPassenger: number | null;
+  highSeasonPrivate: number | null;
+  lowSeasonPrivate: number | null;
 };
 
 export type SeasonPricingConfig = Record<SeasonPricingProduct, ProductSeasonPricing>;
 
 export const DEFAULT_SEASON_PRICING: SeasonPricingConfig = {
-  med: { highSeasonPerPassenger: null, lowSeasonPerPassenger: null },
-  caraibes: { highSeasonPerPassenger: null, lowSeasonPerPassenger: null },
-  journee: { highSeasonPerPassenger: null, lowSeasonPerPassenger: null },
-  transat: { highSeasonPerPassenger: null, lowSeasonPerPassenger: null },
+  med: { highSeasonPerPassenger: null, lowSeasonPerPassenger: null, highSeasonPrivate: null, lowSeasonPrivate: null },
+  caraibes: { highSeasonPerPassenger: null, lowSeasonPerPassenger: null, highSeasonPrivate: null, lowSeasonPrivate: null },
+  journee: { highSeasonPerPassenger: null, lowSeasonPerPassenger: null, highSeasonPrivate: null, lowSeasonPrivate: null },
+  transat: { highSeasonPerPassenger: null, lowSeasonPerPassenger: null, highSeasonPrivate: null, lowSeasonPrivate: null },
 };
 
 function toNonNegativeNumber(value: unknown): number | null {
@@ -29,6 +31,8 @@ export function normalizeSeasonPricing(input: unknown): SeasonPricingConfig {
     next[product] = {
       highSeasonPerPassenger: toNonNegativeNumber(row.highSeasonPerPassenger),
       lowSeasonPerPassenger: toNonNegativeNumber(row.lowSeasonPerPassenger),
+      highSeasonPrivate: toNonNegativeNumber(row.highSeasonPrivate),
+      lowSeasonPrivate: toNonNegativeNumber(row.lowSeasonPrivate),
     };
   });
   return next;
@@ -55,6 +59,16 @@ export function getSeasonPriceForDate(
   const row = pricing[product] || DEFAULT_SEASON_PRICING[product];
   const highSeason = isHighSeasonDate(dateInput);
   return highSeason ? row.highSeasonPerPassenger : row.lowSeasonPerPassenger;
+}
+
+export function getSeasonPrivatePriceForDate(
+  pricing: SeasonPricingConfig,
+  product: SeasonPricingProduct,
+  dateInput: string | Date
+): number | null {
+  const row = pricing[product] || DEFAULT_SEASON_PRICING[product];
+  const highSeason = isHighSeasonDate(dateInput);
+  return highSeason ? row.highSeasonPrivate : row.lowSeasonPrivate;
 }
 
 export const TRANSAT_PER_PERSON_EUR = 3000;

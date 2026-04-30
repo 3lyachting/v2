@@ -16,6 +16,8 @@ type SeasonPricingProduct = "med" | "transat" | "caraibes" | "journee";
 type ProductSeasonPricing = {
   highSeasonPerPassenger: number | null;
   lowSeasonPerPassenger: number | null;
+  highSeasonPrivate: number | null;
+  lowSeasonPrivate: number | null;
 };
 
 type SeasonPricingConfig = Record<SeasonPricingProduct, ProductSeasonPricing>;
@@ -39,10 +41,10 @@ type Disponibilite = {
 const BRAND_DEEP = "#00384A";
 const MONTHS_FR = ["Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"];
 const DEFAULT_SEASON_PRICING: SeasonPricingConfig = {
-  med: { highSeasonPerPassenger: null, lowSeasonPerPassenger: null },
-  transat: { highSeasonPerPassenger: null, lowSeasonPerPassenger: null },
-  caraibes: { highSeasonPerPassenger: null, lowSeasonPerPassenger: null },
-  journee: { highSeasonPerPassenger: null, lowSeasonPerPassenger: null },
+  med: { highSeasonPerPassenger: null, lowSeasonPerPassenger: null, highSeasonPrivate: null, lowSeasonPrivate: null },
+  transat: { highSeasonPerPassenger: null, lowSeasonPerPassenger: null, highSeasonPrivate: null, lowSeasonPrivate: null },
+  caraibes: { highSeasonPerPassenger: null, lowSeasonPerPassenger: null, highSeasonPrivate: null, lowSeasonPrivate: null },
+  journee: { highSeasonPerPassenger: null, lowSeasonPerPassenger: null, highSeasonPrivate: null, lowSeasonPrivate: null },
 };
 const FILTER_ANCHOR_MONTH_BY_PRODUCT: Partial<Record<Produit, number>> = {
   med: 6, // Juillet
@@ -256,9 +258,18 @@ export default function CalendrierDisponibilites({ isEnglish = false }: { isEngl
     if (!productPricing) return null;
     return isHighSeasonDate(dateIso) ? productPricing.highSeasonPerPassenger : productPricing.lowSeasonPerPassenger;
   }, [selected, selectedProduct, pricing]);
+  const seasonPrivatePrice = useMemo(() => {
+    if (!selected) return null;
+    const product = toSeasonPricingProduct(selectedProduct);
+    const dateIso = toIsoDayUtc(selected.debut);
+    if (!dateIso) return null;
+    const productPricing = pricing[product];
+    if (!productPricing) return null;
+    return isHighSeasonDate(dateIso) ? productPricing.highSeasonPrivate : productPricing.lowSeasonPrivate;
+  }, [selected, selectedProduct, pricing]);
 
   const cabinPrice = isTransatSelected ? 3000 : seasonPricePerPassenger ?? directCabinePrice ?? 0;
-  const privatePrice = privateBasePrice ?? 0;
+  const privatePrice = seasonPrivatePrice ?? privateBasePrice ?? 0;
   const price = reservationMode === "cabine" ? cabinPrice : privatePrice;
 
   useEffect(() => {

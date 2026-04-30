@@ -31,6 +31,17 @@ type IcalEvent = {
   destination: string;
 };
 
+type SeasonPricingProduct = "med" | "transat" | "caraibes" | "journee";
+
+type ProductSeasonPricing = {
+  highSeasonPerPassenger: number | null;
+  lowSeasonPerPassenger: number | null;
+  highSeasonPrivate: number | null;
+  lowSeasonPrivate: number | null;
+};
+
+type SeasonPricingConfig = Record<SeasonPricingProduct, ProductSeasonPricing>;
+
 const FORMULES: Record<FormuleKey, { label: string; maxPers: number; description: string; defaultDuration: number }> = {
   croisiere_mediterranee: { label: "Croisières Méditerranée", maxPers: 8, description: "Croisières Med (jours flexibles + semaines été)", defaultDuration: 7 },
   transatlantique: { label: "Transatlantique", maxPers: 8, description: "Traversées océaniques", defaultDuration: 10 },
@@ -43,6 +54,13 @@ const FORMULE_BY_PRODUCT: Record<string, FormuleKey> = {
   caraibes: "croisiere_caraibes",
   journee: "journee_privee",
   transat: "transatlantique",
+};
+
+const DEFAULT_SEASON_PRICING: SeasonPricingConfig = {
+  med: { highSeasonPerPassenger: null, lowSeasonPerPassenger: null, highSeasonPrivate: null, lowSeasonPrivate: null },
+  transat: { highSeasonPerPassenger: null, lowSeasonPerPassenger: null, highSeasonPrivate: null, lowSeasonPrivate: null },
+  caraibes: { highSeasonPerPassenger: null, lowSeasonPerPassenger: null, highSeasonPrivate: null, lowSeasonPrivate: null },
+  journee: { highSeasonPerPassenger: null, lowSeasonPerPassenger: null, highSeasonPrivate: null, lowSeasonPrivate: null },
 };
 
 const toIsoDay = (d: Date) => d.toISOString().split("T")[0];
@@ -59,6 +77,25 @@ const daysBetweenInclusive = (startIso: string, endIso: string) => {
   const end = new Date(`${endIso}T00:00:00.000Z`).getTime();
   return Math.max(1, Math.round((end - start) / 86400000) + 1);
 };
+
+function isHighSeasonDate(dateInput: string | Date) {
+  const d = new Date(dateInput);
+  if (Number.isNaN(d.getTime())) return false;
+  const month = d.getUTCMonth() + 1;
+  const day = d.getUTCDate();
+  if (month === 7 || month === 8) return true;
+  if (month === 12 && day >= 15) return true;
+  if (month === 1 && day <= 8) return true;
+  if (month === 2) return true;
+  return false;
+}
+
+function toSeasonPricingProduct(formule: FormuleKey): SeasonPricingProduct {
+  if (formule === "croisiere_mediterranee") return "med";
+  if (formule === "croisiere_caraibes") return "caraibes";
+  if (formule === "journee_privee") return "journee";
+  return "transat";
+}
 
 type BookingRule = {
   name: string;
@@ -110,6 +147,7 @@ export default function Reservation() {
   const [prefilledEndIso, setPrefilledEndIso] = useState<string | null>(null);
   const [disponibilites, setDisponibilites] = useState<Disponibilite[]>([]);
   const [icalEvents, setIcalEvents] = useState<IcalEvent[]>([]);
+  const [seasonPricing, setSeasonPricing] = useState<SeasonPricingConfig>(DEFAULT_SEASON_PRICING);
 
   const [form, setForm] = useState({
     nomClient: "",
@@ -186,15 +224,18 @@ export default function Reservation() {
       try {
         setLoadingData(true);
         const cacheBust = `t=${Date.now()}`;
-        const [dispoRes, icalRes] = await Promise.all([
+        const [dispoRes, icalRes, seasonRes] = await Promise.all([
           fetch(`/api/disponibilites?${cacheBust}`, { cache: "no-store" }),
           fetch(`/api/ical/events?${cacheBust}`, { cache: "no-store" }),
+          fetch("/api/backoffice-ops/season-pricing", { cache: "no-store" }),
         ]);
         const dispoData = await dispoRes.json();
         if (!dispoRes.ok) throw new Error(dispoData.error || "Erreur chargement disponibilites");
         setDisponibilites(Array.isArray(dispoData) ? dispoData : []);
         const icalData = icalRes.ok ? await icalRes.json() : [];
         setIcalEvents(Array.isArray(icalData) ? icalData : []);
+        const seasonData = seasonRes.ok ? await seasonRes.json() : {};
+        setSeasonPricing({ ...DEFAULT_SEASON_PRICING, ...(seasonData || {}) });
       } catch (err: any) {
         setError(err.message || "Erreur de chargement");
       } finally {
@@ -323,6 +364,12 @@ export default function Reservation() {
   const weeklyCabineEur = pricingDispo?.tarifCabine ?? 3900;
   const weeklyPrivaEur = pricingDispo?.tarif ?? 15000;
   const dayTripPrivaEur = pricingDispo?.tarifJourPriva ?? 1000;
+  const seasonProduct = toSeasonPricingProduct(formuleKey);
+  const seasonPrivateEur = selectedStart
+    ? isHighSeasonDate(selectedStart)
+      ? seasonPricing[seasonProduct]?.highSeasonPrivate
+      : seasonPricing[seasonProduct]?.lowSeasonPrivate
+    : null;
   const disponibiliteTotalUnits = pricingDispo?.capaciteTotale ?? 4;
   const disponibiliteReservedUnits = pricingDispo?.cabinesReservees ?? 0;
   const disponibiliteFreeUnits = Math.max(0, disponibiliteTotalUnits - disponibiliteReservedUnits);
@@ -344,9 +391,9 @@ export default function Reservation() {
     isTransatSelection
       ? 3000
       : isJournee
-        ? dayTripPrivaEur
+        ? seasonPrivateEur ?? dayTripPrivaEur
       : typeReservation === "bateau_entier"
-        ? weeklyPrivaEur
+        ? seasonPrivateEur ?? weeklyPrivaEur
         : weeklyCabineEur;
   const montantTotalCalcule =
     isTransatSelection
