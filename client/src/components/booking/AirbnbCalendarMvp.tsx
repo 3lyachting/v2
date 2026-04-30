@@ -443,10 +443,11 @@ export default function AirbnbCalendarMvp({
     if (reservationMode === "cabine") {
       totalEur = pricePanel.total != null ? Math.round(pricePanel.total * safePassengers) : null;
     } else if (canChoosePrivatif) {
-      const seasonalPrivate =
-        product === "transat"
-          ? null
-          : getSeasonPrivatePriceForDate(seasonPricing, product as Exclude<SeasonPricingProduct, "transat">, startDate);
+      const seasonalPrivate = getSeasonPrivatePriceForDate(
+        seasonPricing,
+        product as Exclude<SeasonPricingProduct, "transat">,
+        startDate
+      );
       const base =
         seasonalPrivate ?? DEFAULT_PRIVATE_WEEKLY_PRICE[product as Exclude<CharterProductCode, "transat">] ?? 0;
       totalEur = product === "journee" ? base : base * weekBlocks;
@@ -584,6 +585,8 @@ export default function AirbnbCalendarMvp({
             const hasSoldCabins = soldDays.has(iso);
             const isBlockedByReservation = blockedDays.has(iso);
             const cabinsLeft = cabinsLeftByDay.get(iso);
+            const isCruiseProduct = isCruiseMultiUnitProduct(product);
+            const lowCabinStock = isCruiseProduct && typeof cabinsLeft === "number" && cabinsLeft > 0 && cabinsLeft <= 3;
 
             return (
               <button
@@ -632,7 +635,7 @@ export default function AirbnbCalendarMvp({
                 }
               >
                 {date.getDate()}
-                {inAvail && isCurrentMonth && !isDisabled && (
+                {inAvail && isCurrentMonth && !isDisabled && !lowCabinStock && (
                   <span className="pointer-events-none absolute bottom-1.5 left-1/2 h-1.5 w-1.5 -translate-x-1/2 rounded-full" style={{ backgroundColor: `${BRAND_DEEP}55` }} />
                 )}
                 {hasSoldCabins && isCurrentMonth && !isDisabled && (
@@ -653,6 +656,20 @@ export default function AirbnbCalendarMvp({
                     title={isEnglish ? `${cabinsLeft} cabin(s) left` : `${cabinsLeft} cabine(s) restante(s)`}
                   >
                     {cabinsLeft}/{CHARTER_CRUISE_CABIN_UNITS}
+                  </span>
+                )}
+                {lowCabinStock && (
+                  <span
+                    className="pointer-events-none absolute bottom-1.5 left-1/2 -translate-x-1/2 rounded-full border px-1.5 py-0.5 text-[9px] font-bold shadow-sm"
+                    style={
+                      cabinsLeft === 1
+                        ? { borderColor: "#fb7185", backgroundColor: "#fff1f2", color: "#9f1239" }
+                        : cabinsLeft === 2
+                          ? { borderColor: "#fdba74", backgroundColor: "#fff7ed", color: "#9a3412" }
+                          : { borderColor: "#86efac", backgroundColor: "#f0fdf4", color: "#14532d" }
+                    }
+                  >
+                    {cabinsLeft} cab.
                   </span>
                 )}
                 {isBlockedByReservation && isCurrentMonth && (
