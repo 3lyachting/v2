@@ -113,7 +113,7 @@ async function supportsBookingOriginColumn(db: any) {
     const result = await db.execute(
       `select 1
        from information_schema.columns
-       where table_name = 'reservations' and column_name = 'booking_origin'
+       where table_name = 'reservations' and column_name in ('bookingOrigin', 'booking_origin')
        limit 1`,
     );
     bookingOriginColumnAvailable = Array.isArray((result as any)?.rows) && (result as any).rows.length > 0;
@@ -617,9 +617,10 @@ router.get("/origins-summary", requireAdmin, async (_req, res) => {
 
     const clicknboat = await fetchClicknboatSummary();
     if (clicknboat.data) {
+      // Keep local values if API is stale/empty, otherwise show the best available number.
       totals.clicknboat = {
-        count: clicknboat.data.count,
-        revenueCents: clicknboat.data.revenueCents,
+        count: Math.max(totals.clicknboat.count, clicknboat.data.count),
+        revenueCents: Math.max(totals.clicknboat.revenueCents, clicknboat.data.revenueCents),
         source: "clicknboat_api",
       };
     }
