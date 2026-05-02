@@ -1,6 +1,7 @@
 import { Router } from "express";
-import ical from "node-ical";
+import nodeIcal from "node-ical";
 import { eq, gte } from "drizzle-orm";
+import type { CalendarResponse, FetchOptions, VEvent } from "node-ical";
 import { getDb } from "../db";
 import { config, disponibilites } from "../../drizzle/schema";
 
@@ -8,10 +9,18 @@ const router = Router();
 
 const ICAL_KEY = "google_ical_url";
 
-// Cache simple en mémoire (5 min) pour éviter de hammerer Google
-let cacheData: any[] | null = null;
+/** Cache des événements déjà parsés (évite de solliciter Google à chaque hit). */
+let cacheData: GoogleIcalEvent[] | null = null;
 let cacheTs = 0;
 const CACHE_TTL_MS = 5 * 60 * 1000;
+
+const FETCH_OPTIONS: FetchOptions = {
+  headers: {
+    "User-Agent": "SabineSailing/1.0 (node; iCal sync)",
+    Accept: "text/calendar, text/plain;q=0.9, */*;q=0.8",
+  },
+  redirect: "follow",
+};
 
 const escapeIcs = (value: string) =>
   value.replace(/\\/g, "\\\\").replace(/\n/g, "\\n").replace(/,/g, "\\,").replace(/;/g, "\\;");
@@ -19,9 +28,18 @@ const escapeIcs = (value: string) =>
 const toIcsDateTime = (date: Date) =>
   date.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}Z$/, "Z");
 
-/**
- * Détecte la destination depuis le résumé/description/localisation d'un événement.
- */
+type GoogleIcalEvent = {
+  uid?: string;
+  titre: string;
+  description: string;
+  debut: string;
+  fin: string;
+  destination: string;
+  statut: "disponible" | "reserve" | "option" | "ferme";
+  tarif: number | null;
+  source: "google-ical";
+};
+
 function detectDestination(text: string): string {
   const t = (text || "").toLowerCase();
   if (/antille|martinique|grenadin|caraib|caribb|guadeloupe|saintes/.test(t)) {
@@ -33,12 +51,9 @@ function detectDestination(text: string): string {
   if (/corse|sardaig|mediter|mediterr|baleare|italie/.test(t)) {
     return "Méditerranée";
   }
-  return "Méditerranée"; // par défaut
+  return "Méditerranée";
 }
 
-/**
- * Détecte le statut depuis le résumé (ex: "Réservé", "Option", "Dispo").
- */
 function detectStatut(summary: string): "disponible" | "reserve" | "option" | "ferme" {
   const s = (summary || "").toLowerCase();
   if (/reserv|booked|confirm|vendu/.test(s)) return "reserve";
@@ -47,26 +62,149 @@ function detectStatut(summary: string): "disponible" | "reserve" | "option" | "f
   return "disponible";
 }
 
-/**
- * Extrait un tarif numérique depuis le texte (ex : "9500€", "8 500 EUR").
- */
 function detectTarif(text: string): number | null {
   if (!text) return null;
   const match = text.match(/(\d[\d\s]{2,})\s*(€|euros?|EUR)/i);
   if (match) {
-    const num = parseInt(match[1].replace(/\s/g, ""), 10);
+    const num = Number.parseInt(match[1].replace(/\s/g, ""), 10);
     return Number.isFinite(num) ? num : null;
   }
   return null;
 }
 
+/** Valeurs iCal avec paramètres → chaîne lisible (node-ical). */
+function paramToString(value: unknown): string {
+  if (value == null) return "";
+  if (typeof value === "string") return value;
+  if (typeof value === "object" && value !== null && "val" in value) {
+    const v = (value as { val: unknown }).val;
+    return v == null ? "" : String(v);
+  }
+  return String(value);
+}
+
+function toValidDate(value: unknown): Date | null {
+  if (value instanceof Date && !Number.isNaN(value.getTime())) return value;
+  if (typeof value === "string" || typeof value === "number") {
+    const d = new Date(value);
+    return Number.isNaN(d.getTime()) ? null : d;
+  }
+  return null;
+}
+
+function formatIcalFetchError(err: unknown): string {
+  const msg = err instanceof Error ? err.message : String(err);
+  if (/\b401\b|Unauthorized/i.test(msg)) {
+    return "Accès refusé (401). Régénérez l’« adresse secrète iCal » dans Google Agenda — l’ancien lien a peut‑être été révoqué.";
+  }
+  if (/\b403\b|Forbidden/i.test(msg)) {
+    return "Accès refusé (403). Vérifiez que l’agenda est bien partagé avec le lien secret ou régénérez l’URL iCal.";
+  }
+  if (/\b404\b|Not Found/i.test(msg)) {
+    return "URL introuvable (404). Vérifiez que l’URL est complète et se termine souvent par /basic.ics.";
+  }
+  if (/fetch failed|ECONNREFUSED|ENOTFOUND|CERT_|certificate|TLS|SSL/i.test(msg)) {
+    return `Réseau / TLS : ${msg}`;
+  }
+  return msg || "Erreur lors de la lecture du flux iCal.";
+}
+
+function pushParsed(out: GoogleIcalEvent[], uid: string | undefined, summary: string, description: string, location: string, start: Date, end: Date) {
+  const combined = `${summary} ${description} ${location}`;
+  out.push({
+    uid,
+    titre: summary,
+    description,
+    debut: start.toISOString(),
+    fin: end.toISOString(),
+    destination: detectDestination(combined),
+    statut: detectStatut(summary),
+    tarif: detectTarif(combined),
+    source: "google-ical",
+  });
+}
+
 /**
- * GET /api/ical/events — retourne les événements parsés depuis le Google Agenda.
- * Si aucune URL iCal n'est configurée, retourne un tableau vide.
+ * Fenêtre d’expansion des récurrences (Google renvoie souvent des RRULE sans instances matérialisées).
  */
+function expansionRange(): { from: Date; to: Date } {
+  const from = new Date();
+  from.setUTCDate(from.getUTCDate() - 120);
+  const to = new Date();
+  to.setUTCFullYear(to.getUTCFullYear() + 2);
+  return { from, to };
+}
+
+function calendarResponseToEvents(data: CalendarResponse): GoogleIcalEvent[] {
+  const out: GoogleIcalEvent[] = [];
+  const { from, to } = expansionRange();
+
+  for (const key of Object.keys(data)) {
+    if (key === "vcalendar") continue;
+    const comp = data[key as keyof CalendarResponse];
+    if (!comp || typeof comp !== "object") continue;
+    const ev = comp as VEvent & { type?: string };
+    if (String(ev.type) !== "VEVENT") continue;
+
+    const summary = paramToString(ev.summary);
+    const description = paramToString(ev.description);
+    const location = paramToString(ev.location);
+    const uid = typeof ev.uid === "string" ? ev.uid : undefined;
+
+    if (ev.rrule) {
+      try {
+        const instances = nodeIcal.expandRecurringEvent(ev, { from, to, expandOngoing: true });
+        for (const inst of instances) {
+          const start = inst.start instanceof Date ? inst.start : toValidDate(inst.start);
+          const end = inst.end instanceof Date ? inst.end : toValidDate(inst.end);
+          if (!start || !end) continue;
+          const instSummary = paramToString(inst.summary) || summary;
+          pushParsed(out, uid, instSummary, description, location, start, end);
+        }
+      } catch (e) {
+        console.warn("[iCal] expansion RRULE ignorée pour un événement:", e);
+        const start = toValidDate(ev.start);
+        const end = toValidDate(ev.end);
+        if (start && end) {
+          pushParsed(out, uid, summary, description, location, start, end);
+        }
+      }
+      continue;
+    }
+
+    const start = toValidDate(ev.start);
+    let end = toValidDate(ev.end);
+    if (!start) continue;
+    if (!end) {
+      end = new Date(start.getTime() + 24 * 60 * 60 * 1000);
+    }
+    pushParsed(out, uid, summary, description, location, start, end);
+  }
+
+  out.sort((a, b) => new Date(a.debut).getTime() - new Date(b.debut).getTime());
+  return out;
+}
+
+async function fetchCalendarFromUrl(url: string): Promise<CalendarResponse> {
+  let trimmed = url.trim();
+  if (trimmed.toLowerCase().startsWith("webcal://")) {
+    trimmed = `https://${trimmed.slice("webcal://".length)}`;
+  }
+  if (!trimmed.startsWith("http://") && !trimmed.startsWith("https://")) {
+    throw new Error("L’URL doit commencer par https:// (ou webcal:// converti automatiquement).");
+  }
+  const parsed = nodeIcal.async.fromURL(trimmed, FETCH_OPTIONS);
+  return await (parsed as unknown as Promise<CalendarResponse>);
+}
+
+async function parseIcalUrlToEvents(url: string): Promise<GoogleIcalEvent[]> {
+  const data = await fetchCalendarFromUrl(url);
+  return calendarResponseToEvents(data);
+}
+
+/** GET /api/ical/events — événements depuis Google (cache 5 min). */
 router.get("/events", async (_req, res) => {
   try {
-    // Cache
     if (cacheData && Date.now() - cacheTs < CACHE_TTL_MS) {
       return res.json(cacheData);
     }
@@ -75,59 +213,63 @@ router.get("/events", async (_req, res) => {
     if (!db) return res.json([]);
 
     const [row] = await db.select().from(config).where(eq(config.cle, ICAL_KEY)).limit(1);
-    const url = row?.valeur;
+    const url = String(row?.valeur || "").trim();
     if (!url) return res.json([]);
 
-    // Utiliser fromURL directement (compatible avec ES modules)
-    const events = await (ical as any).async.fromURL(url);
-    const parsed: any[] = [];
-
-    for (const key in events) {
-      const ev: any = (events as any)[key];
-      if (!ev || ev.type !== "VEVENT") continue;
-      if (!ev.start || !ev.end) continue;
-
-      const summary = String(ev.summary || "");
-      const description = String(ev.description || "");
-      const location = String(ev.location || "");
-      const combined = `${summary} ${description} ${location}`;
-
-      parsed.push({
-        uid: ev.uid,
-        titre: summary,
-        description,
-        debut: new Date(ev.start).toISOString(),
-        fin: new Date(ev.end).toISOString(),
-        destination: detectDestination(combined),
-        statut: detectStatut(summary),
-        tarif: detectTarif(combined),
-        source: "google-ical",
-      });
-    }
-
-    parsed.sort((a, b) => new Date(a.debut).getTime() - new Date(b.debut).getTime());
-
+    const parsed = await parseIcalUrlToEvents(url);
     cacheData = parsed;
     cacheTs = Date.now();
     res.json(parsed);
-  } catch (err: any) {
-    console.error("[iCal] Erreur:", err?.message || err);
-    res.status(500).json({ error: err?.message || "Erreur iCal" });
+  } catch (err: unknown) {
+    console.error("[iCal] Erreur:", err);
+    res.status(500).json({ error: formatIcalFetchError(err) });
   }
 });
 
-/**
- * Force le refresh du cache iCal.
- */
+/** Vide le cache (prochain GET /events refetch). */
 router.post("/refresh", async (_req, res) => {
   cacheData = null;
   cacheTs = 0;
-  res.json({ ok: true, message: "Cache iCal vidé, prochain appel rechargera depuis Google" });
+  res.json({ ok: true, message: "Cache iCal vidé." });
 });
 
 /**
- * GET/PUT config iCal URL.
+ * POST /api/ical/verify — teste une URL (corps { url }) ou l’URL enregistrée si url vide.
+ * Ne modifie pas le cache des /events sauf si vous appelez /refresh après sauvegarde.
  */
+router.post("/verify", async (req, res) => {
+  try {
+    const bodyUrl = typeof req.body?.url === "string" ? req.body.url.trim() : "";
+    let url = bodyUrl;
+    if (!url) {
+      const db = await getDb();
+      if (!db) return res.status(500).json({ ok: false, error: "Base de données indisponible." });
+      const [row] = await db.select().from(config).where(eq(config.cle, ICAL_KEY)).limit(1);
+      url = String(row?.valeur || "").trim();
+    }
+    if (!url) {
+      return res.json({
+        ok: false,
+        error: "Collez d’abord l’URL secrète .ics (ou enregistrez-la puis testez sans la resaisir).",
+      });
+    }
+
+    const events = await parseIcalUrlToEvents(url);
+    return res.json({
+      ok: true,
+      count: events.length,
+      samples: events.slice(0, 10).map((e) => ({
+        titre: e.titre,
+        debut: e.debut,
+        fin: e.fin,
+        destination: e.destination,
+      })),
+    });
+  } catch (err: unknown) {
+    return res.json({ ok: false, error: formatIcalFetchError(err), count: 0 });
+  }
+});
+
 router.get("/config", async (_req, res) => {
   const db = await getDb();
   if (!db) return res.json({ url: "", exportUrl: "/api/ical/export.ics" });
@@ -140,17 +282,25 @@ router.get("/config", async (_req, res) => {
 });
 
 router.put("/config", async (req, res) => {
-  const { url } = req.body || {};
+  const raw = req.body?.url;
+  let url = typeof raw === "string" ? raw.trim() : "";
+  if (url.toLowerCase().startsWith("webcal://")) {
+    url = `https://${url.slice("webcal://".length)}`;
+  }
   const db = await getDb();
   if (!db) return res.status(500).json({ error: "DB indisponible" });
 
+  if (url && !url.startsWith("http://") && !url.startsWith("https://")) {
+    return res.status(400).json({ error: "URL invalide : doit commencer par http:// ou https://" });
+  }
+
   const [existing] = await db.select().from(config).where(eq(config.cle, ICAL_KEY)).limit(1);
   if (existing) {
-    await db.update(config).set({ valeur: url || "" }).where(eq(config.cle, ICAL_KEY));
+    await db.update(config).set({ valeur: url }).where(eq(config.cle, ICAL_KEY));
   } else {
     await db.insert(config).values({
       cle: ICAL_KEY,
-      valeur: url || "",
+      valeur: url,
       description: "URL iCal secrète du Google Agenda Sabine Sailing",
     });
   }
@@ -159,9 +309,6 @@ router.put("/config", async (req, res) => {
   res.json({ ok: true });
 });
 
-/**
- * GET /api/ical/export.ics — exporte le planning interne en iCal.
- */
 router.get("/export.ics", async (_req, res) => {
   try {
     const db = await getDb();
@@ -210,9 +357,9 @@ router.get("/export.ics", async (_req, res) => {
     res.setHeader("Content-Type", "text/calendar; charset=utf-8");
     res.setHeader("Content-Disposition", "inline; filename=\"sabine-planning.ics\"");
     return res.send(lines.join("\r\n"));
-  } catch (err: any) {
-    console.error("[iCal export] Erreur:", err?.message || err);
-    return res.status(500).json({ error: err?.message || "Erreur export iCal" });
+  } catch (err: unknown) {
+    console.error("[iCal export] Erreur:", err);
+    return res.status(500).json({ error: err instanceof Error ? err.message : "Erreur export iCal" });
   }
 });
 
