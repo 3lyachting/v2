@@ -1,8 +1,9 @@
-import { Router } from "express";
+import { Router, type Request, type Response } from "express";
 import nodeIcal from "node-ical";
 import { eq, gte } from "drizzle-orm";
 import type { CalendarResponse, FetchOptions, VEvent } from "node-ical";
 import { getDb } from "../db";
+import { ENV } from "../_core/env";
 import { config, disponibilites } from "../../drizzle/schema";
 
 const router = Router();
@@ -24,6 +25,21 @@ const FETCH_OPTIONS: FetchOptions = {
 
 const escapeIcs = (value: string) =>
   value.replace(/\\/g, "\\\\").replace(/\n/g, "\\n").replace(/,/g, "\\,").replace(/;/g, "\\;");
+
+/** Origine publique pour construire des URLs absolues (Google Agenda abonne l’URL depuis ses serveurs). */
+function resolvePublicOrigin(req: Request): string {
+  if (ENV.publicBaseUrl) return ENV.publicBaseUrl;
+  const xfProto = (req.get("x-forwarded-proto") || req.protocol || "https").split(",")[0]?.trim() || "https";
+  const xfHost = (req.get("x-forwarded-host") || req.get("host") || "").split(",")[0]?.trim();
+  if (!xfHost) return "";
+  return `${xfProto}://${xfHost}`;
+}
+
+/** Aligné sur le calendrier interne : tout sauf créneaux charter « disponibles ». */
+function isBlockingPlanningExport(ev: { planningType: string; statut: string }): boolean {
+  if (ev.planningType !== "charter") return true;
+  return ev.statut !== "disponible";
+}
 
 const toIcsDateTime = (date: Date) =>
   date.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}Z$/, "Z");
@@ -272,12 +288,13 @@ router.post("/verify", async (req, res) => {
 
 router.get("/config", async (_req, res) => {
   const db = await getDb();
-  if (!db) return res.json({ url: "", exportUrl: "/api/ical/export.ics" });
+  const exportPath = "/api/ical/export.ics";
+  if (!db) return res.json({ url: "", exportUrl: exportPath });
   const [row] = await db.select().from(config).where(eq(config.cle, ICAL_KEY)).limit(1);
-  const origin = `${_req.protocol}://${_req.get("host")}`;
+  const origin = resolvePublicOrigin(_req);
   res.json({
     url: row?.valeur || "",
-    exportUrl: `${origin}/api/ical/export.ics`,
+    exportUrl: origin ? `${origin}${exportPath}` : exportPath,
   });
 });
 
@@ -309,7 +326,7 @@ router.put("/config", async (req, res) => {
   res.json({ ok: true });
 });
 
-router.get("/export.ics", async (_req, res) => {
+async function sendPlanningExportIcs(_req: Request, res: Response) {
   try {
     const db = await getDb();
     if (!db) return res.status(500).send("DB indisponible");
@@ -320,7 +337,7 @@ router.get("/export.ics", async (_req, res) => {
       .from(disponibilites)
       .where(gte(disponibilites.fin, now))
       .orderBy(disponibilites.debut);
-    const blockingEvents = events.filter((ev) => ev.statut === "option" || ev.statut === "reserve");
+    const blockingEvents = events.filter((ev) => isBlockingPlanningExport(ev));
 
     const lines: string[] = [
       "BEGIN:VCALENDAR",
@@ -338,7 +355,6 @@ router.get("/export.ics", async (_req, res) => {
         `Type: ${ev.planningType}`,
         `Statut: ${ev.statut}`,
         ev.notePublique ? `Public: ${ev.notePublique}` : "",
-        ev.note ? `Prive: ${ev.note}` : "",
       ].filter(Boolean);
 
       lines.push("BEGIN:VEVENT");
@@ -355,12 +371,16 @@ router.get("/export.ics", async (_req, res) => {
     lines.push("END:VCALENDAR");
 
     res.setHeader("Content-Type", "text/calendar; charset=utf-8");
-    res.setHeader("Content-Disposition", "inline; filename=\"sabine-planning.ics\"");
+    res.setHeader("Content-Disposition", "attachment; filename=\"sabine-planning.ics\"");
     return res.send(lines.join("\r\n"));
   } catch (err: unknown) {
     console.error("[iCal export] Erreur:", err);
     return res.status(500).json({ error: err instanceof Error ? err.message : "Erreur export iCal" });
   }
-});
+}
+
+router.get("/export.ics", sendPlanningExportIcs);
+/** Même contenu — certains reverse proxies filtrent les chemins avec extension. */
+router.get("/export", sendPlanningExportIcs);
 
 export default router;

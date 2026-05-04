@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Plus, Trash2, Wrench, Users, FileText } from "lucide-react";
+import { Plus, Trash2, Wrench, Users } from "lucide-react";
 
 type CrewMember = {
   id: number;
@@ -29,17 +29,9 @@ type MaintenanceTask = {
   isDone: boolean;
 };
 
-type BoatDoc = {
-  id: number;
-  docType: string;
-  originalName: string;
-  expiresAt?: string | null;
-};
-
-export default function BackofficeOps({ mode }: { mode: "documents" | "crew" | "maintenance" }) {
+export default function BackofficeOps({ mode }: { mode: "crew" | "maintenance" }) {
   const [crew, setCrew] = useState<CrewMember[]>([]);
   const [tasks, setTasks] = useState<MaintenanceTask[]>([]);
-  const [boatDocs, setBoatDocs] = useState<BoatDoc[]>([]);
   const [message, setMessage] = useState("");
 
   const [crewForm, setCrewForm] = useState({
@@ -67,20 +59,6 @@ export default function BackofficeOps({ mode }: { mode: "documents" | "crew" | "
     isCritical: false,
   });
 
-  const [docForm, setDocForm] = useState({
-    docType: "assurance",
-    expiresAt: "",
-  });
-  const [docTypeOptions, setDocTypeOptions] = useState([
-    { value: "assurance", label: "Assurance" },
-    { value: "immatriculation", label: "Immatriculation" },
-    { value: "controle", label: "Contrôle" },
-    { value: "plan_bateau", label: "Plan du bateau" },
-    { value: "piece_rechange", label: "Pièce / notice" },
-  ]);
-  const [showAddDocType, setShowAddDocType] = useState(false);
-  const [newDocTypeLabel, setNewDocTypeLabel] = useState("");
-
   const readApiError = async (res: Response, fallback: string) => {
     try {
       const payload = await res.json();
@@ -98,9 +76,6 @@ export default function BackofficeOps({ mode }: { mode: "documents" | "crew" | "
       } else if (mode === "maintenance") {
         const res = await fetch("/api/backoffice-ops/maintenance/tasks");
         if (res.ok) setTasks(await res.json());
-      } else if (mode === "documents") {
-        const res = await fetch("/api/admin-documents/boat");
-        if (res.ok) setBoatDocs(await res.json());
       }
     } catch (e) {
       console.error(e);
@@ -351,141 +326,6 @@ export default function BackofficeOps({ mode }: { mode: "documents" | "crew" | "
     );
   }
 
-  return (
-    <div>
-      <div className="mb-6">
-        <h2 className="text-3xl font-bold text-blue-900 flex items-center gap-2">
-          <FileText className="w-8 h-8" />
-          Documents bateau
-        </h2>
-        <p className="text-slate-600 mt-1">Registre des documents techniques et administratifs du navire.</p>
-      </div>
-
-      <div className="bg-white rounded-xl border border-slate-200 p-5 mb-6">
-        <div className="grid md:grid-cols-3 gap-3">
-          <div className="space-y-2">
-            <div className="flex items-center gap-2">
-              <select value={docForm.docType} onChange={(e) => setDocForm((s) => ({ ...s, docType: e.target.value }))} className="flex-1 px-3 py-2 border border-slate-300 rounded-lg text-sm">
-                {docTypeOptions.map((opt) => (
-                  <option key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </option>
-                ))}
-              </select>
-              <button
-                type="button"
-                onClick={() => setShowAddDocType((v) => !v)}
-                className="px-3 py-2 border border-slate-300 rounded-lg text-sm font-semibold text-blue-900 hover:bg-blue-50 whitespace-nowrap"
-              >
-                + Ajouter
-              </button>
-            </div>
-            {showAddDocType && (
-              <div className="flex items-center gap-2">
-                <input
-                  value={newDocTypeLabel}
-                  onChange={(e) => setNewDocTypeLabel(e.target.value)}
-                  placeholder="Nouveau type de document"
-                  className="flex-1 px-3 py-2 border border-slate-300 rounded-lg text-sm"
-                />
-                <button
-                  type="button"
-                  onClick={() => {
-                    const label = newDocTypeLabel.trim();
-                    if (!label) return;
-                    const value = label
-                      .toLowerCase()
-                      .normalize("NFD")
-                      .replace(/[\u0300-\u036f]/g, "")
-                      .replace(/[^a-z0-9]+/g, "_")
-                      .replace(/^_+|_+$/g, "");
-                    if (!value) return;
-                    if (!docTypeOptions.some((opt) => opt.value === value)) {
-                      setDocTypeOptions((opts) => [...opts, { value, label }]);
-                    }
-                    setDocForm((s) => ({ ...s, docType: value }));
-                    setNewDocTypeLabel("");
-                    setShowAddDocType(false);
-                  }}
-                  className="px-3 py-2 bg-blue-900 text-white rounded-lg text-sm font-semibold"
-                >
-                  OK
-                </button>
-              </div>
-            )}
-          </div>
-          <input type="date" value={docForm.expiresAt} onChange={(e) => setDocForm((s) => ({ ...s, expiresAt: e.target.value }))} className="px-3 py-2 border border-slate-300 rounded-lg text-sm" />
-          <label className="px-3 py-2 border border-slate-300 rounded-lg text-sm cursor-pointer text-center">
-            Téléverser
-            <input
-              type="file"
-              className="hidden"
-              onChange={async (e) => {
-                const file = e.target.files?.[0];
-                if (!file) return;
-                try {
-                  const base64 = await new Promise<string>((resolve, reject) => {
-                    const fr = new FileReader();
-                    fr.onload = () => resolve(String(fr.result).split(",")[1] || "");
-                    fr.onerror = reject;
-                    fr.readAsDataURL(file);
-                  });
-                  const res = await fetch("/api/admin-documents/boat/upload", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                      docType: docForm.docType,
-                      originalName: file.name,
-                      mimeType: file.type || "application/octet-stream",
-                      base64Data: base64,
-                      expiresAt: docForm.expiresAt || null,
-                    }),
-                  });
-                  if (!res.ok) throw new Error(await readApiError(res, "Upload impossible"));
-                  setMessage("Document bateau ajouté.");
-                  await loadData();
-                } catch (err: any) {
-                  setMessage(err?.message || "Erreur upload document");
-                }
-              }}
-            />
-          </label>
-        </div>
-      </div>
-
-      <div className="grid gap-3">
-        {boatDocs.map((d) => (
-          <div key={d.id} className="bg-white rounded-lg border border-slate-200 p-4">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <p className="font-medium text-slate-900">{d.originalName}</p>
-                <p className="text-xs text-slate-600">{d.docType}</p>
-                {d.expiresAt && <p className="text-xs text-slate-500">Expiration: {new Date(d.expiresAt).toLocaleDateString("fr-FR")}</p>}
-              </div>
-              <button
-                type="button"
-                onClick={async () => {
-                  try {
-                    const res = await fetch(`/api/admin-documents/boat/${d.id}/preview-url`);
-                    const payload = await res.json().catch(() => ({}));
-                    if (!res.ok || !payload?.previewUrl) {
-                      throw new Error(payload?.error || "Impossible d'ouvrir l'aperçu");
-                    }
-                    window.open(payload.previewUrl, "_blank", "noopener,noreferrer");
-                  } catch (err: any) {
-                    setMessage(err?.message || "Erreur ouverture aperçu");
-                  }
-                }}
-                className="px-3 py-1.5 rounded-lg border border-blue-200 text-blue-700 bg-blue-50 hover:bg-blue-100 text-xs font-semibold whitespace-nowrap"
-              >
-                Aperçu
-              </button>
-            </div>
-          </div>
-        ))}
-      </div>
-      {message && <p className="mt-4 text-sm text-slate-600">{message}</p>}
-    </div>
-  );
+  return null;
 }
 

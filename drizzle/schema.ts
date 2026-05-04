@@ -34,7 +34,7 @@ export const reservationRequestStatusEnum = pgEnum("reservation_request_status",
   "archivee",
 ]);
 export const bookingOriginEnum = pgEnum("booking_origin", ["direct", "clicknboat", "skippair", "samboat"]);
-export const documentCategoryEnum = pgEnum("document_category", ["identity", "reservation", "boat"]);
+export const documentCategoryEnum = pgEnum("document_category", ["identity", "reservation", "boat", "crew", "passenger"]);
 export const esignProviderEnum = pgEnum("esign_provider", ["yousign", "docusign", "other"]);
 
 /** Produit proposé sur un créneau (public + backoffice). Même vocabulaire que `season_pricing_v1`. */

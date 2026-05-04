@@ -348,7 +348,10 @@ export default function ConfigIcal() {
       <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
         <h3 className="font-bold text-slate-900">Export planning interne (.ics)</h3>
         <p className="mt-2 text-sm text-slate-600">
-          URL à coller dans un autre outil pour lire les options / réservations issues du backoffice (pas Google).
+          URL à coller dans un autre outil pour lire le planning bloquant (options, réservations, fermetures, arrêts techniques,
+          maintenance, etc.) — hors créneaux charter encore « disponibles ». Pour un abonnement Google Agenda, l’URL doit être en{" "}
+          <strong>HTTPS</strong> joignable depuis Internet ; en prod derrière un proxy, définissez la variable{" "}
+          <code className="rounded bg-slate-100 px-1">PUBLIC_BASE_URL</code> (ex. <code className="rounded bg-slate-100 px-1">https://votre-domaine.fr</code>) pour que le lien copié soit correct.
         </p>
         <div className="mt-4 flex flex-col gap-3 sm:flex-row">
           <input

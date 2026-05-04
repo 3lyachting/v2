@@ -36,6 +36,13 @@
       "when": 1777444674518,
       "tag": "0004_rapid_micromax",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1778500000000,
+      "tag": "0005_doc_categories_crew_passenger",
+      "breakpoints": true
     }
   ]
 }

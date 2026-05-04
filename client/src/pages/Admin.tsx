@@ -1,13 +1,14 @@
 import { useEffect, useState } from "react";
-import { Calendar, CreditCard, FileText, Link2, LogOut, Wrench } from "lucide-react";
+import { Calendar, CreditCard, FileText, Link2, LogOut, Package, Wrench } from "lucide-react";
 import ConfigIcal from "@/components/ConfigIcal";
 import BackofficeOps from "@/components/BackofficeOps";
+import AdminDocumentsManager from "@/components/AdminDocumentsManager";
 import InventoryManager from "@/components/InventoryManager";
 import SeasonPricingManager from "@/components/SeasonPricingManager";
 import CharterSlotManager from "@/components/CharterSlotManager";
 import logoSabine from "/logo-sabine.png";
 
-type AdminTab = "calendar_reset" | "finances_reset" | "pricing" | "documents" | "maintenance" | "config";
+type AdminTab = "calendar_reset" | "finances_reset" | "inventaire" | "documents" | "maintenance" | "config";
 
 type ReservationLite = {
   id: number;
@@ -114,7 +115,7 @@ export default function Admin() {
           {[
             { id: "calendar_reset" as const, label: "Calendrier", icon: Calendar },
             { id: "finances_reset" as const, label: "Finances", icon: CreditCard },
-            { id: "pricing" as const, label: "Tarifs saison", icon: CreditCard },
+            { id: "inventaire" as const, label: "Inventaire", icon: Package },
             { id: "documents" as const, label: "Documents", icon: FileText },
             { id: "maintenance" as const, label: "Maintenance", icon: Wrench },
             { id: "config" as const, label: "Configuration", icon: Link2 },
@@ -201,13 +202,17 @@ export default function Admin() {
           </div>
               </>
             )}
+
+            <div className="border-t border-slate-200 pt-8">
+              <SeasonPricingManager />
+            </div>
           </div>
         )}
 
         {tab === "config" && <ConfigIcal />}
         {tab === "maintenance" && <BackofficeOps mode="maintenance" />}
-        {tab === "pricing" && <SeasonPricingManager />}
-        {tab === "documents" && <InventoryManager />}
+        {tab === "inventaire" && <InventoryManager />}
+        {tab === "documents" && <AdminDocumentsManager />}
       </main>
     </div>
   );

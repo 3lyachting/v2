@@ -1,4 +1,6 @@
 export const ENV = {
+  /** URL publique du site (sans slash final), ex. https://sabine-sailing.com — pour les liens iCal / webhooks visibles par des services externes. */
+  publicBaseUrl: (process.env.PUBLIC_BASE_URL ?? "").trim().replace(/\/+$/, ""),
   appId: process.env.VITE_APP_ID ?? "",
   cookieSecret: process.env.JWT_SECRET ?? "",
   databaseUrl: process.env.DATABASE_URL ?? "",

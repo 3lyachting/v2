@@ -189,13 +189,87 @@ router.delete("/maintenance/tasks/:id", async (req, res) => {
   }
 });
 
+type InventorySlot = { id: string; label: string; x: number; y: number };
+type InventoryItem = { id: string; objectName: string; quantity: number; slotId: string; notes?: string };
+type LegacyMarker = { id: string; label?: string; category?: string; notes?: string; x: number; y: number };
+
+function clampPct(n: number): number {
+  if (!Number.isFinite(n)) return 0;
+  return Math.min(100, Math.max(0, n));
+}
+
+/** Lit l’ancien format `markers` ou le format `{ slots, items }`. */
+function normalizeInventoryPayload(raw: unknown): { slots: InventorySlot[]; items: InventoryItem[] } {
+  if (!raw || typeof raw !== "object") return { slots: [], items: [] };
+  const o = raw as Record<string, unknown>;
+  if (Array.isArray(o.slots) && Array.isArray(o.items)) {
+    const slots = (o.slots as unknown[])
+      .map((s) => {
+        if (!s || typeof s !== "object") return null;
+        const r = s as Record<string, unknown>;
+        const id = typeof r.id === "string" ? r.id : "";
+        const label = typeof r.label === "string" ? r.label : "";
+        if (!id || !label) return null;
+        return {
+          id,
+          label,
+          x: clampPct(Number(r.x)),
+          y: clampPct(Number(r.y)),
+        };
+      })
+      .filter(Boolean) as InventorySlot[];
+
+    const slotIds = new Set(slots.map((s) => s.id));
+    const items = (o.items as unknown[])
+      .map((it, idx) => {
+        if (!it || typeof it !== "object") return null;
+        const r = it as Record<string, unknown>;
+        const objectName = typeof r.objectName === "string" ? r.objectName.trim() : "";
+        const slotId = typeof r.slotId === "string" ? r.slotId : "";
+        const qty = Math.max(0, Math.floor(Number(r.quantity)));
+        if (!objectName || !slotId || !slotIds.has(slotId)) return null;
+        const id = typeof r.id === "string" && r.id ? r.id : `item-${idx}-${slotId}`;
+        const notes = typeof r.notes === "string" ? r.notes : "";
+        return { id, objectName, quantity: qty, slotId, notes } as InventoryItem;
+      })
+      .filter(Boolean) as InventoryItem[];
+
+    return { slots, items };
+  }
+
+  if (Array.isArray(o.markers)) {
+    const markers = o.markers as LegacyMarker[];
+    const slots: InventorySlot[] = markers.map((m) => ({
+      id: String(m.id),
+      label: (m.label && String(m.label).trim()) || "Rangement",
+      x: clampPct(Number(m.x)),
+      y: clampPct(Number(m.y)),
+    }));
+    const items: InventoryItem[] = markers.map((m) => ({
+      id: `legacy-${m.id}`,
+      objectName: [m.category, m.label].filter(Boolean).join(" — ").trim() || "Objet",
+      quantity: 1,
+      slotId: String(m.id),
+      notes: m.notes ? String(m.notes) : "",
+    }));
+    return { slots, items };
+  }
+
+  return { slots: [], items: [] };
+}
+
 router.get("/inventory", async (_req, res) => {
   try {
     const db = await getDb();
     if (!db) return res.status(500).json({ error: "Base de données non disponible" });
     const [row] = await db.select().from(config).where(eq(config.cle, INVENTORY_KEY)).limit(1);
-    const parsed = row?.valeur ? JSON.parse(row.valeur) : { markers: [] };
-    return res.json(parsed);
+    let raw: unknown = { slots: [], items: [] };
+    try {
+      raw = row?.valeur ? JSON.parse(row.valeur) : raw;
+    } catch {
+      raw = { slots: [], items: [] };
+    }
+    return res.json(normalizeInventoryPayload(raw));
   } catch (error: any) {
     return res.status(500).json({ error: mapDbError(error, "Erreur lecture inventaire") });
   }
@@ -205,8 +279,8 @@ router.put("/inventory", async (req, res) => {
   try {
     const db = await getDb();
     if (!db) return res.status(500).json({ error: "Base de données non disponible" });
-    const payload = req.body || {};
-    const json = JSON.stringify(payload);
+    const normalized = normalizeInventoryPayload(req.body || {});
+    const json = JSON.stringify(normalized);
     const [existing] = await db.select().from(config).where(eq(config.cle, INVENTORY_KEY)).limit(1);
     if (existing) {
       await db.update(config).set({ valeur: json, updatedAt: new Date() }).where(eq(config.cle, INVENTORY_KEY));
@@ -214,10 +288,10 @@ router.put("/inventory", async (req, res) => {
       await db.insert(config).values({
         cle: INVENTORY_KEY,
         valeur: json,
-        description: "Inventaire bateau avec positionnement sur plan",
+        description: "Inventaire : rangements sur plan + lignes (objet, quantité, emplacement)",
       });
     }
-    return res.json({ success: true });
+    return res.json({ success: true, ...normalized });
   } catch (error: any) {
     return res.status(500).json({ error: mapDbError(error, "Erreur sauvegarde inventaire") });
   }
