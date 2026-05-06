@@ -486,7 +486,9 @@ router.post("/reservations/:id/send-proposal-email", requireAdmin, async (req, r
           "Sabine Sailing",
         ];
 
-    await transporter.sendMail({
+    await transporter.verify();
+
+    const mailInfo = await transporter.sendMail({
       from: smtp.fromEmail,
       to: r.emailClient,
       subject,
@@ -539,14 +541,35 @@ router.post("/reservations/:id/send-proposal-email", requireAdmin, async (req, r
         </div>
       `,
     });
+    const accepted = Array.isArray((mailInfo as any)?.accepted) ? (mailInfo as any).accepted : [];
+    const rejected = Array.isArray((mailInfo as any)?.rejected) ? (mailInfo as any).rejected : [];
+    if (!accepted.length) {
+      throw new Error(`Email non accepté par le serveur SMTP (rejected: ${rejected.join(", ") || "none"})`);
+    }
     console.info("[Workflow][send-proposal-email] Email envoye", {
       reservationId,
       hasSignUrl: Boolean(signUrl),
       hasPaymentUrl: Boolean(paymentUrl),
       dayTrip: isDayTrip,
+      accepted,
+      rejected,
+      messageId: (mailInfo as any)?.messageId || null,
     });
 
-    return res.json({ success: true, quoteUrl, contractUrl, paymentUrl, signUrl, dayTrip: isDayTrip });
+    return res.json({
+      success: true,
+      quoteUrl,
+      contractUrl,
+      paymentUrl,
+      signUrl,
+      dayTrip: isDayTrip,
+      emailDebug: {
+        accepted,
+        rejected,
+        messageId: (mailInfo as any)?.messageId || null,
+        response: String((mailInfo as any)?.response || ""),
+      },
+    });
   } catch (error: any) {
     return res.status(500).json({ error: error?.message || "Erreur envoi email proposition" });
   }
