@@ -26,6 +26,46 @@ function getProvider(): SupportedProvider {
   return "other";
 }
 
+function resolveDocusealSignUrl(payload: any, appUrl: string): string | null {
+  const submitters = Array.isArray(payload?.submitters) ? payload.submitters : [];
+  const firstSubmitter = submitters[0] || null;
+  const directCandidates = [
+    firstSubmitter?.url,
+    firstSubmitter?.link,
+    firstSubmitter?.sign_url,
+    firstSubmitter?.signing_url,
+    payload?.url,
+    payload?.link,
+    payload?.sign_url,
+    payload?.signing_url,
+    payload?.embedded_signing_url,
+    payload?.data?.url,
+    payload?.data?.sign_url,
+    payload?.data?.embedded_signing_url,
+  ]
+    .map((v) => String(v || "").trim())
+    .filter(Boolean);
+
+  for (const candidate of directCandidates) {
+    if (/^https?:\/\//i.test(candidate)) return candidate;
+  }
+
+  const slugCandidates = [
+    firstSubmitter?.slug,
+    payload?.slug,
+    payload?.submission_slug,
+    payload?.data?.slug,
+  ]
+    .map((v) => String(v || "").trim())
+    .filter(Boolean);
+
+  for (const slug of slugCandidates) {
+    if (slug) return `${appUrl}/s/${slug}`;
+  }
+
+  return null;
+}
+
 async function dispatchYousign(input: EsignDispatchInput): Promise<EsignDispatchResult> {
   const apiKey = process.env.ESIGN_YOUSIGN_API_KEY;
   const baseUrl = (process.env.ESIGN_YOUSIGN_BASE_URL || "https://api-sandbox.yousign.app/v3").replace(/\/+$/, "");
@@ -208,17 +248,32 @@ async function dispatchDocuseal(input: EsignDispatchInput): Promise<EsignDispatc
   }
 
   const payload: any = await response.json();
-  const firstSubmitter = Array.isArray(payload?.submitters) ? payload.submitters[0] : null;
-  const directSignUrl = String(firstSubmitter?.url || firstSubmitter?.link || payload?.url || payload?.sign_url || "").trim();
-  const slug = String(firstSubmitter?.slug || "").trim();
-  const fallbackSlugUrl = slug ? `${appUrl}/s/${slug}` : null;
+  const submissionId = String(payload?.id || payload?.submission_id || "").trim();
+  let signUrl = resolveDocusealSignUrl(payload, appUrl);
+
+  if (!signUrl && submissionId) {
+    const lookupResponse = await fetch(`${baseUrl}/submissions/${encodeURIComponent(submissionId)}`, {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "X-Auth-Token": apiKey,
+        "Content-Type": "application/json",
+      },
+    }).catch(() => null);
+    if (lookupResponse?.ok) {
+      const lookupPayload: any = await lookupResponse.json().catch(() => null);
+      signUrl = resolveDocusealSignUrl(lookupPayload, appUrl);
+    }
+  }
+
+  if (!signUrl) {
+    throw new Error("DocuSeal n'a pas retourne de lien de signature exploitable");
+  }
+
   return {
     provider: "docuseal",
-    envelopeId: String(payload?.id || payload?.submission_id || `docuseal-${Date.now()}`),
-    signUrl:
-      (/^https?:\/\//i.test(directSignUrl) ? directSignUrl : null) ||
-      (/^https?:\/\//i.test(String(payload?.embedded_signing_url || "")) ? String(payload.embedded_signing_url) : null) ||
-      fallbackSlugUrl,
+    envelopeId: submissionId || `docuseal-${Date.now()}`,
+    signUrl,
     sentAt: new Date(),
   };
 }
