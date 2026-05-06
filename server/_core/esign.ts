@@ -198,7 +198,7 @@ async function dispatchDocusign(input: EsignDispatchInput): Promise<EsignDispatc
 }
 
 async function dispatchDocuseal(input: EsignDispatchInput): Promise<EsignDispatchResult> {
-  const apiKey = process.env.ESIGN_DOCUSEAL_API_KEY || ENV.eSignDocusealApiKey;
+  const apiKey = String(process.env.ESIGN_DOCUSEAL_API_KEY || ENV.eSignDocusealApiKey || "").trim();
   const baseUrl = (process.env.ESIGN_DOCUSEAL_BASE_URL || ENV.eSignDocusealBaseUrl || "https://api.docuseal.com").replace(/\/+$/, "");
   const appUrl = String(process.env.ESIGN_DOCUSEAL_APP_URL || "https://docuseal.com").replace(/\/+$/, "");
   const role = (process.env.ESIGN_DOCUSEAL_ROLE || ENV.eSignDocusealRole || "").trim();
@@ -214,7 +214,6 @@ async function dispatchDocuseal(input: EsignDispatchInput): Promise<EsignDispatc
   const response = await fetch(`${baseUrl}/submissions/pdf`, {
     method: "POST",
     headers: {
-      Authorization: `Bearer ${apiKey}`,
       "X-Auth-Token": apiKey,
       "Content-Type": "application/json",
     },
@@ -255,7 +254,6 @@ async function dispatchDocuseal(input: EsignDispatchInput): Promise<EsignDispatc
     const lookupResponse = await fetch(`${baseUrl}/submissions/${encodeURIComponent(submissionId)}`, {
       method: "GET",
       headers: {
-        Authorization: `Bearer ${apiKey}`,
         "X-Auth-Token": apiKey,
         "Content-Type": "application/json",
       },
