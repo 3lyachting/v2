@@ -160,11 +160,12 @@ async function dispatchDocusign(input: EsignDispatchInput): Promise<EsignDispatc
 async function dispatchDocuseal(input: EsignDispatchInput): Promise<EsignDispatchResult> {
   const apiKey = process.env.ESIGN_DOCUSEAL_API_KEY || ENV.eSignDocusealApiKey;
   const baseUrl = (process.env.ESIGN_DOCUSEAL_BASE_URL || ENV.eSignDocusealBaseUrl || "https://api.docuseal.com").replace(/\/+$/, "");
+  const appUrl = String(process.env.ESIGN_DOCUSEAL_APP_URL || "https://docuseal.com").replace(/\/+$/, "");
   const templateIdRaw =
     input.templateIdOverride != null
       ? String(input.templateIdOverride)
       : process.env.ESIGN_DOCUSEAL_TEMPLATE_ID || ENV.eSignDocusealTemplateId;
-  const role = (process.env.ESIGN_DOCUSEAL_ROLE || ENV.eSignDocusealRole || "Signer").trim();
+  const role = (process.env.ESIGN_DOCUSEAL_ROLE || ENV.eSignDocusealRole || "").trim();
   const templateId = Number(templateIdRaw);
 
   if (!apiKey) throw new Error("ESIGN_DOCUSEAL_API_KEY manquant");
@@ -176,6 +177,7 @@ async function dispatchDocuseal(input: EsignDispatchInput): Promise<EsignDispatc
     method: "POST",
     headers: {
       Authorization: `Bearer ${apiKey}`,
+      "X-Auth-Token": apiKey,
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
@@ -185,7 +187,7 @@ async function dispatchDocuseal(input: EsignDispatchInput): Promise<EsignDispatc
         {
           name: input.signerName,
           email: input.signerEmail,
-          role,
+          ...(role ? { role } : {}),
         },
       ],
       metadata: {
@@ -204,10 +206,16 @@ async function dispatchDocuseal(input: EsignDispatchInput): Promise<EsignDispatc
 
   const payload: any = await response.json();
   const firstSubmitter = Array.isArray(payload?.submitters) ? payload.submitters[0] : null;
+  const directSignUrl = String(firstSubmitter?.url || firstSubmitter?.link || payload?.url || payload?.sign_url || "").trim();
+  const slug = String(firstSubmitter?.slug || "").trim();
+  const fallbackSlugUrl = slug ? `${appUrl}/s/${slug}` : null;
   return {
     provider: "docuseal",
     envelopeId: String(payload?.id || payload?.submission_id || `docuseal-${Date.now()}`),
-    signUrl: firstSubmitter?.slug ? `${baseUrl}/s/${firstSubmitter.slug}` : payload?.embedded_signing_url || null,
+    signUrl:
+      (/^https?:\/\//i.test(directSignUrl) ? directSignUrl : null) ||
+      (/^https?:\/\//i.test(String(payload?.embedded_signing_url || "")) ? String(payload.embedded_signing_url) : null) ||
+      fallbackSlugUrl,
     sentAt: new Date(),
   };
 }

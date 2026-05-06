@@ -696,15 +696,31 @@ router.put("/:id", requireAdmin, async (req, res) => {
 
     // Mettre à jour la réservation
     const parsedNbPersonnes = nbPersonnes !== undefined ? Math.max(1, parseInt(nbPersonnes)) : existing[0].nbPersonnes;
+    const currentDateDebutIso = new Date(existing[0].dateDebut).toISOString().slice(0, 10);
+    const currentDateFinIso = new Date(existing[0].dateFin).toISOString().slice(0, 10);
+    const nextDateDebutIso = dateDebut !== undefined ? String(dateDebut).slice(0, 10) : currentDateDebutIso;
+    const nextDateFinIso = dateFin !== undefined ? String(dateFin).slice(0, 10) : currentDateFinIso;
+    const nextDisponibiliteId =
+      disponibiliteId !== undefined
+        ? disponibiliteId !== null
+          ? parseInt(disponibiliteId)
+          : null
+        : existing[0].disponibiliteId;
+    const nextDestination = destination !== undefined ? String(destination || "") : String(existing[0].destination || "");
+    const nextFormule = formule !== undefined ? String(formule || "") : String(existing[0].formule || "");
+    const nextTypeReservation =
+      typeReservation !== undefined ? typeReservation : (existing[0].typeReservation as "bateau_entier" | "cabine" | "place");
+    const nextNbCabines = nbCabines !== undefined ? parseInt(nbCabines) : Number(existing[0].nbCabines || 0);
+    const nextNbPersonnes = parsedNbPersonnes;
     const touchesScheduling =
-      dateDebut !== undefined ||
-      dateFin !== undefined ||
-      disponibiliteId !== undefined ||
-      destination !== undefined ||
-      formule !== undefined ||
-      typeReservation !== undefined ||
-      nbCabines !== undefined ||
-      nbPersonnes !== undefined;
+      nextDateDebutIso !== currentDateDebutIso ||
+      nextDateFinIso !== currentDateFinIso ||
+      nextDisponibiliteId !== existing[0].disponibiliteId ||
+      nextDestination !== String(existing[0].destination || "") ||
+      nextFormule !== String(existing[0].formule || "") ||
+      nextTypeReservation !== existing[0].typeReservation ||
+      nextNbCabines !== Number(existing[0].nbCabines || 0) ||
+      nextNbPersonnes !== Number(existing[0].nbPersonnes || 0);
 
     const resolvedDisponibiliteId = touchesScheduling
       ? await resolveDisponibiliteIdForReservation(db, {
