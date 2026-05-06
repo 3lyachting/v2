@@ -78,7 +78,8 @@ function toYmdUtc(value: unknown): string | null {
   return parsed.toISOString().slice(0, 10);
 }
 
-async function isAdminRequest(req: import("express").Request) {
+/** Admin ou compte consultation (viewer) : peut lister les créneaux inactifs pour le backoffice. */
+async function isBackofficeCharterReader(req: import("express").Request) {
   const bypass =
     process.env.NODE_ENV === "development" && process.env.ADMIN_AUTH_BYPASS === "true";
   if (bypass) {
@@ -86,7 +87,8 @@ async function isAdminRequest(req: import("express").Request) {
   }
   try {
     const user = await sdk.authenticateRequest(req);
-    return user.role === "admin";
+    const role = String((user as any).role || "");
+    return role === "admin" || role === "viewer";
   } catch {
     return false;
   }
@@ -97,8 +99,8 @@ router.get("/", async (req, res) => {
   try {
     const includeInactive = String(req.query.includeInactive || "") === "1";
     if (includeInactive) {
-      const admin = await isAdminRequest(req);
-      if (!admin) {
+      const allowed = await isBackofficeCharterReader(req);
+      if (!allowed) {
         return res.status(403).json({ error: "Droits insuffisants" });
       }
     }
