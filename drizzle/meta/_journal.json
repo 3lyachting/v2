@@ -57,6 +57,13 @@
       "when": 1778085000000,
       "tag": "0007_ensure_backoffice_local_accounts",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1778086000000,
+      "tag": "0008_backoffice_local_accounts_rls_off",
+      "breakpoints": true
     }
   ]
 }

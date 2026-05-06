@@ -16,6 +16,15 @@ function normalizeEmail(value: unknown): string {
   return String(value || "").trim().toLowerCase();
 }
 
+function unwrapPgError(error: unknown): { code?: string; message: string; detail?: string } {
+  const e: any = (error as any)?.cause ?? error;
+  return {
+    code: typeof e?.code === "string" ? e.code : undefined,
+    message: String(e?.message || (error as any)?.message || error || "Erreur SQL"),
+    detail: typeof e?.detail === "string" ? e.detail : undefined,
+  };
+}
+
 router.get("/overview", requireAdminExclusive, async (_req, res) => {
   try {
     const db = await getDb();
@@ -142,6 +151,30 @@ router.post("/local-backoffice-account", requireAdminExclusive, async (req, res)
     const db = await getDb();
     if (!db) return res.status(500).json({ error: "Base de données non disponible" });
 
+    const adminEnv = normalizeEmail(process.env.ADMIN_EMAIL);
+    const viewerEnv = normalizeEmail(process.env.BACKOFFICE_VIEWER_EMAIL);
+    if (adminEnv && email === adminEnv) {
+      return res.status(409).json({
+        error:
+          "Cet email est celui du compte principal (.env). Utilisez un autre email pour un compte créé en base, ou connectez-vous avec ce compte .env.",
+      });
+    }
+    if (viewerEnv && email === viewerEnv) {
+      return res.status(409).json({
+        error:
+          "Cet email est celui du compte consultation (.env). Utilisez un autre email pour un compte créé en base.",
+      });
+    }
+
+    const existingLocal = await db
+      .select({ id: backofficeLocalAccounts.id })
+      .from(backofficeLocalAccounts)
+      .where(eq(backofficeLocalAccounts.email, email))
+      .limit(1);
+    if (existingLocal.length) {
+      return res.status(409).json({ error: "Un compte backoffice avec cet email existe déjà en base." });
+    }
+
     const hash = await hashAdminPassword(passwordStr);
     const inserted = await db
       .insert(backofficeLocalAccounts)
@@ -150,16 +183,27 @@ router.post("/local-backoffice-account", requireAdminExclusive, async (req, res)
 
     return res.json({ success: true, id: inserted[0]?.id });
   } catch (error: any) {
-    const msg = String(error?.message || "");
-    if (msg.includes("unique") || msg.includes("duplicate")) {
+    const pg = unwrapPgError(error);
+    const msg = `${pg.message} ${pg.detail || ""}`.toLowerCase();
+    if (pg.code === "23505" || msg.includes("unique") || msg.includes("duplicate")) {
       return res.status(409).json({ error: "Un compte avec cet email existe déjà" });
     }
-    if (error?.code === "42P01" || msg.toLowerCase().includes("does not exist")) {
+    if (pg.code === "42P01" || msg.includes("does not exist")) {
       return res.status(503).json({
         error: "Table SQL manquante : sur le serveur, exécutez npm run db:migrate puis redémarrez.",
       });
     }
-    return res.status(500).json({ error: error?.message || "Erreur création compte backoffice" });
+    if (pg.code === "42501" || msg.includes("permission denied")) {
+      return res.status(503).json({
+        error:
+          "Permission PostgreSQL refusée (table ou séquence). Vérifiez que DATABASE_URL utilise le rôle « postgres » / service du projet, puis exécutez npm run db:migrate.",
+        detail: pg.detail || pg.message,
+      });
+    }
+    console.error("[backoffice-users] insert local account:", pg.code, pg.message, pg.detail || "");
+    return res.status(500).json({
+      error: pg.detail ? `${pg.message} (${pg.detail})` : pg.message,
+    });
   }
 });
 
