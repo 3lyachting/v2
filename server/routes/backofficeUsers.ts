@@ -26,7 +26,17 @@ router.get("/overview", requireAdminExclusive, async (_req, res) => {
 
     const oauthAdmins = await db.select().from(users).where(eq(users.role, "admin"));
 
-    const localRows = await db.select().from(backofficeLocalAccounts);
+    let localRows: (typeof backofficeLocalAccounts.$inferSelect)[] = [];
+    let backofficeLocalAccountsReady = false;
+    try {
+      localRows = await db.select().from(backofficeLocalAccounts);
+      backofficeLocalAccountsReady = true;
+    } catch (e) {
+      console.warn(
+        "[backoffice-users] backoffice_local_accounts :",
+        (e as Error)?.message || e,
+      );
+    }
 
     const customerRows = await db
       .select({
@@ -98,7 +108,11 @@ router.get("/overview", requireAdminExclusive, async (_req, res) => {
       createdAt: c.createdAt,
     }));
 
-    return res.json({ admins, customers: customersOut });
+    return res.json({
+      admins,
+      customers: customersOut,
+      backofficeLocalAccountsReady,
+    });
   } catch (error: any) {
     return res.status(500).json({ error: error?.message || "Erreur chargement des comptes" });
   }
@@ -139,6 +153,11 @@ router.post("/local-backoffice-account", requireAdminExclusive, async (req, res)
     const msg = String(error?.message || "");
     if (msg.includes("unique") || msg.includes("duplicate")) {
       return res.status(409).json({ error: "Un compte avec cet email existe déjà" });
+    }
+    if (error?.code === "42P01" || msg.toLowerCase().includes("does not exist")) {
+      return res.status(503).json({
+        error: "Table SQL manquante : sur le serveur, exécutez npm run db:migrate puis redémarrez.",
+      });
     }
     return res.status(500).json({ error: error?.message || "Erreur création compte backoffice" });
   }

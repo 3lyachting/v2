@@ -45,6 +45,7 @@ export default function BackofficeAccountsPanel() {
   const [admins, setAdmins] = useState<AdminRow[]>([]);
   const [customers, setCustomers] = useState<CustomerRow[]>([]);
   const [message, setMessage] = useState("");
+  const [migrationNeeded, setMigrationNeeded] = useState(false);
 
   const [boEmail, setBoEmail] = useState("");
   const [boPassword, setBoPassword] = useState("");
@@ -60,11 +61,13 @@ export default function BackofficeAccountsPanel() {
     try {
       setLoading(true);
       setError(null);
+      setMigrationNeeded(false);
       const res = await fetch("/api/backoffice-users/overview", { credentials: "include" });
       const payload = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(payload?.error || "Chargement impossible");
       setAdmins(Array.isArray(payload.admins) ? payload.admins : []);
       setCustomers(Array.isArray(payload.customers) ? payload.customers : []);
+      setMigrationNeeded(payload.backofficeLocalAccountsReady === false);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Erreur");
     } finally {
@@ -87,6 +90,13 @@ export default function BackofficeAccountsPanel() {
 
       {error && (
         <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">{error}</div>
+      )}
+      {migrationNeeded && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          La table des comptes backoffice créés depuis l’admin est absente sur cette base. Sur le serveur, après{" "}
+          <code className="rounded bg-amber-100 px-1">git pull</code>, exécutez{" "}
+          <code className="rounded bg-amber-100 px-1">npm run db:migrate</code> puis redémarrez l’application.
+        </div>
       )}
       {message && <p className="text-sm text-slate-600">{message}</p>}
 

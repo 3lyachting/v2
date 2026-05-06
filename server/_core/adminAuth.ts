@@ -84,18 +84,25 @@ export function registerAdminAuthRoutes(app: Express) {
       if (!sessionOpenId) {
         const db = await getDb();
         if (db) {
-          const rows = await db
-            .select()
-            .from(backofficeLocalAccounts)
-            .where(eq(backofficeLocalAccounts.email, email))
-            .limit(1);
-          const acc = rows[0];
-          if (acc?.passwordHash) {
-            const ok = await verifyScryptPassword(password, acc.passwordHash);
-            if (ok) {
-              sessionOpenId = `backoffice-local:${acc.id}`;
-              sessionName = acc.email;
+          try {
+            const rows = await db
+              .select()
+              .from(backofficeLocalAccounts)
+              .where(eq(backofficeLocalAccounts.email, email))
+              .limit(1);
+            const acc = rows[0];
+            if (acc?.passwordHash) {
+              const ok = await verifyScryptPassword(password, acc.passwordHash);
+              if (ok) {
+                sessionOpenId = `backoffice-local:${acc.id}`;
+                sessionName = acc.email;
+              }
             }
+          } catch (e) {
+            console.warn(
+              "[adminAuth] backoffice_local_accounts indisponible (migration SQL à appliquer ?):",
+              (e as Error)?.message || e,
+            );
           }
         }
       }

@@ -299,12 +299,23 @@ class SDKServer {
       if (!poolDb) {
         throw ForbiddenError("Database unavailable");
       }
-      const rows = await poolDb
-        .select()
-        .from(backofficeLocalAccounts)
-        .where(eq(backofficeLocalAccounts.id, accId))
-        .limit(1);
-      const acc = rows[0];
+      let acc: (typeof backofficeLocalAccounts.$inferSelect) | undefined;
+      try {
+        const rows = await poolDb
+          .select()
+          .from(backofficeLocalAccounts)
+          .where(eq(backofficeLocalAccounts.id, accId))
+          .limit(1);
+        acc = rows[0];
+      } catch (e) {
+        console.error(
+          "[Auth] backoffice_local_accounts :",
+          (e as Error)?.message || e,
+        );
+        throw ForbiddenError(
+          "Compte backoffice indisponible : exécutez les migrations SQL (npm run db:migrate).",
+        );
+      }
       if (!acc) {
         throw ForbiddenError("Account not found");
       }
