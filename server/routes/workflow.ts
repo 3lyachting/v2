@@ -273,7 +273,8 @@ router.post("/reservations/:id/send-contract", requireAdmin, async (req, res) =>
       return res.status(400).json({ error: "Contrat sans fichier PDF." });
     }
 
-    const proposalUrl = await storageGetSignedUrl(contract.pdfStorageKey).catch(() => null);
+    const proposalUrlRaw = await storageGetSignedUrl(contract.pdfStorageKey).catch(() => null);
+    const proposalUrl = toAbsoluteUrl(req, proposalUrlRaw);
     const sentAt = new Date();
     const signerName = `${String(r.prenomClient || "").trim()} ${String(r.nomClient || "").trim()}`.trim() || String(r.nomClient || "Client");
     const canUseEsign =
