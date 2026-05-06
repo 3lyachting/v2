@@ -267,31 +267,42 @@ router.post("/reservations/:id/send-contract", requireAdmin, async (req, res) =>
     let esignProvider: "yousign" | "docusign" | "other" = "other";
     let esignEnvelopeId: string | null = null;
     let signUrl: string | null = null;
+    let esignWarning: string | null = null;
 
     if (canUseEsign) {
       const publicBase = String(ENV.publicBaseUrl || `${req.protocol}://${req.get("host")}`).replace(/\/+$/, "");
       const webhookUrl = `${publicBase}/api/workflow/esign/webhook`;
-      const dispatchResult = await dispatchEsign({
-        contractNumber: contract.contractNumber,
-        signerName,
-        signerEmail: String(r.emailClient),
-        contractDownloadUrl: String(proposalUrl),
-        webhookUrl,
-      });
-      esignProvider = toDbEsignProvider(dispatchResult.provider);
-      esignEnvelopeId = dispatchResult.envelopeId || null;
-      signUrl = dispatchResult.signUrl || null;
-      await db.insert(esignEvents).values({
-        contractId: contract.id,
-        provider: esignProvider,
-        eventType: "sent",
-        payload: JSON.stringify({
-          sourceProvider: dispatchResult.provider,
-          envelopeId: dispatchResult.envelopeId,
-          signUrl: dispatchResult.signUrl,
-          sentAt: dispatchResult.sentAt,
-        }),
-      });
+      try {
+        const dispatchResult = await dispatchEsign({
+          contractNumber: contract.contractNumber,
+          signerName,
+          signerEmail: String(r.emailClient),
+          contractDownloadUrl: String(proposalUrl),
+          webhookUrl,
+        });
+        esignProvider = toDbEsignProvider(dispatchResult.provider);
+        esignEnvelopeId = dispatchResult.envelopeId || null;
+        signUrl = dispatchResult.signUrl || null;
+        await db.insert(esignEvents).values({
+          contractId: contract.id,
+          provider: esignProvider,
+          eventType: "sent",
+          payload: JSON.stringify({
+            sourceProvider: dispatchResult.provider,
+            envelopeId: dispatchResult.envelopeId,
+            signUrl: dispatchResult.signUrl,
+            sentAt: dispatchResult.sentAt,
+          }),
+        });
+      } catch (esignError: any) {
+        esignWarning = esignError?.message || "E-sign indisponible";
+        await db.insert(esignEvents).values({
+          contractId: contract.id,
+          provider: "other",
+          eventType: "dispatch_failed",
+          payload: JSON.stringify({ message: esignWarning }),
+        });
+      }
     }
 
     await db
@@ -321,9 +332,12 @@ router.post("/reservations/:id/send-contract", requireAdmin, async (req, res) =>
       fromStatut: r.workflowStatut,
       toStatut: "contrat_envoye",
       actorType: "admin",
-      note: canUseEsign
-        ? "Contrat envoyé pour signature électronique (DocuSeal/e-sign)."
-        : "Proposition PDF (devis + contrat) envoyée au client.",
+      note:
+        canUseEsign && !esignWarning
+          ? "Contrat envoyé pour signature électronique (DocuSeal/e-sign)."
+          : canUseEsign && esignWarning
+            ? `E-sign indisponible (${esignWarning}). Envoi du contrat sans signature électronique.`
+            : "Proposition PDF (devis + contrat) envoyée au client.",
     });
 
     return res.json({
@@ -331,6 +345,7 @@ router.post("/reservations/:id/send-contract", requireAdmin, async (req, res) =>
       proposalUrl,
       signUrl,
       esignEnvelopeId,
+      esignWarning,
     });
   } catch (error: any) {
     return res.status(500).json({ error: error?.message || "Erreur envoi contrat" });
