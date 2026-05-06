@@ -219,6 +219,7 @@ async function dispatchDocuseal(input: EsignDispatchInput): Promise<EsignDispatc
     },
     body: JSON.stringify({
       name: `Contrat ${input.contractNumber}`,
+      send_email: false,
       documents: [
         {
           name: `Contrat-${input.contractNumber}.pdf`,
