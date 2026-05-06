@@ -386,10 +386,11 @@ export async function buildContractPdf(r: Reservation, contractNumber: string) {
     const addressLine = sanitizePdfText(String(r.destination || "A completer"));
     const phone = sanitizePdfText(String(r.telClient || "-"));
     const email = sanitizePdfText(String(r.emailClient || "-"));
+    const embarkDateTime = `${datePrestation} a ${embarkHour}`;
+    const disembarkDateTime = `${datePrestation} a ${disembarkHour}`;
 
     // Mode "contrat journée" : remplir les lignes prévues dans le modèle.
     const page1 = pages[0];
-    const page2 = pages[1] || pages[0];
     const page5 = pages[4] || pages[pages.length - 1];
     const textColor = rgb(0.08, 0.08, 0.08);
     const drawAt = (
@@ -409,22 +410,28 @@ export async function buildContractPdf(r: Reservation, contractNumber: string) {
       });
     };
 
-    // Page 1 - Identité client
-    drawAt(page1, fullName, 190, 565);
-    drawAt(page1, addressLine, 122, 545);
-    drawAt(page1, phone, 138, 525);
-    drawAt(page1, email, 98, 505);
-    drawAt(page1, contractNumber, 420, 760, 8.5);
-
-    // Page 2 - Date / horaires / tarif / acompte
-    drawAt(page2, datePrestation, 175, 696);
-    drawAt(page2, "La Ciotat", 175, 676);
-    drawAt(page2, embarkHour, 205, 637);
-    drawAt(page2, disembarkHour, 205, 598);
-    drawAt(page2, `${durationHours}`, 155, 560);
-    // Prix total TTC sur la ligne de l'article 3.
-    drawAt(page2, totalTtc, 320, 446, 12, true);
-    drawAt(page2, acompteText, 300, 261, 11, true);
+    // Page 1 - Encadré d'informations (toutes les données de réservation).
+    const leftX = 72;
+    const valueX = 245;
+    let y = 455;
+    const rowGap = 20;
+    const drawRow = (label: string, value: string) => {
+      drawAt(page1, `${label}:`, leftX, y, 10, true);
+      drawAt(page1, value, valueX, y, 10, false);
+      y -= rowGap;
+    };
+    drawAt(page1, `Reference dossier: ${contractNumber}`, leftX, y + 18, 9, false);
+    drawRow("Nom et prenom", fullName);
+    drawRow("Telephone", phone);
+    drawRow("Email", email);
+    drawRow("Port / zone", "La Ciotat");
+    drawRow("Destination", addressLine);
+    drawRow("Embarquement", embarkDateTime);
+    drawRow("Debarquement", disembarkDateTime);
+    drawRow("Duree estimee", `${durationHours} h`);
+    drawRow("Tarif total TTC", totalTtc);
+    drawRow("Acompte (50%)", acompteText);
+    drawRow("Reglement", `Virement - IBAN ${BANK_DETAILS.iban}`);
 
     // Page 5 - Signatures
     drawAt(page5, "La Ciotat", 95, 214);

@@ -5,6 +5,7 @@ import { getDb } from "../db";
 import { storagePut } from "../storage";
 import { requireAdmin } from "../_core/authz";
 import { ENV } from "../_core/env";
+import { dispatchEsign } from "../_core/esign";
 import {
   contracts,
   disponibilites,
@@ -64,6 +65,12 @@ function getSmtpConfig() {
   const port = Number(process.env.SMTP_PORT || 587);
   const secure = process.env.SMTP_SECURE === "true";
   return { host, user, pass, fromEmail, port, secure };
+}
+
+function toDbEsignProvider(provider: string): "yousign" | "docusign" | "other" {
+  if (provider === "yousign" || provider === "docusign") return provider;
+  // Schéma actuel: enum DB ne contient pas "docuseal".
+  return "other";
 }
 
 type MolliePaymentLookup = {
@@ -250,14 +257,48 @@ router.post("/reservations/:id/send-contract", requireAdmin, async (req, res) =>
       return res.status(400).json({ error: "Contrat sans fichier PDF." });
     }
 
-    const sentAt = new Date();
     const proposalUrl = await storageGetSignedUrl(contract.pdfStorageKey).catch(() => null);
+    const sentAt = new Date();
+    const signerName = `${String(r.prenomClient || "").trim()} ${String(r.nomClient || "").trim()}`.trim() || String(r.nomClient || "Client");
+    const canUseEsign =
+      String(ENV.eSignProvider || "other").toLowerCase() !== "other" &&
+      Boolean(proposalUrl) &&
+      Boolean(r.emailClient);
+    let esignProvider: "yousign" | "docusign" | "other" = "other";
+    let esignEnvelopeId: string | null = null;
+    let signUrl: string | null = null;
+
+    if (canUseEsign) {
+      const publicBase = String(ENV.publicBaseUrl || `${req.protocol}://${req.get("host")}`).replace(/\/+$/, "");
+      const webhookUrl = `${publicBase}/api/workflow/esign/webhook`;
+      const dispatchResult = await dispatchEsign({
+        contractNumber: contract.contractNumber,
+        signerName,
+        signerEmail: String(r.emailClient),
+        contractDownloadUrl: String(proposalUrl),
+        webhookUrl,
+      });
+      esignProvider = toDbEsignProvider(dispatchResult.provider);
+      esignEnvelopeId = dispatchResult.envelopeId || null;
+      signUrl = dispatchResult.signUrl || null;
+      await db.insert(esignEvents).values({
+        contractId: contract.id,
+        provider: esignProvider,
+        eventType: "sent",
+        payload: JSON.stringify({
+          sourceProvider: dispatchResult.provider,
+          envelopeId: dispatchResult.envelopeId,
+          signUrl: dispatchResult.signUrl,
+          sentAt: dispatchResult.sentAt,
+        }),
+      });
+    }
 
     await db
       .update(contracts)
       .set({
-        esignProvider: "other",
-        esignEnvelopeId: null,
+        esignProvider,
+        esignEnvelopeId,
         sentAt,
       })
       .where(eq(contracts.id, contract.id));
@@ -280,12 +321,16 @@ router.post("/reservations/:id/send-contract", requireAdmin, async (req, res) =>
       fromStatut: r.workflowStatut,
       toStatut: "contrat_envoye",
       actorType: "admin",
-      note: "Proposition PDF (devis + contrat) envoyée au client.",
+      note: canUseEsign
+        ? "Contrat envoyé pour signature électronique (DocuSeal/e-sign)."
+        : "Proposition PDF (devis + contrat) envoyée au client.",
     });
 
     return res.json({
       success: true,
       proposalUrl,
+      signUrl,
+      esignEnvelopeId,
     });
   } catch (error: any) {
     return res.status(500).json({ error: error?.message || "Erreur envoi contrat" });
@@ -693,10 +738,89 @@ router.get("/reservations/:id/documents", requireAdmin, async (req, res) => {
   }
 });
 
-// Webhook conservé en no-op pour compatibilité (e-sign désactivé)
 router.post("/esign/webhook", async (req, res) => {
-  void req;
-  return res.json({ success: true, ignored: true });
+  try {
+    const db = await getDb();
+    if (!db) return res.status(500).json({ error: "Base de données non disponible" });
+    const payload: any = req.body || {};
+    const eventType = String(
+      payload?.event_type ||
+        payload?.eventType ||
+        payload?.type ||
+        payload?.event ||
+        payload?.name ||
+        "unknown"
+    );
+    const envelopeId = String(
+      payload?.submission_id ||
+        payload?.submissionId ||
+        payload?.id ||
+        payload?.data?.submission_id ||
+        payload?.data?.submissionId ||
+        payload?.data?.id ||
+        payload?.submission?.id ||
+        ""
+    ).trim();
+
+    if (!envelopeId) {
+      return res.json({ success: true, ignored: true, reason: "missing-envelope-id" });
+    }
+
+    const matchingContracts = await db.select().from(contracts).where(eq(contracts.esignEnvelopeId, envelopeId)).limit(1);
+    if (!matchingContracts.length) {
+      return res.json({ success: true, ignored: true, reason: "contract-not-found" });
+    }
+    const contract = matchingContracts[0];
+
+    await db.insert(esignEvents).values({
+      contractId: contract.id,
+      provider: "other",
+      eventType,
+      payload: JSON.stringify(payload),
+    });
+
+    const statusToken = String(
+      payload?.status ||
+        payload?.data?.status ||
+        payload?.submission?.status ||
+        payload?.data?.submission?.status ||
+        ""
+    ).toLowerCase();
+    const isSignedEvent =
+      /complete|completed|signed|done|finish/.test(eventType.toLowerCase()) ||
+      /complete|completed|signed|done|finish/.test(statusToken);
+
+    if (isSignedEvent) {
+      await db
+        .update(contracts)
+        .set({ signedAt: new Date() })
+        .where(eq(contracts.id, contract.id));
+
+      const reservationList = await listReservationsByIdSafe(db, contract.reservationId);
+      const reservation = reservationList[0];
+      if (reservation) {
+        await db
+          .update(reservations)
+          .set({
+            workflowStatut: "contrat_signe",
+            updatedAt: new Date(),
+          })
+          .where(eq(reservations.id, reservation.id));
+
+        await db.insert(reservationStatusHistory).values({
+          reservationId: reservation.id,
+          fromStatut: reservation.workflowStatut,
+          toStatut: "contrat_signe",
+          actorType: "system",
+          note: `Contrat signé via webhook e-sign (${eventType}).`,
+        });
+      }
+    }
+
+    return res.json({ success: true });
+  } catch (error: any) {
+    return res.status(500).json({ error: error?.message || "Erreur webhook e-sign" });
+  }
 });
 
 export default router;
