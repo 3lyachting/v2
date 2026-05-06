@@ -9,6 +9,7 @@ export type EsignDispatchInput = {
   signerEmail: string;
   contractDownloadUrl: string;
   webhookUrl: string;
+  isDayTrip?: boolean;
   templateIdOverride?: number | null;
   additionalDocuments?: Array<{ name: string; downloadUrl: string }>;
 };
@@ -67,25 +68,53 @@ function resolveDocusealSignUrl(payload: any, appUrl: string): string | null {
   return null;
 }
 
-function buildDocusealPdfFields(pageCount: number, signerRole: string) {
+function buildDocusealPdfFields(pageCount: number, signerRole: string, isDayTrip: boolean) {
   const safePages = Math.max(1, pageCount);
   const fields: any[] = [];
+  const signatureArea = isDayTrip
+    ? { page: safePages, x: 0.16, y: 0.52, w: 0.22, h: 0.04 }
+    : { page: safePages, x: 0.33, y: 0.84, w: 0.18, h: 0.03 };
+  const placeArea = isDayTrip
+    ? { page: safePages, x: 0.07, y: 0.32, w: 0.16, h: 0.028 }
+    : { page: safePages, x: 0.18, y: 0.79, w: 0.14, h: 0.026 };
+  const dateArea = isDayTrip
+    ? { page: safePages, x: 0.27, y: 0.32, w: 0.16, h: 0.028 }
+    : { page: safePages, x: 0.52, y: 0.79, w: 0.14, h: 0.026 };
+  const mentionArea = isDayTrip
+    ? { page: safePages, x: 0.13, y: 0.44, w: 0.32, h: 0.03 }
+    : { page: safePages, x: 0.10, y: 0.82, w: 0.22, h: 0.026 };
 
-  // Signature client sur la dernière page, dans la zone "Bon pour accord client".
+  fields.push({
+    name: "Lieu",
+    type: "text",
+    role: signerRole,
+    required: true,
+    default_value: "La Ciotat",
+    areas: [placeArea],
+  });
+  fields.push({
+    name: "Date Signature",
+    type: "date",
+    role: signerRole,
+    required: true,
+    areas: [dateArea],
+  });
+  fields.push({
+    name: "Lu et approuvé",
+    type: "text",
+    role: signerRole,
+    required: true,
+    default_value: "Lu et approuvé",
+    areas: [mentionArea],
+  });
+
+  // Signature client sur la dernière page.
   fields.push({
     name: "Signature Client",
     type: "signature",
     role: signerRole,
     required: true,
-    areas: [
-      {
-        page: safePages,
-        x: 0.33,
-        y: 0.84,
-        w: 0.18,
-        h: 0.03,
-      },
-    ],
+    areas: [signatureArea],
   });
 
   // Paraphe en bas à droite de chaque page.
@@ -257,7 +286,7 @@ async function dispatchDocuseal(input: EsignDispatchInput): Promise<EsignDispatc
   const contractBase64 = contractBytes.toString("base64");
   const contractPdf = await PDFDocument.load(contractBytes);
   const contractPageCount = contractPdf.getPageCount();
-  const fields = buildDocusealPdfFields(contractPageCount, signerRole);
+  const fields = buildDocusealPdfFields(contractPageCount, signerRole, Boolean(input.isDayTrip));
 
   const response = await fetch(`${baseUrl}/submissions/pdf`, {
     method: "POST",
@@ -280,6 +309,10 @@ async function dispatchDocuseal(input: EsignDispatchInput): Promise<EsignDispatc
           name: input.signerName,
           email: input.signerEmail,
           role: signerRole,
+          values: {
+            Lieu: "La Ciotat",
+            "Lu et approuvé": "Lu et approuvé",
+          },
         },
       ],
       metadata: {

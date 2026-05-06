@@ -308,6 +308,7 @@ router.post("/reservations/:id/send-contract", requireAdmin, async (req, res) =>
           signerEmail: String(r.emailClient),
           contractDownloadUrl: String(proposalUrl),
           webhookUrl,
+          isDayTrip: isDayReservation(r),
         });
         esignProvider = toDbEsignProvider(dispatchResult.provider);
         esignEnvelopeId = dispatchResult.envelopeId || null;
