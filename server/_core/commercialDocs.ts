@@ -110,6 +110,10 @@ function resolveDayContractTemplatePath(): string | null {
     path.resolve(process.cwd(), "public", "docs", "day-charter-template.pdf"),
     path.resolve(process.cwd(), "dist", "public", "docs", "day charter template.pdf"),
     path.resolve(process.cwd(), "dist", "public", "docs", "day-charter-template.pdf"),
+    path.resolve(process.cwd(), "..", "public", "docs", "day charter template.pdf"),
+    path.resolve(process.cwd(), "..", "public", "docs", "day-charter-template.pdf"),
+    path.resolve(process.cwd(), "..", "dist", "public", "docs", "day charter template.pdf"),
+    path.resolve(process.cwd(), "..", "dist", "public", "docs", "day-charter-template.pdf"),
     path.resolve(process.cwd(), "client", "public", "docs", "day charter template.pdf"),
     path.resolve(process.cwd(), "client", "public", "docs", "day-charter-template.pdf"),
     path.resolve(process.cwd(), "dist", "public", "docs", "contrat-journee.pdf"),
@@ -309,8 +313,15 @@ export async function buildQuotePdf(r: Reservation, quoteNumber: string, optionE
 
 export async function buildContractPdf(r: Reservation, contractNumber: string) {
   const isDayTrip = isDayTripReservation(r);
-  const templatePath = isDayTrip ? resolveDayContractTemplatePath() || resolveContractTemplatePath() : resolveContractTemplatePath();
+  const dayTemplatePath = isDayTrip ? resolveDayContractTemplatePath() : null;
+  const weekTemplatePath = resolveContractTemplatePath();
+  const templatePath = isDayTrip ? dayTemplatePath : weekTemplatePath;
   if (!templatePath) {
+    if (isDayTrip) {
+      throw new Error(
+        "[DAY_CONTRACT_TEMPLATE_REQUIRED] Modèle contrat journée introuvable. Ajoutez CONTRACT_TEMPLATE_DAY_PATH ou placez day-charter-template.pdf dans public/docs ou dist/public/docs.",
+      );
+    }
     throw new Error(
       "[CONTRACT_TEMPLATE_REQUIRED] Modèle contrat introuvable. Ajoutez CONTRACT_TEMPLATE_PATH dans .env vers votre PDF modèle.",
     );
