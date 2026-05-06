@@ -161,19 +161,17 @@ async function dispatchDocuseal(input: EsignDispatchInput): Promise<EsignDispatc
   const apiKey = process.env.ESIGN_DOCUSEAL_API_KEY || ENV.eSignDocusealApiKey;
   const baseUrl = (process.env.ESIGN_DOCUSEAL_BASE_URL || ENV.eSignDocusealBaseUrl || "https://api.docuseal.com").replace(/\/+$/, "");
   const appUrl = String(process.env.ESIGN_DOCUSEAL_APP_URL || "https://docuseal.com").replace(/\/+$/, "");
-  const templateIdRaw =
-    input.templateIdOverride != null
-      ? String(input.templateIdOverride)
-      : process.env.ESIGN_DOCUSEAL_TEMPLATE_ID || ENV.eSignDocusealTemplateId;
   const role = (process.env.ESIGN_DOCUSEAL_ROLE || ENV.eSignDocusealRole || "").trim();
-  const templateId = Number(templateIdRaw);
 
   if (!apiKey) throw new Error("ESIGN_DOCUSEAL_API_KEY manquant");
-  if (!Number.isFinite(templateId) || templateId <= 0) {
-    throw new Error("ESIGN_DOCUSEAL_TEMPLATE_ID invalide (entier > 0 requis)");
+  const contractResp = await fetch(input.contractDownloadUrl);
+  if (!contractResp.ok) {
+    throw new Error(`Impossible de charger le PDF contrat (${contractResp.status})`);
   }
+  const contractBytes = Buffer.from(await contractResp.arrayBuffer());
+  const contractBase64 = contractBytes.toString("base64");
 
-  const response = await fetch(`${baseUrl}/submissions`, {
+  const response = await fetch(`${baseUrl}/submissions/pdf`, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${apiKey}`,
@@ -181,8 +179,13 @@ async function dispatchDocuseal(input: EsignDispatchInput): Promise<EsignDispatc
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      template_id: templateId,
-      send_email: true,
+      name: `Contrat ${input.contractNumber}`,
+      documents: [
+        {
+          name: `Contrat-${input.contractNumber}.pdf`,
+          file: contractBase64,
+        },
+      ],
       submitters: [
         {
           name: input.signerName,

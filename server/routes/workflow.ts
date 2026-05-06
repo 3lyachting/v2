@@ -46,15 +46,6 @@ function isDayReservation(reservation: any): boolean {
   );
 }
 
-function resolveDocusealTemplateIdForReservation(reservation: any): number | null {
-  const isDayTrip = isDayReservation(reservation);
-  const raw = isDayTrip
-    ? (process.env.ESIGN_DOCUSEAL_TEMPLATE_ID_DAY || ENV.eSignDocusealTemplateIdDay || process.env.ESIGN_DOCUSEAL_TEMPLATE_ID || ENV.eSignDocusealTemplateId)
-    : (process.env.ESIGN_DOCUSEAL_TEMPLATE_ID_WEEK || ENV.eSignDocusealTemplateIdWeek || process.env.ESIGN_DOCUSEAL_TEMPLATE_ID || ENV.eSignDocusealTemplateId);
-  const parsed = Number(String(raw || "").trim());
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
-}
-
 function toAbsoluteUrl(req: any, rawUrl: string | null | undefined): string | null {
   const value = String(rawUrl || "").trim();
   if (!value) return null;
@@ -298,11 +289,9 @@ router.post("/reservations/:id/send-contract", requireAdmin, async (req, res) =>
       const publicBase = String(ENV.publicBaseUrl || `${req.protocol}://${req.get("host")}`).replace(/\/+$/, "");
       const webhookUrl = `${publicBase}/api/workflow/esign/webhook`;
       const providerName = String(ENV.eSignProvider || "").toLowerCase();
-      const templateIdOverride = providerName === "docuseal" ? resolveDocusealTemplateIdForReservation(r) : null;
       console.info("[Workflow][send-contract] E-sign dispatch", {
         reservationId,
         provider: providerName || "other",
-        templateIdOverride,
       });
       try {
         const dispatchResult = await dispatchEsign({
@@ -311,7 +300,6 @@ router.post("/reservations/:id/send-contract", requireAdmin, async (req, res) =>
           signerEmail: String(r.emailClient),
           contractDownloadUrl: String(proposalUrl),
           webhookUrl,
-          templateIdOverride,
         });
         esignProvider = toDbEsignProvider(dispatchResult.provider);
         esignEnvelopeId = dispatchResult.envelopeId || null;
