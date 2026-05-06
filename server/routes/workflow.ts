@@ -372,6 +372,8 @@ router.post("/reservations/:id/send-proposal-email", requireAdmin, async (req, r
     const contractUrlRaw = latestContract?.pdfStorageKey ? await storageGetSignedUrl(latestContract.pdfStorageKey).catch(() => null) : null;
     const quoteUrl = toAbsoluteUrl(req, quoteUrlRaw);
     const contractUrl = toAbsoluteUrl(req, contractUrlRaw);
+    const signUrlRaw = String(req.body?.signUrl || "").trim();
+    const signUrl = /^https?:\/\//i.test(signUrlRaw) ? signUrlRaw : null;
     const isDayTrip = isDayReservation(r);
     const paymentUrlRaw = String(req.body?.paymentUrl || "").trim();
     const paymentUrlFromBody = /^https?:\/\//i.test(paymentUrlRaw) ? paymentUrlRaw : null;
@@ -396,22 +398,37 @@ router.post("/reservations/:id/send-proposal-email", requireAdmin, async (req, r
     });
 
     const subject = `Votre proposition de croisière - réservation #${reservationId}`;
-    const textLines = [
-      `Bonjour ${r.nomClient || ""},`,
-      "",
-      "Votre proposition est prête.",
-      contractUrl ? `Proposition (devis + contrat PDF): ${contractUrl}` : "Proposition PDF: indisponible",
-      isDayTrip
-        ? "Aucun lien de paiement en ligne n'est envoyé pour les sorties journée. Merci d'utiliser le virement (IBAN sur le devis)."
-        : paymentUrl
-          ? `Lien de paiement acompte (20%): ${paymentUrl}`
-          : "Lien de paiement: indisponible",
-      "",
-      "N'hésitez pas à répondre à cet email si vous avez des questions.",
-      "",
-      "Merci.",
-      "Sabine Sailing",
-    ];
+    const textLines = signUrl
+      ? [
+          `Bonjour ${r.nomClient || ""},`,
+          "",
+          "Votre contrat est prêt à être signé.",
+          `Lien de signature sécurisé: ${signUrl}`,
+          ...(!isDayTrip
+            ? [paymentUrl ? `Lien de paiement acompte (20%): ${paymentUrl}` : "Lien de paiement: indisponible"]
+            : []),
+          "",
+          "N'hésitez pas à répondre à cet email si vous avez des questions.",
+          "",
+          "Merci.",
+          "Sabine Sailing",
+        ]
+      : [
+          `Bonjour ${r.nomClient || ""},`,
+          "",
+          "Votre proposition est prête.",
+          contractUrl ? `Proposition (devis + contrat PDF): ${contractUrl}` : "Proposition PDF: indisponible",
+          isDayTrip
+            ? "Aucun lien de paiement en ligne n'est envoyé pour les sorties journée. Merci d'utiliser le virement (IBAN sur le devis)."
+            : paymentUrl
+              ? `Lien de paiement acompte (20%): ${paymentUrl}`
+              : "Lien de paiement: indisponible",
+          "",
+          "N'hésitez pas à répondre à cet email si vous avez des questions.",
+          "",
+          "Merci.",
+          "Sabine Sailing",
+        ];
 
     await transporter.sendMail({
       from: smtp.fromEmail,
@@ -420,24 +437,46 @@ router.post("/reservations/:id/send-proposal-email", requireAdmin, async (req, r
       text: textLines.join("\n"),
       html: `
         <div style="font-family: Arial, Helvetica, sans-serif; color:#0f172a; line-height:1.5;">
-          <h2 style="margin:0 0 12px; color:#0b3a53;">Votre proposition est prête</h2>
+          <h2 style="margin:0 0 12px; color:#0b3a53;">${signUrl ? "Votre contrat est prêt à signer" : "Votre proposition est prête"}</h2>
           <p style="margin:0 0 14px;">Bonjour ${String(r.nomClient || "client")},</p>
-          <p style="margin:0 0 16px;">
-            Nous vous remercions pour votre demande. Vous pouvez maintenant consulter vos documents et finaliser votre dossier.
-          </p>
-          <div style="margin:0 0 16px; padding:14px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px;">
-            <p style="margin:0;">${contractUrl ? `<a href="${contractUrl}" style="color:#0b3a53; font-weight:600;">Télécharger la proposition (devis + contrat PDF)</a>` : "Proposition PDF indisponible"}</p>
-          </div>
           ${
-            isDayTrip
-              ? `<p style="margin:0 0 16px; color:#334155;">Pour les sorties journée, le règlement se fait par virement bancaire (IBAN indiqué dans le devis).</p>`
-              : `<p style="margin:0 0 16px;">
+            signUrl
+              ? `
+              <p style="margin:0 0 16px;">Nous vous remercions pour votre demande. Merci de signer votre contrat via le lien sécurisé ci-dessous.</p>
+              <p style="margin:0 0 16px;">
+                <a href="${signUrl}" style="display:inline-block; background:#0b3a53; color:#ffffff; text-decoration:none; padding:10px 14px; border-radius:8px; font-weight:600;">Signer le contrat</a>
+              </p>
+              ${
+                !isDayTrip
+                  ? `<p style="margin:0 0 16px;">
+                ${
+                  paymentUrl
+                    ? `<a href="${paymentUrl}" style="display:inline-block; background:#16a34a; color:#ffffff; text-decoration:none; padding:10px 14px; border-radius:8px; font-weight:600;">Régler l'acompte (20%)</a>`
+                    : `<span style="color:#64748b;">Lien de paiement indisponible.</span>`
+                }
+              </p>`
+                  : ""
+              }
+              `
+              : `
+              <p style="margin:0 0 16px;">
+                Nous vous remercions pour votre demande. Vous pouvez maintenant consulter vos documents et finaliser votre dossier.
+              </p>
+              <div style="margin:0 0 16px; padding:14px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px;">
+                <p style="margin:0;">${contractUrl ? `<a href="${contractUrl}" style="color:#0b3a53; font-weight:600;">Télécharger la proposition (devis + contrat PDF)</a>` : "Proposition PDF indisponible"}</p>
+              </div>
+              ${
+                isDayTrip
+                  ? `<p style="margin:0 0 16px; color:#334155;">Pour les sorties journée, le règlement se fait par virement bancaire (IBAN indiqué dans le devis).</p>`
+                  : `<p style="margin:0 0 16px;">
             ${
               paymentUrl
                 ? `<a href="${paymentUrl}" style="display:inline-block; background:#16a34a; color:#ffffff; text-decoration:none; padding:10px 14px; border-radius:8px; font-weight:600;">Régler l'acompte (20%)</a>`
                 : `<span style="color:#64748b;">Lien de paiement indisponible.</span>`
             }
           </p>`
+              }
+              `
           }
           <p style="margin:0;">N'hésitez pas à répondre à cet email si vous avez des questions.</p>
           <p style="margin:14px 0 0;">Merci,<br/>Sabine Sailing</p>
@@ -445,7 +484,7 @@ router.post("/reservations/:id/send-proposal-email", requireAdmin, async (req, r
       `,
     });
 
-    return res.json({ success: true, quoteUrl, contractUrl, paymentUrl, dayTrip: isDayTrip });
+    return res.json({ success: true, quoteUrl, contractUrl, paymentUrl, signUrl, dayTrip: isDayTrip });
   } catch (error: any) {
     return res.status(500).json({ error: error?.message || "Erreur envoi email proposition" });
   }

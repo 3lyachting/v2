@@ -505,7 +505,8 @@ export default function CharterSlotManager() {
         method: "POST",
         credentials: "include",
       });
-      await handleApiResponse(sendContractRes);
+      const sendContractData = await handleApiResponse<{ signUrl?: string | null; esignWarning?: string | null }>(sendContractRes);
+      const signUrl = sendContractData?.signUrl || null;
 
       let paymentUrl: string | null = null;
       if (!dayTrip) {
@@ -525,12 +526,15 @@ export default function CharterSlotManager() {
         credentials: "include",
         body: JSON.stringify({
           paymentUrl,
+          signUrl,
         }),
       });
       await handleApiResponse(sendProposalEmailRes);
 
       setMessage(
-        dayTrip
+        signUrl
+          ? "Email envoyé avec le lien de signature DocuSeal."
+          : dayTrip
           ? "Proposition envoyée au client par email (devis + contrat journée, sans lien de paiement)."
           : "Proposition envoyée au client par email (devis + contrat + lien de paiement)."
       );
