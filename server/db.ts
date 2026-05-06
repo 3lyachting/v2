@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
 import { InsertUser, users, cabinesReservees } from "../drizzle/schema";
@@ -23,6 +23,33 @@ export async function getDb() {
     }
   }
   return _db;
+}
+
+/**
+ * Si la table n’existe pas sur la base pointée par DATABASE_URL (migrations oubliées, mauvais shell, etc.),
+ * on la crée au démarrage pour que le backoffice « Comptes » fonctionne sans intervention manuelle.
+ */
+export async function ensureBackofficeLocalAccountsTable(): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  try {
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS "backoffice_local_accounts" (
+        "id" serial PRIMARY KEY NOT NULL,
+        "email" varchar(320) NOT NULL,
+        "passwordHash" text NOT NULL,
+        "role" varchar(20) NOT NULL,
+        "createdAt" timestamp DEFAULT now() NOT NULL,
+        CONSTRAINT "backoffice_local_accounts_email_unique" UNIQUE("email")
+      )
+    `);
+    await db.execute(sql`
+      ALTER TABLE IF EXISTS "backoffice_local_accounts" DISABLE ROW LEVEL SECURITY
+    `);
+    console.log("[Database] Table backoffice_local_accounts vérifiée / créée si besoin.");
+  } catch (e) {
+    console.warn("[Database] ensureBackofficeLocalAccountsTable:", (e as Error)?.message || e);
+  }
 }
 
 export async function upsertUser(user: InsertUser): Promise<void> {

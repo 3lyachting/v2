@@ -26,6 +26,7 @@ import icalRouter from "../routes/ical";
 import workflowRouter from "../routes/workflow";
 import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
+import { ensureBackofficeLocalAccountsTable } from "../db";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -111,6 +112,8 @@ async function startServer() {
   if (port !== preferredPort) {
     console.log(`Port ${preferredPort} is busy, using port ${port} instead`);
   }
+
+  await ensureBackofficeLocalAccountsTable();
 
   server.listen(port, () => {
     console.log(`Server running on http://localhost:${port}/`);
