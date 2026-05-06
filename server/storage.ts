@@ -3,7 +3,7 @@
 // Downloads return /manus-storage/{key} paths served via 307 redirect.
 
 import { ENV } from "./_core/env";
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 function getForgeConfig() {
@@ -91,6 +91,53 @@ export async function storagePut(
 export async function storageGet(relKey: string): Promise<{ key: string; url: string }> {
   const key = normalizeKey(relKey);
   return { key, url: `/manus-storage/${key}` };
+}
+
+/**
+ * Supprime l’objet stocké (fichier local ou, si Forge est configuré, tentative via l’API).
+ * En cas d’échec côté Forge (endpoint inconnu ou indisponible), un avertissement est logué
+ * sans faire échouer l’appel : la ligne en base peut quand même être supprimée ensuite.
+ */
+export async function storageDelete(relKey: string): Promise<void> {
+  const key = normalizeKey(relKey);
+  if (!isForgeConfigured()) {
+    const fullPath = path.join(getLocalStorageRoot(), key);
+    try {
+      await unlink(fullPath);
+    } catch (e: any) {
+      if (e?.code !== "ENOENT") throw e;
+    }
+    return;
+  }
+  const { forgeUrl, forgeKey } = getForgeConfig();
+  try {
+    const presignUrl = new URL("v1/storage/presign/delete", forgeUrl + "/");
+    presignUrl.searchParams.set("path", key);
+    const presignResp = await fetch(presignUrl, {
+      headers: { Authorization: `Bearer ${forgeKey}` },
+    });
+    if (presignResp.ok) {
+      const body = (await presignResp.json().catch(() => ({}))) as { url?: string };
+      if (body.url) {
+        const delResp = await fetch(body.url, { method: "DELETE" });
+        if (delResp.ok) return;
+      }
+    }
+  } catch {
+    /* try fallback */
+  }
+  try {
+    const delUrl = new URL("v1/storage/delete", forgeUrl + "/");
+    delUrl.searchParams.set("path", key);
+    const resp = await fetch(delUrl, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${forgeKey}` },
+    });
+    if (resp.ok) return;
+  } catch {
+    /* ignore */
+  }
+  console.warn(`[storage] Remote delete not completed (object may remain on bucket): ${key}`);
 }
 
 export async function storageGetSignedUrl(relKey: string): Promise<string> {

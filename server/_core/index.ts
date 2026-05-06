@@ -14,6 +14,7 @@ import contactRouter from "../routes/contact";
 import customerAuthRouter from "../routes/customerAuth";
 import customerPortalRouter from "../routes/customerPortal";
 import adminDocumentsRouter from "../routes/adminDocuments";
+import backofficeUsersRouter from "../routes/backofficeUsers";
 import backofficeOpsRouter from "../routes/backofficeOps";
 import charterSlotsRouter from "../routes/charterSlots";
 import mollieRouter from "../routes/mollie";
@@ -85,6 +86,7 @@ async function startServer() {
   app.use("/api/customer-auth", customerAuthRouter);
   app.use("/api/customer-portal", customerPortalRouter);
   app.use("/api/admin-documents", adminDocumentsRouter);
+  app.use("/api/backoffice-users", backofficeUsersRouter);
   app.use("/api/backoffice-ops", backofficeOpsRouter);
   app.use("/api/charter-slots", charterSlotsRouter);
   app.use("/api/mollie", mollieRouter);

@@ -40,6 +40,16 @@ export const esignProviderEnum = pgEnum("esign_provider", ["yousign", "docusign"
 /** Produit proposé sur un créneau (public + backoffice). Même vocabulaire que `season_pricing_v1`. */
 export const charterProductEnum = pgEnum("charter_product", ["med", "caraibes", "journee", "transat"]);
 
+/** Comptes backoffice créés depuis l’admin (email + mot de passe), en complément des comptes .env et OAuth. */
+export const backofficeLocalAccounts = pgTable("backoffice_local_accounts", {
+  id: serial("id").primaryKey(),
+  email: varchar("email", { length: 320 }).notNull().unique(),
+  passwordHash: text("passwordHash").notNull(),
+  /** "admin" = droits complets ; "viewer" = consultation seule (même règles que BACKOFFICE_VIEWER). */
+  role: varchar("role", { length: 20 }).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
 export const users = pgTable("users", {
   /**
    * Surrogate primary key. Auto-incremented numeric value managed by the database.

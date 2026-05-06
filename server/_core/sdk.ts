@@ -3,8 +3,9 @@ import { ForbiddenError } from "@shared/_core/errors";
 import axios, { type AxiosInstance } from "axios";
 import { parse as parseCookieHeader } from "cookie";
 import type { Request } from "express";
+import { eq } from "drizzle-orm";
 import { SignJWT, jwtVerify } from "jose";
-import type { User } from "../../drizzle/schema";
+import { backofficeLocalAccounts, type User } from "../../drizzle/schema";
 import * as db from "../db";
 import { ENV } from "./env";
 import type {
@@ -270,6 +271,51 @@ class SDKServer {
         email: process.env.ADMIN_EMAIL ?? null,
         loginMethod: "local-admin",
         role: "admin",
+        createdAt: signedInAt,
+        updatedAt: signedInAt,
+        lastSignedIn: signedInAt,
+      };
+    }
+    if (sessionUserId === "local-viewer") {
+      return {
+        id: -1,
+        openId: "local-viewer",
+        name: "Backoffice Consultation",
+        email: process.env.BACKOFFICE_VIEWER_EMAIL ?? null,
+        loginMethod: "local-viewer",
+        role: "viewer",
+        createdAt: signedInAt,
+        updatedAt: signedInAt,
+        lastSignedIn: signedInAt,
+      } as any;
+    }
+
+    if (sessionUserId.startsWith("backoffice-local:")) {
+      const accId = parseInt(sessionUserId.slice("backoffice-local:".length), 10);
+      if (!Number.isFinite(accId)) {
+        throw ForbiddenError("Invalid session");
+      }
+      const poolDb = await db.getDb();
+      if (!poolDb) {
+        throw ForbiddenError("Database unavailable");
+      }
+      const rows = await poolDb
+        .select()
+        .from(backofficeLocalAccounts)
+        .where(eq(backofficeLocalAccounts.id, accId))
+        .limit(1);
+      const acc = rows[0];
+      if (!acc) {
+        throw ForbiddenError("Account not found");
+      }
+      const viewer = acc.role === "viewer";
+      return {
+        id: acc.id,
+        openId: sessionUserId,
+        name: acc.email,
+        email: acc.email,
+        loginMethod: "backoffice-local",
+        role: viewer ? ("viewer" as any) : "admin",
         createdAt: signedInAt,
         updatedAt: signedInAt,
         lastSignedIn: signedInAt,

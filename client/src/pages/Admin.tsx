@@ -1,14 +1,22 @@
 import { useEffect, useState } from "react";
-import { Calendar, CreditCard, FileText, Link2, LogOut, Package, Wrench } from "lucide-react";
+import { Calendar, CreditCard, FileText, Link2, LogOut, Package, UsersRound, Wrench } from "lucide-react";
 import ConfigIcal from "@/components/ConfigIcal";
 import BackofficeOps from "@/components/BackofficeOps";
+import BackofficeAccountsPanel from "@/components/BackofficeAccountsPanel";
 import AdminDocumentsManager from "@/components/AdminDocumentsManager";
 import InventoryManager from "@/components/InventoryManager";
 import SeasonPricingManager from "@/components/SeasonPricingManager";
 import CharterSlotManager from "@/components/CharterSlotManager";
 import logoSabine from "/logo-sabine.png";
 
-type AdminTab = "calendar_reset" | "finances_reset" | "inventaire" | "documents" | "maintenance" | "config";
+type AdminTab =
+  | "calendar_reset"
+  | "finances_reset"
+  | "inventaire"
+  | "documents"
+  | "comptes"
+  | "maintenance"
+  | "config";
 
 type ReservationLite = {
   id: number;
@@ -21,6 +29,7 @@ type OriginSummary = Record<string, { count: number; revenueCents: number; sourc
 export default function Admin() {
   const [authChecked, setAuthChecked] = useState(false);
   const [authOk, setAuthOk] = useState(false);
+  const [sessionRole, setSessionRole] = useState<"admin" | "viewer" | null>(null);
   const [tab, setTab] = useState<AdminTab>("calendar_reset");
   const [financeLoading, setFinanceLoading] = useState(false);
   const [financeError, setFinanceError] = useState<string | null>(null);
@@ -41,10 +50,11 @@ export default function Admin() {
           return;
         }
         const payload = await response.json().catch(() => null);
-        if (payload?.role !== "admin") {
+        if (payload?.role !== "admin" && payload?.role !== "viewer") {
           redirectToLogin();
           return;
         }
+        setSessionRole(payload.role === "viewer" ? "viewer" : "admin");
         setAuthOk(true);
       } catch {
         redirectToLogin();
@@ -54,6 +64,12 @@ export default function Admin() {
     };
     void verifyAdminSession();
   }, []);
+
+  useEffect(() => {
+    if (sessionRole === "viewer" && tab === "comptes") {
+      setTab("calendar_reset");
+    }
+  }, [sessionRole, tab]);
 
   useEffect(() => {
     if (!authOk || tab !== "finances_reset") return;
@@ -117,9 +133,12 @@ export default function Admin() {
             { id: "finances_reset" as const, label: "Finances", icon: CreditCard },
             { id: "inventaire" as const, label: "Inventaire", icon: Package },
             { id: "documents" as const, label: "Documents", icon: FileText },
+            { id: "comptes" as const, label: "Comptes", icon: UsersRound },
             { id: "maintenance" as const, label: "Maintenance", icon: Wrench },
             { id: "config" as const, label: "Configuration", icon: Link2 },
-          ].map((item) => (
+          ]
+            .filter((item) => item.id !== "comptes" || sessionRole === "admin")
+            .map((item) => (
           <button
               key={item.id}
               onClick={() => setTab(item.id)}
@@ -212,7 +231,8 @@ export default function Admin() {
         {tab === "config" && <ConfigIcal />}
         {tab === "maintenance" && <BackofficeOps mode="maintenance" />}
         {tab === "inventaire" && <InventoryManager />}
-        {tab === "documents" && <AdminDocumentsManager />}
+        {tab === "documents" && <AdminDocumentsManager canMutate={sessionRole === "admin"} />}
+        {tab === "comptes" && sessionRole === "admin" && <BackofficeAccountsPanel />}
       </main>
     </div>
   );

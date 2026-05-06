@@ -2,6 +2,9 @@ import { COOKIE_NAME, ONE_YEAR_MS } from "@shared/const";
 import { randomBytes, scrypt as _scrypt, timingSafeEqual } from "node:crypto";
 import { promisify } from "node:util";
 import type { Express, Request, Response } from "express";
+import { eq } from "drizzle-orm";
+import { backofficeLocalAccounts } from "../../drizzle/schema";
+import { getDb } from "../db";
 import { getSessionCookieOptions } from "./cookies";
 import { sdk } from "./sdk";
 
@@ -11,7 +14,7 @@ function normalizeEmail(value: unknown): string {
   return String(value || "").trim().toLowerCase();
 }
 
-async function verifyScryptPassword(password: string, storedHash: string): Promise<boolean> {
+export async function verifyScryptPassword(password: string, storedHash: string): Promise<boolean> {
   const parts = (storedHash || "").split("$");
   if (parts.length !== 3 || parts[0] !== "scrypt") return false;
   const [, salt, hashHex] = parts;
@@ -37,12 +40,19 @@ export function registerAdminAuthRoutes(app: Express) {
       const configuredEmail = normalizeEmail(process.env.ADMIN_EMAIL);
       const configuredHash = String(process.env.ADMIN_PASSWORD_HASH || "").trim();
       const configuredPlain = String(process.env.ADMIN_PASSWORD_PLAIN || "");
+      const viewerEmail = normalizeEmail(process.env.BACKOFFICE_VIEWER_EMAIL);
+      const viewerHash = String(process.env.BACKOFFICE_VIEWER_PASSWORD_HASH || "").trim();
+      const viewerPlain = String(process.env.BACKOFFICE_VIEWER_PASSWORD_PLAIN || "");
       const email = normalizeEmail(req.body?.email);
       const password = String(req.body?.password || "");
 
-      if (!configuredEmail || (!configuredHash && !configuredPlain)) {
+      if (
+        (!configuredEmail || (!configuredHash && !configuredPlain)) &&
+        (!viewerEmail || (!viewerHash && !viewerPlain))
+      ) {
         return res.status(500).json({
-          error: "ADMIN_EMAIL + (ADMIN_PASSWORD_HASH ou ADMIN_PASSWORD_PLAIN) requis.",
+          error:
+            "Configurez un compte admin ou viewer: ADMIN_EMAIL + mot de passe, ou BACKOFFICE_VIEWER_EMAIL + mot de passe.",
         });
       }
 
@@ -50,20 +60,52 @@ export function registerAdminAuthRoutes(app: Express) {
         return res.status(400).json({ error: "Email et mot de passe requis." });
       }
 
-      if (email !== configuredEmail) {
+      let sessionOpenId: string | null = null;
+      let sessionName = "Backoffice";
+
+      if (email === configuredEmail && (configuredPlain || configuredHash)) {
+        const ok = configuredPlain
+          ? password === configuredPlain
+          : await verifyScryptPassword(password, configuredHash);
+        if (ok) {
+          sessionOpenId = "local-admin";
+          sessionName = "Admin Local";
+        }
+      } else if (email === viewerEmail && (viewerPlain || viewerHash)) {
+        const ok = viewerPlain
+          ? password === viewerPlain
+          : await verifyScryptPassword(password, viewerHash);
+        if (ok) {
+          sessionOpenId = "local-viewer";
+          sessionName = "Backoffice Consultation";
+        }
+      }
+
+      if (!sessionOpenId) {
+        const db = await getDb();
+        if (db) {
+          const rows = await db
+            .select()
+            .from(backofficeLocalAccounts)
+            .where(eq(backofficeLocalAccounts.email, email))
+            .limit(1);
+          const acc = rows[0];
+          if (acc?.passwordHash) {
+            const ok = await verifyScryptPassword(password, acc.passwordHash);
+            if (ok) {
+              sessionOpenId = `backoffice-local:${acc.id}`;
+              sessionName = acc.email;
+            }
+          }
+        }
+      }
+
+      if (!sessionOpenId) {
         return res.status(401).json({ error: "Identifiants invalides." });
       }
 
-      const ok = configuredPlain
-        ? password === configuredPlain
-        : await verifyScryptPassword(password, configuredHash);
-
-      if (!ok) {
-        return res.status(401).json({ error: "Identifiants invalides." });
-      }
-
-      const sessionToken = await sdk.createSessionToken("local-admin", {
-        name: "Admin Local",
+      const sessionToken = await sdk.createSessionToken(sessionOpenId, {
+        name: sessionName,
         expiresInMs: ONE_YEAR_MS,
       });
       const cookieOptions = getSessionCookieOptions(req);
@@ -93,8 +135,8 @@ export function registerAdminAuthRoutes(app: Express) {
     }
     try {
       const user = await sdk.authenticateRequest(req);
-      if (user.role !== "admin") {
-        return res.status(403).json({ error: "Admin requis" });
+      if (user.role !== "admin" && (user as any).role !== "viewer") {
+        return res.status(403).json({ error: "Accès backoffice requis" });
       }
       return res.json({
         id: user.id,
