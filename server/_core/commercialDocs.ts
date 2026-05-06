@@ -438,7 +438,7 @@ export async function buildContractPdf(r: Reservation, contractNumber: string) {
     drawAt(page5, todayDate, 95, 194);
     drawAt(page5, fullName, 90, 154);
     // Tag DocuSeal explicite pour créer la zone de signature client.
-    drawAt(page5, "{{signature}}", 88, 138, 9, false);
+    drawAt(page5, "{{Signature Client;role=Signer;type=signature}}", 88, 138, 8, false);
     drawAt(page5, "SAS 3L Yachting", 365, 150, 10, true);
 
     return await templateDoc.save();
@@ -545,11 +545,11 @@ export async function buildContractPdf(r: Reservation, contractNumber: string) {
     color: rgb(0.15, 0.15, 0.15),
   });
   // Tag DocuSeal explicite pour créer la zone de signature client.
-  lastPage.drawText("{{signature}}", {
+  lastPage.drawText("{{Signature Client;role=Signer;type=signature}}", {
     x: 170,
     y: 58,
     font,
-    size: 9,
+    size: 8,
     color: rgb(0.15, 0.15, 0.15),
   });
 
@@ -581,7 +581,7 @@ export async function buildQuoteContractPdf(
     const initialsFont = await merged.embedFont(StandardFonts.Helvetica);
     for (const page of merged.getPages()) {
       const size = page.getSize();
-      page.drawText("{{Paraphe;type=initials}}", {
+      page.drawText("{{Paraphe Client;role=Signer;type=initials}}", {
         x: Math.max(24, size.width - 180),
         y: 18,
         font: initialsFont,
