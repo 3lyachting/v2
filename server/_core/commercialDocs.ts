@@ -143,6 +143,18 @@ function formatFrDateTime(value: Date | string | null | undefined, fallbackHour 
   return `${date} a ${time}`;
 }
 
+function formatHour(value: Date | string | null | undefined, fallbackHour = "00:00") {
+  if (!value) return fallbackHour;
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return fallbackHour;
+  const hasExplicitTime =
+    typeof value === "string" && /t\d{2}:\d{2}/i.test(value) && !/t00:00(:00)?(\.000)?z?$/i.test(value);
+  if (!hasExplicitTime) return fallbackHour;
+  const hh = String(d.getHours()).padStart(2, "0");
+  const mm = String(d.getMinutes()).padStart(2, "0");
+  return `${hh}:${mm}`;
+}
+
 async function renderPdf(title: string, lines: string[]) {
   const doc = await PDFDocument.create();
   const page = doc.addPage([595, 842]); // A4
@@ -354,6 +366,72 @@ export async function buildContractPdf(r: Reservation, contractNumber: string) {
     });
   };
 
+  if (isDayTrip) {
+    const datePrestation = dateFr(r.dateDebut) || "-";
+    const embarkHour = formatHour(r.dateDebut, "09:00");
+    const disembarkHour = formatHour(r.dateFin, "18:00");
+    const startTs = new Date(r.dateDebut).getTime();
+    const endTs = new Date(r.dateFin).getTime();
+    const durationHours =
+      Number.isFinite(startTs) && Number.isFinite(endTs) && endTs > startTs
+        ? Math.max(1, Math.round((endTs - startTs) / 3600000))
+        : 8;
+    const totalTtc = `${euro(r.montantTotal)} EUR`;
+    const acompte = Math.round(r.montantTotal * 0.5);
+    const acompteText = `${euro(acompte)} EUR`;
+    const todayDate = dateFr(new Date()) || "-";
+    const fullName = sanitizePdfText(String(r.nomClient || "-"));
+    const addressLine = sanitizePdfText(String(r.destination || "A completer"));
+    const phone = sanitizePdfText(String(r.telClient || "-"));
+    const email = sanitizePdfText(String(r.emailClient || "-"));
+
+    // Mode "contrat journée" : remplir les lignes prévues dans le modèle.
+    const page1 = pages[0];
+    const page2 = pages[1] || pages[0];
+    const page5 = pages[4] || pages[pages.length - 1];
+    const textColor = rgb(0.08, 0.08, 0.08);
+    const drawAt = (
+      page: any,
+      value: string,
+      x: number,
+      y: number,
+      size = 11,
+      useBold = false
+    ) => {
+      page.drawText(sanitizePdfText(value), {
+        x,
+        y,
+        font: useBold ? bold : font,
+        size,
+        color: textColor,
+      });
+    };
+
+    // Page 1 - Identité client
+    drawAt(page1, fullName, 180, 565);
+    drawAt(page1, addressLine, 120, 545);
+    drawAt(page1, phone, 135, 525);
+    drawAt(page1, email, 95, 505);
+    drawAt(page1, contractNumber, 420, 760, 8.5);
+
+    // Page 2 - Date / horaires / tarif / acompte
+    drawAt(page2, datePrestation, 175, 698);
+    drawAt(page2, "La Ciotat", 170, 679);
+    drawAt(page2, embarkHour, 170, 660);
+    drawAt(page2, disembarkHour, 168, 641);
+    drawAt(page2, `${durationHours} h`, 130, 622);
+    drawAt(page2, totalTtc, 235, 584, 12, true);
+    drawAt(page2, acompteText, 235, 266, 11, true);
+
+    // Page 5 - Signatures
+    drawAt(page5, "La Ciotat", 95, 214);
+    drawAt(page5, todayDate, 95, 194);
+    drawAt(page5, fullName, 90, 154);
+    drawAt(page5, "SAS 3L Yachting", 365, 150, 10, true);
+
+    return await templateDoc.save();
+  }
+
   // Surcouche auto-remplie depuis la reservation.
   const topY = Math.max(540, firstSize.height - 170);
   firstPage.drawRectangle({
@@ -481,7 +559,7 @@ export async function buildQuoteContractPdf(
     return await merged.save();
   } catch (error: any) {
     const message = String(error?.message || "");
-    if (message.includes("[CONTRACT_TEMPLATE_REQUIRED]")) {
+    if (message.includes("[CONTRACT_TEMPLATE_REQUIRED]") || message.includes("[DAY_CONTRACT_TEMPLATE_REQUIRED]")) {
       throw error;
     }
     console.warn("[QuoteContractPDF] Fusion standard échouée, fallback activé:", (error as any)?.message || error);
