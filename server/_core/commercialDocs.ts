@@ -372,10 +372,12 @@ export async function buildContractPdf(r: Reservation, contractNumber: string) {
     const disembarkHour = formatHour(r.dateFin, "18:00");
     const startTs = new Date(r.dateDebut).getTime();
     const endTs = new Date(r.dateFin).getTime();
-    const durationHours =
+    // Sur les sorties journee, la duree contractuelle est 8h sauf horaires explicites coherents.
+    const computedHours =
       Number.isFinite(startTs) && Number.isFinite(endTs) && endTs > startTs
-        ? Math.max(1, Math.round((endTs - startTs) / 3600000))
-        : 8;
+        ? Math.round((endTs - startTs) / 3600000)
+        : NaN;
+    const durationHours = Number.isFinite(computedHours) && computedHours > 0 && computedHours <= 18 ? computedHours : 8;
     const totalTtc = `${euro(r.montantTotal)} EUR`;
     const acompte = Math.round(r.montantTotal * 0.5);
     const acompteText = `${euro(acompte)} EUR`;
@@ -395,7 +397,7 @@ export async function buildContractPdf(r: Reservation, contractNumber: string) {
       value: string,
       x: number,
       y: number,
-      size = 11,
+      size = 10,
       useBold = false
     ) => {
       page.drawText(sanitizePdfText(value), {
@@ -408,20 +410,21 @@ export async function buildContractPdf(r: Reservation, contractNumber: string) {
     };
 
     // Page 1 - Identité client
-    drawAt(page1, fullName, 180, 565);
-    drawAt(page1, addressLine, 120, 545);
-    drawAt(page1, phone, 135, 525);
-    drawAt(page1, email, 95, 505);
+    drawAt(page1, fullName, 190, 565);
+    drawAt(page1, addressLine, 122, 545);
+    drawAt(page1, phone, 138, 525);
+    drawAt(page1, email, 98, 505);
     drawAt(page1, contractNumber, 420, 760, 8.5);
 
     // Page 2 - Date / horaires / tarif / acompte
-    drawAt(page2, datePrestation, 175, 698);
-    drawAt(page2, "La Ciotat", 170, 679);
-    drawAt(page2, embarkHour, 170, 660);
-    drawAt(page2, disembarkHour, 168, 641);
-    drawAt(page2, `${durationHours} h`, 130, 622);
-    drawAt(page2, totalTtc, 235, 584, 12, true);
-    drawAt(page2, acompteText, 235, 266, 11, true);
+    drawAt(page2, datePrestation, 175, 696);
+    drawAt(page2, "La Ciotat", 175, 676);
+    drawAt(page2, embarkHour, 205, 637);
+    drawAt(page2, disembarkHour, 205, 598);
+    drawAt(page2, `${durationHours}`, 155, 560);
+    // Prix total TTC sur la ligne de l'article 3.
+    drawAt(page2, totalTtc, 320, 446, 12, true);
+    drawAt(page2, acompteText, 300, 261, 11, true);
 
     // Page 5 - Signatures
     drawAt(page5, "La Ciotat", 95, 214);
