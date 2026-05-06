@@ -18,6 +18,8 @@ export const ENV = {
   eSignDocusealApiKey: process.env.ESIGN_DOCUSEAL_API_KEY ?? "",
   eSignDocusealBaseUrl: process.env.ESIGN_DOCUSEAL_BASE_URL ?? "",
   eSignDocusealTemplateId: process.env.ESIGN_DOCUSEAL_TEMPLATE_ID ?? "",
+  eSignDocusealTemplateIdWeek: process.env.ESIGN_DOCUSEAL_TEMPLATE_ID_WEEK ?? "",
+  eSignDocusealTemplateIdDay: process.env.ESIGN_DOCUSEAL_TEMPLATE_ID_DAY ?? "",
   eSignDocusealRole: process.env.ESIGN_DOCUSEAL_ROLE ?? "",
   clicknboatApiBaseUrl: process.env.CLICKNBOAT_API_BASE_URL ?? "",
   clicknboatApiToken: process.env.CLICKNBOAT_API_TOKEN ?? "",

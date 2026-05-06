@@ -8,6 +8,7 @@ export type EsignDispatchInput = {
   signerEmail: string;
   contractDownloadUrl: string;
   webhookUrl: string;
+  templateIdOverride?: number | null;
   additionalDocuments?: Array<{ name: string; downloadUrl: string }>;
 };
 
@@ -159,7 +160,10 @@ async function dispatchDocusign(input: EsignDispatchInput): Promise<EsignDispatc
 async function dispatchDocuseal(input: EsignDispatchInput): Promise<EsignDispatchResult> {
   const apiKey = process.env.ESIGN_DOCUSEAL_API_KEY || ENV.eSignDocusealApiKey;
   const baseUrl = (process.env.ESIGN_DOCUSEAL_BASE_URL || ENV.eSignDocusealBaseUrl || "https://api.docuseal.com").replace(/\/+$/, "");
-  const templateIdRaw = process.env.ESIGN_DOCUSEAL_TEMPLATE_ID || ENV.eSignDocusealTemplateId;
+  const templateIdRaw =
+    input.templateIdOverride != null
+      ? String(input.templateIdOverride)
+      : process.env.ESIGN_DOCUSEAL_TEMPLATE_ID || ENV.eSignDocusealTemplateId;
   const role = (process.env.ESIGN_DOCUSEAL_ROLE || ENV.eSignDocusealRole || "Signer").trim();
   const templateId = Number(templateIdRaw);
 

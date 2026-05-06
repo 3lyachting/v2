@@ -46,6 +46,15 @@ function isDayReservation(reservation: any): boolean {
   );
 }
 
+function resolveDocusealTemplateIdForReservation(reservation: any): number | null {
+  const isDayTrip = isDayReservation(reservation);
+  const raw = isDayTrip
+    ? (process.env.ESIGN_DOCUSEAL_TEMPLATE_ID_DAY || ENV.eSignDocusealTemplateIdDay || process.env.ESIGN_DOCUSEAL_TEMPLATE_ID || ENV.eSignDocusealTemplateId)
+    : (process.env.ESIGN_DOCUSEAL_TEMPLATE_ID_WEEK || ENV.eSignDocusealTemplateIdWeek || process.env.ESIGN_DOCUSEAL_TEMPLATE_ID || ENV.eSignDocusealTemplateId);
+  const parsed = Number(String(raw || "").trim());
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+}
+
 function toAbsoluteUrl(req: any, rawUrl: string | null | undefined): string | null {
   const value = String(rawUrl || "").trim();
   if (!value) return null;
@@ -71,6 +80,17 @@ function toDbEsignProvider(provider: string): "yousign" | "docusign" | "other" {
   if (provider === "yousign" || provider === "docusign") return provider;
   // Schéma actuel: enum DB ne contient pas "docuseal".
   return "other";
+}
+
+function readSignUrlFromEsignPayload(rawPayload: string | null | undefined): string | null {
+  if (!rawPayload) return null;
+  try {
+    const parsed = JSON.parse(rawPayload) as any;
+    const value = String(parsed?.signUrl || parsed?.sign_url || "").trim();
+    return /^https?:\/\//i.test(value) ? value : null;
+  } catch {
+    return null;
+  }
 }
 
 type MolliePaymentLookup = {
@@ -143,6 +163,11 @@ router.post("/reservations/:id/owner-validate", requireAdmin, async (req, res) =
     const quoteNumber = buildQuoteNumber(reservationId);
     const contractNumber = buildContractNumber(reservationId);
     const proposalPdf = await buildQuoteContractPdf(r, quoteNumber, contractNumber, optionExpiresAt);
+    console.info("[Workflow][owner-validate] PDF proposition genere", {
+      reservationId,
+      quoteNumber,
+      contractNumber,
+    });
     const proposalFile = await storagePut(
       `commercial/proposals/proposition-${reservationId}.pdf`,
       proposalPdf,
@@ -272,6 +297,13 @@ router.post("/reservations/:id/send-contract", requireAdmin, async (req, res) =>
     if (canUseEsign) {
       const publicBase = String(ENV.publicBaseUrl || `${req.protocol}://${req.get("host")}`).replace(/\/+$/, "");
       const webhookUrl = `${publicBase}/api/workflow/esign/webhook`;
+      const providerName = String(ENV.eSignProvider || "").toLowerCase();
+      const templateIdOverride = providerName === "docuseal" ? resolveDocusealTemplateIdForReservation(r) : null;
+      console.info("[Workflow][send-contract] E-sign dispatch", {
+        reservationId,
+        provider: providerName || "other",
+        templateIdOverride,
+      });
       try {
         const dispatchResult = await dispatchEsign({
           contractNumber: contract.contractNumber,
@@ -279,10 +311,16 @@ router.post("/reservations/:id/send-contract", requireAdmin, async (req, res) =>
           signerEmail: String(r.emailClient),
           contractDownloadUrl: String(proposalUrl),
           webhookUrl,
+          templateIdOverride,
         });
         esignProvider = toDbEsignProvider(dispatchResult.provider);
         esignEnvelopeId = dispatchResult.envelopeId || null;
         signUrl = dispatchResult.signUrl || null;
+        console.info("[Workflow][send-contract] E-sign ok", {
+          reservationId,
+          envelopeId: esignEnvelopeId,
+          hasSignUrl: Boolean(signUrl),
+        });
         await db.insert(esignEvents).values({
           contractId: contract.id,
           provider: esignProvider,
@@ -296,6 +334,10 @@ router.post("/reservations/:id/send-contract", requireAdmin, async (req, res) =>
         });
       } catch (esignError: any) {
         esignWarning = esignError?.message || "E-sign indisponible";
+        console.warn("[Workflow][send-contract] E-sign failed", {
+          reservationId,
+          message: esignWarning,
+        });
         await db.insert(esignEvents).values({
           contractId: contract.id,
           provider: "other",
@@ -373,8 +415,33 @@ router.post("/reservations/:id/send-proposal-email", requireAdmin, async (req, r
     const quoteUrl = toAbsoluteUrl(req, quoteUrlRaw);
     const contractUrl = toAbsoluteUrl(req, contractUrlRaw);
     const signUrlRaw = String(req.body?.signUrl || "").trim();
-    const signUrl = /^https?:\/\//i.test(signUrlRaw) ? signUrlRaw : null;
+    let signUrl = /^https?:\/\//i.test(signUrlRaw) ? signUrlRaw : null;
+    if (!signUrl && latestContract?.id) {
+      const recentEvents = await db
+        .select()
+        .from(esignEvents)
+        .where(eq(esignEvents.contractId, latestContract.id));
+      const sortedEvents = recentEvents.slice().sort((a, b) => b.id - a.id);
+      for (const eventRow of sortedEvents) {
+        const candidate = readSignUrlFromEsignPayload(eventRow.payload);
+        if (candidate) {
+          signUrl = candidate;
+          break;
+        }
+      }
+    }
     const isDayTrip = isDayReservation(r);
+    const esignEnabled = String(ENV.eSignProvider || "other").toLowerCase() !== "other";
+    if (esignEnabled && !signUrl) {
+      console.warn("[Workflow][send-proposal-email] Missing signUrl while e-sign enabled", {
+        reservationId,
+        provider: ENV.eSignProvider,
+      });
+      return res.status(400).json({
+        error:
+          "Lien de signature indisponible. Vérifiez la configuration DocuSeal (API key, template ID, rôle) puis renvoyez le contrat.",
+      });
+    }
     const paymentUrlRaw = String(req.body?.paymentUrl || "").trim();
     const paymentUrlFromBody = /^https?:\/\//i.test(paymentUrlRaw) ? paymentUrlRaw : null;
     const looksLikeSiteResultPage = /\/reservation\/(succes|annule)(\/|$|\?)/i.test(paymentUrlFromBody || "");
@@ -482,6 +549,12 @@ router.post("/reservations/:id/send-proposal-email", requireAdmin, async (req, r
           <p style="margin:14px 0 0;">Merci,<br/>Sabine Sailing</p>
         </div>
       `,
+    });
+    console.info("[Workflow][send-proposal-email] Email envoye", {
+      reservationId,
+      hasSignUrl: Boolean(signUrl),
+      hasPaymentUrl: Boolean(paymentUrl),
+      dayTrip: isDayTrip,
     });
 
     return res.json({ success: true, quoteUrl, contractUrl, paymentUrl, signUrl, dayTrip: isDayTrip });
