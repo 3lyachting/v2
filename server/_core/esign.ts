@@ -272,9 +272,9 @@ async function dispatchDocuseal(input: EsignDispatchInput): Promise<EsignDispatc
         {
           name: `Contrat-${input.contractNumber}.pdf`,
           file: contractBase64,
+          fields,
         },
       ],
-      fields,
       submitters: [
         {
           name: input.signerName,

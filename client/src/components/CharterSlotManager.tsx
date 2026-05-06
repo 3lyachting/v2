@@ -249,6 +249,8 @@ export default function CharterSlotManager() {
     note: "",
     publicNote: "",
   });
+  const didInitNewDemandRef = useRef(false);
+  const knownNewDemandIdsRef = useRef<Set<number>>(new Set());
 
   const load = async () => {
     try {
@@ -277,6 +279,30 @@ export default function CharterSlotManager() {
   useEffect(() => {
     void load();
   }, []);
+
+  useEffect(() => {
+    const newDemandIds = new Set(
+      reservations
+        .filter((r) => String(r.requestStatus || "nouvelle") === "nouvelle")
+        .map((r) => r.id)
+    );
+
+    if (!didInitNewDemandRef.current) {
+      didInitNewDemandRef.current = true;
+      knownNewDemandIdsRef.current = newDemandIds;
+      return;
+    }
+
+    const incomingIds = Array.from(newDemandIds).filter((id) => !knownNewDemandIdsRef.current.has(id));
+    if (incomingIds.length > 0) {
+      setMessage(
+        incomingIds.length === 1
+          ? `🔔 Nouvelle demande de réservation reçue (#${incomingIds[0]}).`
+          : `🔔 ${incomingIds.length} nouvelles demandes de réservation reçues.`
+      );
+    }
+    knownNewDemandIdsRef.current = newDemandIds;
+  }, [reservations]);
 
   const startCreate = () => {
     setEditingId(null);
@@ -698,6 +724,10 @@ export default function CharterSlotManager() {
       return matchesPayment && matchesWorkflow && matchesSearch;
     });
   }, [reservations, reservationSearch, paymentFilter, workflowFilter]);
+  const newDemandCount = useMemo(
+    () => reservations.filter((r) => String(r.requestStatus || "nouvelle") === "nouvelle").length,
+    [reservations]
+  );
 
   const paymentBadgeClass = (status: string | null | undefined) => {
     const value = status || "en_attente";
@@ -905,7 +935,14 @@ export default function CharterSlotManager() {
         <div className="mt-4 grid gap-6 lg:grid-cols-[1.7fr_1fr]">
           <div className="rounded-xl border border-slate-200 bg-white p-5">
             <div className="flex flex-wrap items-center justify-between gap-3">
-              <h3 className="text-sm font-bold text-slate-800">Dernières réservations</h3>
+              <div className="flex items-center gap-2">
+                <h3 className="text-sm font-bold text-slate-800">Dernières réservations</h3>
+                {newDemandCount > 0 && (
+                  <span className="rounded-full bg-rose-100 px-2 py-1 text-[11px] font-bold text-rose-700">
+                    🔔 {newDemandCount} nouvelle{newDemandCount > 1 ? "s" : ""}
+                  </span>
+                )}
+              </div>
               <div className="flex flex-wrap items-center gap-2 text-xs">
                 <span className="rounded-full bg-amber-100 px-2 py-1 font-semibold text-amber-700">
                   En attente: {paymentCounts.en_attente}
