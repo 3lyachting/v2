@@ -106,6 +106,8 @@ function resolveDayContractTemplatePath(): string | null {
   const candidates = [
     normalizedCustom,
     customWithPdf,
+    path.resolve(process.cwd(), "public", "docs", "day charter template.pdf"),
+    path.resolve(process.cwd(), "public", "docs", "day-charter-template.pdf"),
     path.resolve(process.cwd(), "dist", "public", "docs", "day charter template.pdf"),
     path.resolve(process.cwd(), "dist", "public", "docs", "day-charter-template.pdf"),
     path.resolve(process.cwd(), "client", "public", "docs", "day charter template.pdf"),
