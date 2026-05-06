@@ -91,6 +91,52 @@ function resolveContractTemplatePath(): string | null {
   return null;
 }
 
+function isDayTripReservation(r: Reservation): boolean {
+  const formule = String(r.formule || "").toLowerCase();
+  const destination = String(r.destination || "").toLowerCase();
+  const sameDay = dateFr(r.dateDebut) === dateFr(r.dateFin);
+  return formule.includes("journee") || formule.includes("journ") || destination.includes("journee") || sameDay;
+}
+
+function resolveDayContractTemplatePath(): string | null {
+  const raw = process.env.CONTRACT_TEMPLATE_DAY_PATH || "";
+  const normalizedCustom = raw.trim().replace(/^"(.*)"$/, "$1").replace(/^'(.*)'$/, "$1");
+  const customWithPdf =
+    normalizedCustom && !normalizedCustom.toLowerCase().endsWith(".pdf") ? `${normalizedCustom}.pdf` : normalizedCustom;
+  const candidates = [
+    normalizedCustom,
+    customWithPdf,
+    path.resolve(process.cwd(), "dist", "public", "docs", "day charter template.pdf"),
+    path.resolve(process.cwd(), "dist", "public", "docs", "day-charter-template.pdf"),
+    path.resolve(process.cwd(), "client", "public", "docs", "day charter template.pdf"),
+    path.resolve(process.cwd(), "client", "public", "docs", "day-charter-template.pdf"),
+    path.resolve(process.cwd(), "dist", "public", "docs", "contrat-journee.pdf"),
+    path.resolve(process.cwd(), "dist", "public", "docs", "contrat-journee-template.pdf"),
+    path.resolve(process.cwd(), "dist", "public", "docs", "contrat-journee-modele.pdf"),
+    path.resolve(process.cwd(), "client", "public", "docs", "contrat-journee.pdf"),
+    path.resolve(process.cwd(), "client", "public", "docs", "contrat-journee-template.pdf"),
+    path.resolve(process.cwd(), "client", "public", "docs", "contrat-journee-modele.pdf"),
+  ].filter(Boolean) as string[];
+
+  for (const p of candidates) {
+    if (existsSync(p)) return p;
+  }
+  return null;
+}
+
+function formatFrDateTime(value: Date | string | null | undefined, fallbackHour = "00:00") {
+  if (!value) return "-";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return "-";
+  const date = d.toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit", year: "numeric" });
+  const hasExplicitTime =
+    typeof value === "string" && /t\d{2}:\d{2}/i.test(value) && !/t00:00(:00)?(\.000)?z?$/i.test(value);
+  const hh = String(d.getHours()).padStart(2, "0");
+  const mm = String(d.getMinutes()).padStart(2, "0");
+  const time = hasExplicitTime ? `${hh}:${mm}` : fallbackHour;
+  return `${date} a ${time}`;
+}
+
 async function renderPdf(title: string, lines: string[]) {
   const doc = await PDFDocument.create();
   const page = doc.addPage([595, 842]); // A4
@@ -260,7 +306,8 @@ export async function buildQuotePdf(r: Reservation, quoteNumber: string, optionE
 }
 
 export async function buildContractPdf(r: Reservation, contractNumber: string) {
-  const templatePath = resolveContractTemplatePath();
+  const isDayTrip = isDayTripReservation(r);
+  const templatePath = isDayTrip ? resolveDayContractTemplatePath() || resolveContractTemplatePath() : resolveContractTemplatePath();
   if (!templatePath) {
     throw new Error(
       "[CONTRACT_TEMPLATE_REQUIRED] Modèle contrat introuvable. Ajoutez CONTRACT_TEMPLATE_PATH dans .env vers votre PDF modèle.",
@@ -318,8 +365,10 @@ export async function buildContractPdf(r: Reservation, contractNumber: string) {
   drawField("Email", r.emailClient || "-", topY - 86);
   drawField("Navire", "Catamaran Sabine", topY - 100);
   drawField("Destination", r.destination || "-", topY - 114);
-  drawField("Date d'embarquement", dateFr(r.dateDebut) || "-", topY - 128);
-  drawField("Date de debarquement", dateFr(r.dateFin) || "-", topY - 142);
+  const embarkDefaultHour = isDayTrip ? "09:00" : "15:00";
+  const disembarkDefaultHour = isDayTrip ? "18:00" : "10:00";
+  drawField("Date d'embarquement", formatFrDateTime(r.dateDebut, embarkDefaultHour), topY - 128);
+  drawField("Date de debarquement", formatFrDateTime(r.dateFin, disembarkDefaultHour), topY - 142);
 
   // Type de reservation coche automatiquement.
   firstPage.drawText(`Type: ${isPrivate ? "PRIVATISATION BATEAU ENTIER" : "CROISIERE A LA CABINE"}`, {

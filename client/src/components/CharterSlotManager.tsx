@@ -177,6 +177,19 @@ function isConfirmedReservationForCalendar(reservation: ReservationRow): boolean
   return workflow === "acompte_confirme" || workflow === "solde_confirme" || workflow === "contrat_signe";
 }
 
+function isDayTripReservation(reservation: ReservationRow): boolean {
+  const formule = String(reservation.formule || "").toLowerCase();
+  const destination = String(reservation.destination || "").toLowerCase();
+  const start = toIsoDay(reservation.dateDebut);
+  const end = toIsoDay(reservation.dateFin);
+  return (
+    formule.includes("journee") ||
+    formule.includes("journ") ||
+    destination.includes("journee") ||
+    Boolean(start && end && start === end)
+  );
+}
+
 export default function CharterSlotManager() {
   const [rows, setRows] = useState<SlotRow[]>([]);
   const [reservations, setReservations] = useState<ReservationRow[]>([]);
@@ -479,6 +492,8 @@ export default function CharterSlotManager() {
     try {
       setSendingProposalForId(reservationId);
       setMessage("");
+      const reservation = reservations.find((item) => item.id === reservationId);
+      const dayTrip = reservation ? isDayTripReservation(reservation) : false;
 
       const ownerValidateRes = await fetch(apiUrl(`/api/workflow/reservations/${reservationId}/owner-validate`), {
         method: "POST",
@@ -492,25 +507,33 @@ export default function CharterSlotManager() {
       });
       await handleApiResponse(sendContractRes);
 
-      const paymentRes = await fetch(apiUrl("/api/mollie/create-payment-link"), {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ reservationId }),
-      });
-      const paymentData = await handleApiResponse<{ checkoutUrl: string | null }>(paymentRes);
+      let paymentUrl: string | null = null;
+      if (!dayTrip) {
+        const paymentRes = await fetch(apiUrl("/api/mollie/create-payment-link"), {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({ reservationId }),
+        });
+        const paymentData = await handleApiResponse<{ checkoutUrl: string | null }>(paymentRes);
+        paymentUrl = paymentData?.checkoutUrl || null;
+      }
 
       const sendProposalEmailRes = await fetch(apiUrl(`/api/workflow/reservations/${reservationId}/send-proposal-email`), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
         body: JSON.stringify({
-          paymentUrl: paymentData?.checkoutUrl || null,
+          paymentUrl,
         }),
       });
       await handleApiResponse(sendProposalEmailRes);
 
-      setMessage("Proposition envoyée au client par email (devis + contrat + lien de paiement).");
+      setMessage(
+        dayTrip
+          ? "Proposition envoyée au client par email (devis + contrat journée, sans lien de paiement)."
+          : "Proposition envoyée au client par email (devis + contrat + lien de paiement)."
+      );
       await load();
     } catch (e: any) {
       setMessage(e?.message || "Erreur lors de l'envoi de la proposition.");
@@ -969,12 +992,20 @@ export default function CharterSlotManager() {
                           {(Number(r.montantTotal || 0) / 100).toLocaleString("fr-FR")} €
                         </td>
                         <td className="py-2 pr-2 text-right space-x-2">
+                          {(() => {
+                            const isDayTrip = isDayTripReservation(r);
+                            return (
+                              <>
                           <button
                             type="button"
                             onClick={() => sendProposalPack(r.id)}
                             disabled={sendingProposalForId === r.id}
                             className="rounded-md border border-emerald-200 bg-emerald-50 px-2 py-1 text-xs font-semibold text-emerald-700 hover:bg-emerald-100 disabled:opacity-50"
-                            title="Génère/envoie devis + contrat, puis crée le lien de paiement"
+                            title={
+                              isDayTrip
+                                ? "Génère/envoie devis + contrat journée (sans lien de paiement)"
+                                : "Génère/envoie devis + contrat, puis crée le lien de paiement"
+                            }
                           >
                             {sendingProposalForId === r.id ? "Envoi..." : "Envoyer la proposition"}
                           </button>
@@ -988,10 +1019,11 @@ export default function CharterSlotManager() {
                           <button
                             type="button"
                             onClick={() => createMolliePaymentLink(r.id)}
-                            disabled={creatingPaymentForId === r.id}
+                            disabled={creatingPaymentForId === r.id || isDayTrip}
                             className="rounded-md border border-slate-200 px-2 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                            title={isDayTrip ? "Pas de lien de paiement pour une réservation journée" : "Créer un lien de paiement"}
                           >
-                            {creatingPaymentForId === r.id ? "Création..." : "Lien paiement"}
+                            {creatingPaymentForId === r.id ? "Création..." : isDayTrip ? "Lien paiement (off)" : "Lien paiement"}
                           </button>
                           <button
                             type="button"
@@ -1009,6 +1041,9 @@ export default function CharterSlotManager() {
                           >
                             {consultingForId === r.id ? "Chargement..." : "Consulter"}
                           </button>
+                              </>
+                            );
+                          })()}
                         </td>
                       </tr>
                     ))}

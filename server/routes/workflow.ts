@@ -32,6 +32,19 @@ const buildContractNumber = (id: number) => `CT-${nowYear()}-${pad(id)}`;
 const buildInvoiceNumber = (id: number, type: "acompte" | "solde" | "full") =>
   `FAC-${type.toUpperCase()}-${nowYear()}-${pad(id)}`;
 
+function isDayReservation(reservation: any): boolean {
+  const formule = String(reservation?.formule || "").toLowerCase();
+  const destination = String(reservation?.destination || "").toLowerCase();
+  const start = String(reservation?.dateDebut || "").slice(0, 10);
+  const end = String(reservation?.dateFin || "").slice(0, 10);
+  return (
+    formule.includes("journee") ||
+    formule.includes("journ") ||
+    destination.includes("journee") ||
+    Boolean(start && end && start === end)
+  );
+}
+
 function toAbsoluteUrl(req: any, rawUrl: string | null | undefined): string | null {
   const value = String(rawUrl || "").trim();
   if (!value) return null;
@@ -299,11 +312,13 @@ router.post("/reservations/:id/send-proposal-email", requireAdmin, async (req, r
     const contractUrlRaw = latestContract?.pdfStorageKey ? await storageGetSignedUrl(latestContract.pdfStorageKey).catch(() => null) : null;
     const quoteUrl = toAbsoluteUrl(req, quoteUrlRaw);
     const contractUrl = toAbsoluteUrl(req, contractUrlRaw);
+    const isDayTrip = isDayReservation(r);
     const paymentUrlRaw = String(req.body?.paymentUrl || "").trim();
     const paymentUrlFromBody = /^https?:\/\//i.test(paymentUrlRaw) ? paymentUrlRaw : null;
     const looksLikeSiteResultPage = /\/reservation\/(succes|annule)(\/|$|\?)/i.test(paymentUrlFromBody || "");
-    const paymentUrl =
-      (!looksLikeSiteResultPage && paymentUrlFromBody) || (await resolveMollieCheckoutUrlFromReservation(r)) || null;
+    const paymentUrl = isDayTrip
+      ? null
+      : (!looksLikeSiteResultPage && paymentUrlFromBody) || (await resolveMollieCheckoutUrlFromReservation(r)) || null;
 
     const smtp = getSmtpConfig();
     if (!smtp.host || !smtp.user || !smtp.pass || !smtp.fromEmail) {
@@ -326,7 +341,11 @@ router.post("/reservations/:id/send-proposal-email", requireAdmin, async (req, r
       "",
       "Votre proposition est prête.",
       contractUrl ? `Proposition (devis + contrat PDF): ${contractUrl}` : "Proposition PDF: indisponible",
-      paymentUrl ? `Lien de paiement acompte (20%): ${paymentUrl}` : "Lien de paiement: indisponible",
+      isDayTrip
+        ? "Aucun lien de paiement en ligne n'est envoyé pour les sorties journée. Merci d'utiliser le virement (IBAN sur le devis)."
+        : paymentUrl
+          ? `Lien de paiement acompte (20%): ${paymentUrl}`
+          : "Lien de paiement: indisponible",
       "",
       "N'hésitez pas à répondre à cet email si vous avez des questions.",
       "",
@@ -349,20 +368,24 @@ router.post("/reservations/:id/send-proposal-email", requireAdmin, async (req, r
           <div style="margin:0 0 16px; padding:14px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px;">
             <p style="margin:0;">${contractUrl ? `<a href="${contractUrl}" style="color:#0b3a53; font-weight:600;">Télécharger la proposition (devis + contrat PDF)</a>` : "Proposition PDF indisponible"}</p>
           </div>
-          <p style="margin:0 0 16px;">
+          ${
+            isDayTrip
+              ? `<p style="margin:0 0 16px; color:#334155;">Pour les sorties journée, le règlement se fait par virement bancaire (IBAN indiqué dans le devis).</p>`
+              : `<p style="margin:0 0 16px;">
             ${
               paymentUrl
                 ? `<a href="${paymentUrl}" style="display:inline-block; background:#16a34a; color:#ffffff; text-decoration:none; padding:10px 14px; border-radius:8px; font-weight:600;">Régler l'acompte (20%)</a>`
                 : `<span style="color:#64748b;">Lien de paiement indisponible.</span>`
             }
-          </p>
+          </p>`
+          }
           <p style="margin:0;">N'hésitez pas à répondre à cet email si vous avez des questions.</p>
           <p style="margin:14px 0 0;">Merci,<br/>Sabine Sailing</p>
         </div>
       `,
     });
 
-    return res.json({ success: true, quoteUrl, contractUrl, paymentUrl });
+    return res.json({ success: true, quoteUrl, contractUrl, paymentUrl, dayTrip: isDayTrip });
   } catch (error: any) {
     return res.status(500).json({ error: error?.message || "Erreur envoi email proposition" });
   }
