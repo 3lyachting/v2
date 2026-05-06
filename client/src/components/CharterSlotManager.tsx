@@ -507,6 +507,12 @@ export default function CharterSlotManager() {
       });
       const sendContractData = await handleApiResponse<{ signUrl?: string | null; esignWarning?: string | null }>(sendContractRes);
       const signUrl = sendContractData?.signUrl || null;
+      if (!signUrl) {
+        throw new Error(
+          sendContractData?.esignWarning ||
+            "Lien de signature DocuSeal introuvable. Vérifiez la configuration DocuSeal avant d'envoyer l'email."
+        );
+      }
 
       let paymentUrl: string | null = null;
       if (!dayTrip) {

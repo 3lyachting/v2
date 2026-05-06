@@ -437,12 +437,10 @@ router.post("/reservations/:id/send-proposal-email", requireAdmin, async (req, r
         reservationId,
         provider: ENV.eSignProvider,
       });
-      if (!isDayTrip) {
-        return res.status(400).json({
-          error:
-            "Lien de signature DocuSeal introuvable pour cette réservation semaine. Vérifiez la config DocuSeal et renvoyez la proposition.",
-        });
-      }
+      return res.status(400).json({
+        error:
+          "Lien de signature DocuSeal introuvable. Email annulé pour éviter l'envoi d'un lien PDF non signé.",
+      });
     }
     const paymentUrlRaw = String(req.body?.paymentUrl || "").trim();
     const paymentUrlFromBody = /^https?:\/\//i.test(paymentUrlRaw) ? paymentUrlRaw : null;
