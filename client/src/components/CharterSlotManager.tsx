@@ -204,6 +204,7 @@ export default function CharterSlotManager() {
   const [linksViewer, setLinksViewer] = useState<ReservationLinksViewer | null>(null);
   const [editingReservation, setEditingReservation] = useState<ReservationEditState | null>(null);
   const [savingReservationEdit, setSavingReservationEdit] = useState(false);
+  const [previewingProposalForId, setPreviewingProposalForId] = useState<number | null>(null);
   const [reservationSearch, setReservationSearch] = useState("");
   const [paymentFilter, setPaymentFilter] = useState<"all" | "en_attente" | "paye" | "echec" | "rembourse">("all");
   const [workflowFilter, setWorkflowFilter] = useState<"all" | ReservationStatus>("all");
@@ -575,6 +576,41 @@ export default function CharterSlotManager() {
       setMessage(e?.message || "Erreur lors de l'envoi de la proposition.");
     } finally {
       setSendingProposalForId(null);
+    }
+  };
+
+  const previewProposalPack = async (reservationId: number) => {
+    try {
+      setPreviewingProposalForId(reservationId);
+      setMessage("");
+
+      const ownerValidateRes = await fetch(apiUrl(`/api/workflow/reservations/${reservationId}/owner-validate`), {
+        method: "POST",
+        credentials: "include",
+      });
+      await handleApiResponse(ownerValidateRes);
+
+      const docsRes = await fetch(apiUrl(`/api/workflow/reservations/${reservationId}/documents`), {
+        credentials: "include",
+      });
+      const docs = await handleApiResponse<WorkflowDocumentsResponse>(docsRes);
+      const sortedQuotes = (docs.quotes || []).slice().sort((a, b) => b.id - a.id);
+      const sortedContracts = (docs.contracts || []).slice().sort((a, b) => b.id - a.id);
+      const quoteUrl = sortedQuotes[0]?.downloadUrl || null;
+      const contractUrl = sortedContracts[0]?.downloadUrl || null;
+
+      setLinksViewer({
+        reservationId,
+        quoteUrl,
+        contractUrl,
+        paymentUrl: null,
+      });
+      setMessage("Aperçu prêt. Vérifiez les documents avant l'envoi.");
+      await load();
+    } catch (e: any) {
+      setMessage(e?.message || "Erreur lors de la génération de l'aperçu.");
+    } finally {
+      setPreviewingProposalForId(null);
     }
   };
 
@@ -1043,6 +1079,15 @@ export default function CharterSlotManager() {
                             const isDayTrip = isDayTripReservation(r);
                             return (
                               <>
+                          <button
+                            type="button"
+                            onClick={() => previewProposalPack(r.id)}
+                            disabled={previewingProposalForId === r.id}
+                            className="rounded-md border border-blue-200 bg-blue-50 px-2 py-1 text-xs font-semibold text-blue-700 hover:bg-blue-100 disabled:opacity-50"
+                            title="Génère les documents et ouvre un aperçu sans envoyer d'email"
+                          >
+                            {previewingProposalForId === r.id ? "Préparation..." : "Aperçu proposition"}
+                          </button>
                           <button
                             type="button"
                             onClick={() => sendProposalPack(r.id)}
