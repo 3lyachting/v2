@@ -433,13 +433,9 @@ router.post("/reservations/:id/send-proposal-email", requireAdmin, async (req, r
     const isDayTrip = isDayReservation(r);
     const esignEnabled = String(ENV.eSignProvider || "other").toLowerCase() !== "other";
     if (esignEnabled && !signUrl) {
-      console.warn("[Workflow][send-proposal-email] Missing signUrl while e-sign enabled", {
+      console.warn("[Workflow][send-proposal-email] Missing signUrl while e-sign enabled, fallback email", {
         reservationId,
         provider: ENV.eSignProvider,
-      });
-      return res.status(400).json({
-        error:
-          "Lien de signature indisponible. Vérifiez la configuration DocuSeal (API key, template ID, rôle) puis renvoyez le contrat.",
       });
     }
     const paymentUrlRaw = String(req.body?.paymentUrl || "").trim();

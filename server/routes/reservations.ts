@@ -696,20 +696,31 @@ router.put("/:id", requireAdmin, async (req, res) => {
 
     // Mettre à jour la réservation
     const parsedNbPersonnes = nbPersonnes !== undefined ? Math.max(1, parseInt(nbPersonnes)) : existing[0].nbPersonnes;
+    const touchesScheduling =
+      dateDebut !== undefined ||
+      dateFin !== undefined ||
+      disponibiliteId !== undefined ||
+      destination !== undefined ||
+      formule !== undefined ||
+      typeReservation !== undefined ||
+      nbCabines !== undefined ||
+      nbPersonnes !== undefined;
 
-    const resolvedDisponibiliteId = await resolveDisponibiliteIdForReservation(db, {
-      disponibiliteId:
-        disponibiliteId !== undefined
-          ? disponibiliteId !== null
-            ? parseInt(disponibiliteId)
-            : null
-          : existing[0].disponibiliteId,
-      dateDebut: dateDebut ? String(dateDebut) : new Date(existing[0].dateDebut).toISOString(),
-      dateFin: dateFin ? String(dateFin) : new Date(existing[0].dateFin).toISOString(),
-    });
+    const resolvedDisponibiliteId = touchesScheduling
+      ? await resolveDisponibiliteIdForReservation(db, {
+          disponibiliteId:
+            disponibiliteId !== undefined
+              ? disponibiliteId !== null
+                ? parseInt(disponibiliteId)
+                : null
+              : existing[0].disponibiliteId,
+          dateDebut: dateDebut ? String(dateDebut) : new Date(existing[0].dateDebut).toISOString(),
+          dateFin: dateFin ? String(dateFin) : new Date(existing[0].dateFin).toISOString(),
+        })
+      : existing[0].disponibiliteId;
 
     const selectedDispoForPolicy =
-      resolvedDisponibiliteId && Number.isFinite(resolvedDisponibiliteId)
+      touchesScheduling && resolvedDisponibiliteId && Number.isFinite(resolvedDisponibiliteId)
         ? await db.select().from(disponibilites).where(eq(disponibilites.id, resolvedDisponibiliteId)).limit(1)
         : [];
     const effectiveDateDebut = dateDebut ? String(dateDebut) : new Date(existing[0].dateDebut).toISOString();
@@ -724,16 +735,18 @@ router.put("/:id", requireAdmin, async (req, res) => {
       nbPersonnes: parsedNbPersonnes,
       nbCabines: nbCabines !== undefined ? parseInt(nbCabines) : existing[0].nbCabines,
     });
-    const policyCheck = validateReservationPolicy({
-      dateDebut: effectiveDateDebut,
-      dateFin: effectiveDateFin,
-      destination: effectiveDestination,
-      formule: (formule as string | undefined) || existing[0].formule || null,
-      typeReservation: selectedTypeReservation,
-      nbCabines: selectedTypeReservation === "cabine" ? selectedNbCabines : null,
-    });
-    if (!policyCheck.ok) {
-      return res.status(400).json({ error: policyCheck.reason });
+    if (touchesScheduling) {
+      const policyCheck = validateReservationPolicy({
+        dateDebut: effectiveDateDebut,
+        dateFin: effectiveDateFin,
+        destination: effectiveDestination,
+        formule: (formule as string | undefined) || existing[0].formule || null,
+        typeReservation: selectedTypeReservation,
+        nbCabines: selectedTypeReservation === "cabine" ? selectedNbCabines : null,
+      });
+      if (!policyCheck.ok) {
+        return res.status(400).json({ error: policyCheck.reason });
+      }
     }
     const normalizedSchedule = applyHighSeasonCheckinCheckout(effectiveDateDebut, effectiveDateFin);
 
@@ -771,12 +784,14 @@ router.put("/:id", requireAdmin, async (req, res) => {
         bookingOrigin !== undefined ? normalizeBookingOrigin(bookingOrigin) : (existing[0] as any).bookingOrigin || "direct";
     }
     await db.transaction(async (tx: any) => {
-      const idsToLock = Array.from(new Set([existing[0].disponibiliteId, resolvedDisponibiliteId].filter((v): v is number => Boolean(v)))).sort((a, b) => a - b);
-      for (const dispoId of idsToLock) {
-        await lockDisponibiliteForCapacity(tx, dispoId);
+      if (touchesScheduling) {
+        const idsToLock = Array.from(new Set([existing[0].disponibiliteId, resolvedDisponibiliteId].filter((v): v is number => Boolean(v)))).sort((a, b) => a - b);
+        for (const dispoId of idsToLock) {
+          await lockDisponibiliteForCapacity(tx, dispoId);
+        }
       }
 
-      if (resolvedDisponibiliteId) {
+      if (touchesScheduling && resolvedDisponibiliteId) {
         const { totalUnits } = await getConfirmedBookingUsage(tx, resolvedDisponibiliteId);
         const selectedDispo = await tx.select().from(disponibilites).where(eq(disponibilites.id, resolvedDisponibiliteId)).limit(1);
         const isDayTrip = Boolean(selectedDispo[0] && new Date(selectedDispo[0].debut).toISOString().slice(0, 10) === new Date(selectedDispo[0].fin).toISOString().slice(0, 10));
@@ -815,11 +830,13 @@ router.put("/:id", requireAdmin, async (req, res) => {
         await tx.update(reservations).set(fallbackPayload).where(eq(reservations.id, parseInt(id)));
       }
 
-      const disponibilitesToRefresh = new Set<number>();
-      if (existing[0].disponibiliteId) disponibilitesToRefresh.add(existing[0].disponibiliteId);
-      if (resolvedDisponibiliteId) disponibilitesToRefresh.add(resolvedDisponibiliteId);
-      for (const dispoId of Array.from(disponibilitesToRefresh)) {
-        await refreshDisponibiliteBookingState(tx, dispoId);
+      if (touchesScheduling) {
+        const disponibilitesToRefresh = new Set<number>();
+        if (existing[0].disponibiliteId) disponibilitesToRefresh.add(existing[0].disponibiliteId);
+        if (resolvedDisponibiliteId) disponibilitesToRefresh.add(resolvedDisponibiliteId);
+        for (const dispoId of Array.from(disponibilitesToRefresh)) {
+          await refreshDisponibiliteBookingState(tx, dispoId);
+        }
       }
     });
 
