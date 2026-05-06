@@ -67,6 +67,13 @@ function getSmtpConfig() {
   return { host, user, pass, fromEmail, port, secure };
 }
 
+function formatDateForEmail(value: string | Date | null | undefined) {
+  if (!value) return "-";
+  const d = new Date(value);
+  if (!Number.isFinite(d.getTime())) return "-";
+  return d.toLocaleDateString("fr-FR", { day: "2-digit", month: "long", year: "numeric" });
+}
+
 function toDbEsignProvider(provider: string): "yousign" | "docusign" | "other" {
   if (provider === "yousign" || provider === "docusign") return provider;
   // Schéma actuel: enum DB ne contient pas "docuseal".
@@ -454,6 +461,14 @@ router.post("/reservations/:id/send-proposal-email", requireAdmin, async (req, r
     });
 
     const subject = `Votre proposition de croisière - réservation #${reservationId}`;
+    const fullName = `${String(r.prenomClient || "").trim()} ${String(r.nomClient || "").trim()}`.trim() || "Client";
+    const embarkDate = formatDateForEmail(r.dateDebut);
+    const disembarkDate = formatDateForEmail(r.dateFin);
+    const reservationLabel = isDayTrip ? "Sortie journée" : "Croisière";
+    const destinationLabel = String(r.destination || "La Ciotat");
+    const totalTtc = `${(Number(r.montantTotal || 0) / 100).toLocaleString("fr-FR")} € TTC`;
+    const logoBase = String(process.env.PUBLIC_APP_URL || process.env.APP_PUBLIC_URL || "").trim().replace(/\/+$/, "");
+    const logoUrl = logoBase ? `${logoBase}/logo-sabine.png` : null;
     const textLines = signUrl
       ? [
           `Bonjour ${r.nomClient || ""},`,
@@ -494,50 +509,69 @@ router.post("/reservations/:id/send-proposal-email", requireAdmin, async (req, r
       subject,
       text: textLines.join("\n"),
       html: `
-        <div style="font-family: Arial, Helvetica, sans-serif; color:#0f172a; line-height:1.5;">
-          <h2 style="margin:0 0 12px; color:#0b3a53;">${signUrl ? "Votre contrat est prêt à signer" : "Votre proposition est prête"}</h2>
-          <p style="margin:0 0 14px;">Bonjour ${String(r.nomClient || "client")},</p>
-          ${
-            signUrl
-              ? `
-              <p style="margin:0 0 16px;">Nous vous remercions pour votre demande. Merci de signer votre contrat via le lien sécurisé ci-dessous.</p>
-              <p style="margin:0 0 16px;">
-                <a href="${signUrl}" style="display:inline-block; background:#0b3a53; color:#ffffff; text-decoration:none; padding:10px 14px; border-radius:8px; font-weight:600;">Signer le contrat</a>
+        <div style="margin:0;padding:24px;background:#f3f7f9;font-family:Arial,Helvetica,sans-serif;color:#10212c;">
+          <div style="max-width:680px;margin:0 auto;background:#ffffff;border:1px solid #dbe5ea;border-radius:16px;overflow:hidden;">
+            <div style="background:linear-gradient(135deg,#00384a,#0b3a53);padding:22px 24px;color:#ffffff;">
+              <div style="display:flex;align-items:center;gap:14px;">
+                ${
+                  logoUrl
+                    ? `<img src="${logoUrl}" alt="Sabine Sailing" style="height:40px;width:auto;display:block;background:#ffffff;padding:4px;border-radius:8px;" />`
+                    : ""
+                }
+                <div>
+                  <p style="margin:0;font-size:12px;opacity:0.9;letter-spacing:0.6px;text-transform:uppercase;">Sabine Sailing</p>
+                  <h1 style="margin:4px 0 0;font-size:20px;line-height:1.2;">${signUrl ? "Votre contrat est prêt à signer" : "Votre proposition est prête"}</h1>
+                </div>
+              </div>
+            </div>
+            <div style="padding:24px;">
+              <p style="margin:0 0 12px;font-size:15px;">Bonjour <strong>${fullName}</strong>,</p>
+              <p style="margin:0 0 16px;color:#334155;font-size:14px;">
+                Merci pour votre demande. Nous avons préparé votre dossier et vous trouverez ci-dessous les prochaines étapes pour confirmer votre réservation.
               </p>
+
+              <div style="margin:0 0 16px;padding:14px;border:1px solid #dbe5ea;border-radius:12px;background:#f8fbfd;">
+                <p style="margin:0 0 10px;font-size:13px;font-weight:700;color:#0b3a53;">Récapitulatif de votre demande</p>
+                <table style="width:100%;border-collapse:collapse;font-size:13px;color:#334155;">
+                  <tr><td style="padding:4px 0;width:42%;font-weight:600;">Réservation</td><td style="padding:4px 0;">#${reservationId} · ${reservationLabel}</td></tr>
+                  <tr><td style="padding:4px 0;font-weight:600;">Destination</td><td style="padding:4px 0;">${destinationLabel}</td></tr>
+                  <tr><td style="padding:4px 0;font-weight:600;">Embarquement</td><td style="padding:4px 0;">${embarkDate}</td></tr>
+                  <tr><td style="padding:4px 0;font-weight:600;">Débarquement</td><td style="padding:4px 0;">${disembarkDate}</td></tr>
+                  <tr><td style="padding:4px 0;font-weight:600;">Passagers</td><td style="padding:4px 0;">${Number(r.nbPersonnes || 0)} personne(s)</td></tr>
+                  <tr><td style="padding:4px 0;font-weight:600;">Montant total</td><td style="padding:4px 0;font-weight:700;color:#0b3a53;">${totalTtc}</td></tr>
+                </table>
+              </div>
+
+              ${
+                signUrl
+                  ? `<p style="margin:0 0 14px;color:#334155;font-size:14px;">Étape 1 : merci de signer votre contrat via le lien sécurisé ci-dessous.</p>
+                     <p style="margin:0 0 16px;">
+                       <a href="${signUrl}" style="display:inline-block;background:#00384a;color:#ffffff;text-decoration:none;padding:11px 16px;border-radius:9px;font-weight:700;">Signer le contrat</a>
+                     </p>`
+                  : `<div style="margin:0 0 16px;padding:14px;border:1px solid #e2e8f0;border-radius:10px;background:#f8fafc;">
+                       <p style="margin:0;">${contractUrl ? `<a href="${contractUrl}" style="color:#0b3a53;font-weight:700;text-decoration:none;">Télécharger la proposition (devis + contrat PDF)</a>` : "Proposition PDF indisponible"}</p>
+                     </div>`
+              }
+
               ${
                 !isDayTrip
-                  ? `<p style="margin:0 0 16px;">
-                ${
-                  paymentUrl
-                    ? `<a href="${paymentUrl}" style="display:inline-block; background:#16a34a; color:#ffffff; text-decoration:none; padding:10px 14px; border-radius:8px; font-weight:600;">Régler l'acompte (20%)</a>`
-                    : `<span style="color:#64748b;">Lien de paiement indisponible.</span>`
-                }
-              </p>`
-                  : ""
+                  ? `<p style="margin:0 0 10px;color:#334155;font-size:14px;">Étape 2 : règlement de l’acompte (20%) pour confirmer définitivement votre réservation.</p>
+                     <p style="margin:0 0 16px;">
+                       ${
+                         paymentUrl
+                           ? `<a href="${paymentUrl}" style="display:inline-block;background:#16a34a;color:#ffffff;text-decoration:none;padding:11px 16px;border-radius:9px;font-weight:700;">Régler l'acompte (20%)</a>`
+                           : `<span style="color:#64748b;">Lien de paiement indisponible.</span>`
+                       }
+                     </p>`
+                  : `<p style="margin:0 0 16px;color:#334155;font-size:14px;">Le règlement des sorties journée se fait par virement bancaire (IBAN indiqué sur le devis).</p>`
               }
-              `
-              : `
-              <p style="margin:0 0 16px;">
-                Nous vous remercions pour votre demande. Vous pouvez maintenant consulter vos documents et finaliser votre dossier.
-              </p>
-              <div style="margin:0 0 16px; padding:14px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px;">
-                <p style="margin:0;">${contractUrl ? `<a href="${contractUrl}" style="color:#0b3a53; font-weight:600;">Télécharger la proposition (devis + contrat PDF)</a>` : "Proposition PDF indisponible"}</p>
-              </div>
-              ${
-                isDayTrip
-                  ? `<p style="margin:0 0 16px; color:#334155;">Pour les sorties journée, le règlement se fait par virement bancaire (IBAN indiqué dans le devis).</p>`
-                  : `<p style="margin:0 0 16px;">
-            ${
-              paymentUrl
-                ? `<a href="${paymentUrl}" style="display:inline-block; background:#16a34a; color:#ffffff; text-decoration:none; padding:10px 14px; border-radius:8px; font-weight:600;">Régler l'acompte (20%)</a>`
-                : `<span style="color:#64748b;">Lien de paiement indisponible.</span>`
-            }
-          </p>`
-              }
-              `
-          }
-          <p style="margin:0;">N'hésitez pas à répondre à cet email si vous avez des questions.</p>
-          <p style="margin:14px 0 0;">Merci,<br/>Sabine Sailing</p>
+
+              <p style="margin:0;color:#334155;font-size:14px;">Si vous avez la moindre question, répondez simplement à ce message.</p>
+            </div>
+            <div style="padding:14px 24px;background:#f8fbfd;border-top:1px solid #e2e8f0;color:#64748b;font-size:12px;">
+              Sabine Sailing · contact@3lyachting.com
+            </div>
+          </div>
         </div>
       `,
     });
