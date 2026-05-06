@@ -15,7 +15,7 @@ import {
   reservationStatusHistory,
   esignEvents,
 } from "../../drizzle/schema";
-import { buildInvoicePdf, buildQuoteContractPdf } from "../_core/commercialDocs";
+import { buildContractPdf, buildInvoicePdf, buildQuotePdf } from "../_core/commercialDocs";
 import { storageGetSignedUrl } from "../storage";
 import {
   resolveDisponibiliteIdForReservation,
@@ -160,15 +160,21 @@ router.post("/reservations/:id/owner-validate", requireAdmin, async (req, res) =
 
     const quoteNumber = buildQuoteNumber(reservationId);
     const contractNumber = buildContractNumber(reservationId);
-    const proposalPdf = await buildQuoteContractPdf(r, quoteNumber, contractNumber, optionExpiresAt);
-    console.info("[Workflow][owner-validate] PDF proposition genere", {
+    const quotePdf = await buildQuotePdf(r, quoteNumber, optionExpiresAt);
+    const contractPdf = await buildContractPdf(r, contractNumber);
+    console.info("[Workflow][owner-validate] PDF devis + contrat generes", {
       reservationId,
       quoteNumber,
       contractNumber,
     });
-    const proposalFile = await storagePut(
-      `commercial/proposals/proposition-${reservationId}.pdf`,
-      proposalPdf,
+    const quoteFile = await storagePut(
+      `commercial/quotes/devis-${reservationId}.pdf`,
+      quotePdf,
+      "application/pdf"
+    );
+    const contractFile = await storagePut(
+      `commercial/contracts/contrat-${reservationId}.pdf`,
+      contractPdf,
       "application/pdf"
     );
 
@@ -182,7 +188,7 @@ router.post("/reservations/:id/owner-validate", requireAdmin, async (req, res) =
           quoteNumber,
           totalAmount: r.montantTotal,
           currency: "EUR",
-          pdfStorageKey: proposalFile.key,
+          pdfStorageKey: quoteFile.key,
         })
         .where(eq(quotes.id, existingQuote.id));
       quoteId = existingQuote.id;
@@ -194,7 +200,7 @@ router.post("/reservations/:id/owner-validate", requireAdmin, async (req, res) =
           quoteNumber,
           totalAmount: r.montantTotal,
           currency: "EUR",
-          pdfStorageKey: proposalFile.key,
+          pdfStorageKey: quoteFile.key,
         })
         .returning({ id: quotes.id });
       quoteId = quoteInsert[0]?.id ?? null;
@@ -209,13 +215,13 @@ router.post("/reservations/:id/owner-validate", requireAdmin, async (req, res) =
         .set({
           quoteId,
           contractNumber,
-          pdfStorageKey: proposalFile.key,
+          pdfStorageKey: contractFile.key,
         })
         .where(eq(contracts.id, existingContract.id));
       createdContract = {
         id: existingContract.id,
         contractNumber,
-        pdfStorageKey: proposalFile.key,
+        pdfStorageKey: contractFile.key,
       };
     } else {
       const contractInsert = await db
@@ -224,7 +230,7 @@ router.post("/reservations/:id/owner-validate", requireAdmin, async (req, res) =
           reservationId,
           quoteId,
           contractNumber,
-          pdfStorageKey: proposalFile.key,
+          pdfStorageKey: contractFile.key,
           esignProvider: "other",
         })
         .returning({ id: contracts.id, contractNumber: contracts.contractNumber, pdfStorageKey: contracts.pdfStorageKey });
@@ -252,8 +258,8 @@ router.post("/reservations/:id/owner-validate", requireAdmin, async (req, res) =
       soldeMontant,
       soldeEcheanceAt,
       optionExpiresAt,
-      quoteUrl: proposalFile.url,
-      contractUrl: proposalFile.url,
+      quoteUrl: quoteFile.url,
+      contractUrl: contractFile.url,
       contractId: createdContract.id,
     });
   } catch (error: any) {

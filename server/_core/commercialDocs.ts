@@ -314,11 +314,15 @@ export async function buildQuotePdf(r: Reservation, quoteNumber: string, optionE
     page.drawText("- Options: bouee tractee, scooters sous-marins, moteur electrique paddle.", { x: 110, y: 184, font, size: 9.5, color: rgb(0.2, 0.2, 0.2) });
   }
 
-  // Footer
-  page.drawLine({ start: { x: 40, y: 78 }, end: { x: 555, y: 78 }, thickness: 1, color: rgb(0.86, 0.88, 0.92) });
-  page.drawText("Bon pour accord client:", { x: 44, y: 58, font: bold, size: 10, color: rgb(0.2, 0.2, 0.2) });
-  page.drawText("Signature: ____________________   Date: ____________________", { x: 180, y: 58, font, size: 10, color: rgb(0.2, 0.2, 0.2) });
-  page.drawText("SAS 3L Yachting - contact@3lyachting.com", { x: 44, y: 34, font, size: 8.5, color: rgb(0.45, 0.45, 0.45) });
+  // Footer validation block
+  page.drawLine({ start: { x: 40, y: 92 }, end: { x: 555, y: 92 }, thickness: 1, color: rgb(0.86, 0.88, 0.92) });
+  page.drawText("BON POUR ACCORD CLIENT", { x: 44, y: 74, font: bold, size: 10.5, color: rgb(0.12, 0.12, 0.12) });
+  page.drawText("Lieu: La Ciotat", { x: 44, y: 58, font, size: 9.5, color: rgb(0.2, 0.2, 0.2) });
+  page.drawText("Date: ____ / ____ / ________", { x: 170, y: 58, font, size: 9.5, color: rgb(0.2, 0.2, 0.2) });
+  page.drawText("Signature client: ________________________________", { x: 320, y: 58, font, size: 9.5, color: rgb(0.2, 0.2, 0.2) });
+  page.drawText("Signature armateur: SAS 3L Yachting", { x: 44, y: 43, font: bold, size: 9, color: rgb(0.2, 0.2, 0.2) });
+  page.drawText(`Date: ${dateFr(new Date())}`, { x: 230, y: 43, font, size: 9, color: rgb(0.2, 0.2, 0.2) });
+  page.drawText("SAS 3L Yachting - contact@3lyachting.com", { x: 44, y: 24, font, size: 8.5, color: rgb(0.45, 0.45, 0.45) });
 
   return await doc.save();
 }
