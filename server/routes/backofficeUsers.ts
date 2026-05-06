@@ -37,14 +37,14 @@ router.get("/overview", requireAdminExclusive, async (_req, res) => {
 
     let localRows: (typeof backofficeLocalAccounts.$inferSelect)[] = [];
     let backofficeLocalAccountsReady = false;
+    let backofficeLocalAccountsError: string | null = null;
     try {
       localRows = await db.select().from(backofficeLocalAccounts);
       backofficeLocalAccountsReady = true;
     } catch (e) {
-      console.warn(
-        "[backoffice-users] backoffice_local_accounts :",
-        (e as Error)?.message || e,
-      );
+      const pg = unwrapPgError(e);
+      backofficeLocalAccountsError = [pg.code, pg.message, pg.detail].filter(Boolean).join(" — ").slice(0, 500);
+      console.warn("[backoffice-users] backoffice_local_accounts :", backofficeLocalAccountsError);
     }
 
     const customerRows = await db
@@ -121,6 +121,7 @@ router.get("/overview", requireAdminExclusive, async (_req, res) => {
       admins,
       customers: customersOut,
       backofficeLocalAccountsReady,
+      backofficeLocalAccountsError,
     });
   } catch (error: any) {
     return res.status(500).json({ error: error?.message || "Erreur chargement des comptes" });

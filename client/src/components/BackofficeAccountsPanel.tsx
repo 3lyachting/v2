@@ -46,6 +46,7 @@ export default function BackofficeAccountsPanel() {
   const [customers, setCustomers] = useState<CustomerRow[]>([]);
   const [message, setMessage] = useState("");
   const [migrationNeeded, setMigrationNeeded] = useState(false);
+  const [migrationDetail, setMigrationDetail] = useState<string | null>(null);
 
   const [boEmail, setBoEmail] = useState("");
   const [boPassword, setBoPassword] = useState("");
@@ -62,12 +63,16 @@ export default function BackofficeAccountsPanel() {
       setLoading(true);
       setError(null);
       setMigrationNeeded(false);
+      setMigrationDetail(null);
       const res = await fetch("/api/backoffice-users/overview", { credentials: "include" });
       const payload = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(payload?.error || "Chargement impossible");
       setAdmins(Array.isArray(payload.admins) ? payload.admins : []);
       setCustomers(Array.isArray(payload.customers) ? payload.customers : []);
       setMigrationNeeded(payload.backofficeLocalAccountsReady === false);
+      setMigrationDetail(
+        typeof payload.backofficeLocalAccountsError === "string" ? payload.backofficeLocalAccountsError : null,
+      );
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Erreur");
     } finally {
@@ -93,9 +98,21 @@ export default function BackofficeAccountsPanel() {
       )}
       {migrationNeeded && (
         <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-          La table des comptes backoffice créés depuis l’admin est absente sur cette base. Sur le serveur, après{" "}
-          <code className="rounded bg-amber-100 px-1">git pull</code>, exécutez{" "}
-          <code className="rounded bg-amber-100 px-1">npm run db:migrate</code> puis redémarrez l’application.
+          <p className="font-medium">
+            Le serveur n’arrive pas à lire la table <code className="rounded bg-amber-100 px-1">backoffice_local_accounts</code>{" "}
+            (ou elle n’existe pas sur <strong>la même</strong> base que <code className="rounded bg-amber-100 px-1">DATABASE_URL</code>).
+          </p>
+          {migrationDetail && (
+            <p className="mt-2 font-mono text-xs text-amber-950/90 break-words">Détail : {migrationDetail}</p>
+          )}
+          <p className="mt-2">
+            Si vous avez déjà exécuté le SQL dans Supabase : ouvrez le projet dont la chaîne de connexion est dans le{" "}
+            <code className="rounded bg-amber-100 px-1">.env</code> du serveur (Settings → Database), pas un autre projet.
+          </p>
+          <p className="mt-2">
+            Sinon : <code className="rounded bg-amber-100 px-1">git pull</code>,{" "}
+            <code className="rounded bg-amber-100 px-1">npm run db:migrate</code>, redémarrage de l’app.
+          </p>
         </div>
       )}
       {message && <p className="text-sm text-slate-600">{message}</p>}
