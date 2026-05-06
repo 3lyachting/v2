@@ -1,6 +1,8 @@
 import { Router } from "express";
 import { and, eq } from "drizzle-orm";
 import nodemailer from "nodemailer";
+import { existsSync } from "node:fs";
+import path from "node:path";
 import { getDb } from "../db";
 import { storagePut } from "../storage";
 import { requireAdmin } from "../_core/authz";
@@ -474,8 +476,13 @@ router.post("/reservations/:id/send-proposal-email", requireAdmin, async (req, r
     const reservationLabel = isDayTrip ? "Sortie journée" : "Croisière";
     const destinationLabel = String(r.destination || "La Ciotat");
     const totalTtc = `${(Number(r.montantTotal || 0) / 100).toLocaleString("fr-FR")} € TTC`;
-    const logoBase = String(process.env.PUBLIC_APP_URL || process.env.APP_PUBLIC_URL || "").trim().replace(/\/+$/, "");
-    const logoUrl = logoBase ? `${logoBase}/logo-sabine.png` : null;
+    const logoPathCandidates = [
+      path.resolve(process.cwd(), "client", "public", "logo-sabine.png"),
+      path.resolve(process.cwd(), "dist", "public", "logo-sabine.png"),
+      path.resolve(process.cwd(), "public", "logo-sabine.png"),
+    ];
+    const logoPath = logoPathCandidates.find((candidate) => existsSync(candidate)) || null;
+    const logoCid = logoPath ? "sabine-logo@3lyachting" : null;
     const textLines = signUrl
       ? [
           `Bonjour ${r.nomClient || ""},`,
@@ -515,16 +522,13 @@ router.post("/reservations/:id/send-proposal-email", requireAdmin, async (req, r
       to: r.emailClient,
       subject,
       text: textLines.join("\n"),
+      attachments: logoPath && logoCid ? [{ filename: "logo-sabine.png", path: logoPath, cid: logoCid }] : [],
       html: `
         <div style="margin:0;padding:24px;background:#f3f7f9;font-family:Arial,Helvetica,sans-serif;color:#10212c;">
           <div style="max-width:680px;margin:0 auto;background:#ffffff;border:1px solid #dbe5ea;border-radius:16px;overflow:hidden;">
             <div style="background:linear-gradient(135deg,#00384a,#0b3a53);padding:22px 24px;color:#ffffff;">
               <div style="display:flex;align-items:center;gap:14px;">
-                ${
-                  logoUrl
-                    ? `<img src="${logoUrl}" alt="Sabine Sailing" style="height:40px;width:auto;display:block;background:#ffffff;padding:4px;border-radius:8px;" />`
-                    : ""
-                }
+                ${logoCid ? `<img src="cid:${logoCid}" alt="Sabine Sailing" style="height:40px;width:auto;display:block;background:#ffffff;padding:4px;border-radius:8px;" />` : ""}
                 <div>
                   <p style="margin:0;font-size:12px;opacity:0.9;letter-spacing:0.6px;text-transform:uppercase;">Sabine Sailing</p>
                   <h1 style="margin:4px 0 0;font-size:20px;line-height:1.2;">${signUrl ? "Votre contrat est prêt à signer" : "Votre proposition est prête"}</h1>
