@@ -437,8 +437,6 @@ export async function buildContractPdf(r: Reservation, contractNumber: string) {
     drawAt(page5, "La Ciotat", 95, 214);
     drawAt(page5, todayDate, 95, 194);
     drawAt(page5, fullName, 90, 154);
-    // Tag DocuSeal explicite pour créer la zone de signature client.
-    drawAt(page5, "{{Signature Client;role=Signer;type=signature}}", 88, 138, 8, false);
     drawAt(page5, "SAS 3L Yachting", 365, 150, 10, true);
 
     return await templateDoc.save();
@@ -544,15 +542,6 @@ export async function buildContractPdf(r: Reservation, contractNumber: string) {
     size: 8,
     color: rgb(0.15, 0.15, 0.15),
   });
-  // Tag DocuSeal explicite pour créer la zone de signature client.
-  lastPage.drawText("{{Signature Client;role=Signer;type=signature}}", {
-    x: 170,
-    y: 58,
-    font,
-    size: 8,
-    color: rgb(0.15, 0.15, 0.15),
-  });
-
   return await templateDoc.save();
 }
 
@@ -575,20 +564,6 @@ export async function buildQuoteContractPdf(
 
     const contractPages = await merged.copyPages(contractDoc, contractDoc.getPageIndices());
     contractPages.forEach((p) => merged.addPage(p));
-
-    // DocuSeal: ajoute une zone de paraphe sur chaque page.
-    // type=initials force un paraphe (et non une signature complète).
-    const initialsFont = await merged.embedFont(StandardFonts.Helvetica);
-    for (const page of merged.getPages()) {
-      const size = page.getSize();
-      page.drawText("{{Paraphe Client;role=Signer;type=initials}}", {
-        x: Math.max(24, size.width - 180),
-        y: 18,
-        font: initialsFont,
-        size: 8,
-        color: rgb(0.35, 0.35, 0.35),
-      });
-    }
 
     return await merged.save();
   } catch (error: any) {

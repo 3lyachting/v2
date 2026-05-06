@@ -1,4 +1,5 @@
 import { ENV } from "./env";
+import { PDFDocument } from "pdf-lib";
 
 type SupportedProvider = "yousign" | "docusign" | "docuseal" | "other";
 
@@ -64,6 +65,49 @@ function resolveDocusealSignUrl(payload: any, appUrl: string): string | null {
   }
 
   return null;
+}
+
+function buildDocusealPdfFields(pageCount: number, signerRole: string) {
+  const safePages = Math.max(1, pageCount);
+  const fields: any[] = [];
+
+  // Signature client sur la dernière page, dans la zone "Bon pour accord client".
+  fields.push({
+    name: "Signature Client",
+    type: "signature",
+    role: signerRole,
+    required: true,
+    areas: [
+      {
+        page: safePages,
+        x: 0.33,
+        y: 0.84,
+        w: 0.18,
+        h: 0.03,
+      },
+    ],
+  });
+
+  // Paraphe en bas à droite de chaque page.
+  for (let page = 1; page <= safePages; page += 1) {
+    fields.push({
+      name: `Paraphe ${page}`,
+      type: "initials",
+      role: signerRole,
+      required: true,
+      areas: [
+        {
+          page,
+          x: 0.81,
+          y: 0.94,
+          w: 0.14,
+          h: 0.03,
+        },
+      ],
+    });
+  }
+
+  return fields;
 }
 
 async function dispatchYousign(input: EsignDispatchInput): Promise<EsignDispatchResult> {
@@ -202,6 +246,7 @@ async function dispatchDocuseal(input: EsignDispatchInput): Promise<EsignDispatc
   const baseUrl = (process.env.ESIGN_DOCUSEAL_BASE_URL || ENV.eSignDocusealBaseUrl || "https://api.docuseal.com").replace(/\/+$/, "");
   const appUrl = String(process.env.ESIGN_DOCUSEAL_APP_URL || "https://docuseal.com").replace(/\/+$/, "");
   const role = (process.env.ESIGN_DOCUSEAL_ROLE || ENV.eSignDocusealRole || "").trim();
+  const signerRole = role || "Signer";
 
   if (!apiKey) throw new Error("ESIGN_DOCUSEAL_API_KEY manquant");
   const contractResp = await fetch(input.contractDownloadUrl);
@@ -210,6 +255,9 @@ async function dispatchDocuseal(input: EsignDispatchInput): Promise<EsignDispatc
   }
   const contractBytes = Buffer.from(await contractResp.arrayBuffer());
   const contractBase64 = contractBytes.toString("base64");
+  const contractPdf = await PDFDocument.load(contractBytes);
+  const contractPageCount = contractPdf.getPageCount();
+  const fields = buildDocusealPdfFields(contractPageCount, signerRole);
 
   const response = await fetch(`${baseUrl}/submissions/pdf`, {
     method: "POST",
@@ -226,11 +274,12 @@ async function dispatchDocuseal(input: EsignDispatchInput): Promise<EsignDispatc
           file: contractBase64,
         },
       ],
+      fields,
       submitters: [
         {
           name: input.signerName,
           email: input.signerEmail,
-          ...(role ? { role } : {}),
+          role: signerRole,
         },
       ],
       metadata: {

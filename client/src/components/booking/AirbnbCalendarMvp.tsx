@@ -320,10 +320,8 @@ export default function AirbnbCalendarMvp({
           ? isEnglish
             ? `Only ${rangeCoverage.totalDays - rangeCoverage.missingDays} of ${rangeCoverage.totalDays} day(s) are in your published window for this product.`
             : `Seulement ${rangeCoverage.totalDays - rangeCoverage.missingDays} / ${rangeCoverage.totalDays} jour(s) entrent dans vos periodes actives (produit: ${productLabel}).`
-          : rangeCoverage.kind === "full" && endDate
-            ? isEnglish
-              ? "Your selection is fully within published availability for this product."
-              : "Votre selection est entierement couverte par vos periodes actives (produit courant)."
+        : rangeCoverage.kind === "full" && endDate
+            ? ""
             : "";
 
   const highSeasonError = getCharterHighSeasonError(startDate, endDate, selectionMode, { isEnglish });
@@ -813,15 +811,13 @@ export default function AirbnbCalendarMvp({
           {cruiseCapacityHint && (
             <div className="rounded-xl border border-sky-200 bg-sky-50 px-3 py-2 text-xs text-sky-950">{cruiseCapacityHint}</div>
           )}
-          <p className="pt-2 text-xs text-slate-600">
-            {charterPeriods.length > 0
-              ? isEnglish
-                ? "One booking = one published period only. Click inside the period you want; you cannot combine several weeks or days."
-                : "Une réservation = une seule période publiée. Cliquez dans la période voulue ; impossible de combiner plusieurs semaines ou plusieurs journées."
-              : isEnglish
+          {charterPeriods.length === 0 && (
+            <p className="pt-2 text-xs text-slate-600">
+              {isEnglish
                 ? "Step 1: click an available date. The full availability slot is selected automatically (no partial range)."
                 : "Étape 1 : cliquez sur un jour disponible. La période complète de la disponibilité est sélectionnée automatiquement (pas de sous-plage)."}
-          </p>
+            </p>
+          )}
         </div>
       </aside>
     </div>

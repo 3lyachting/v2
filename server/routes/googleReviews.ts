@@ -32,6 +32,8 @@ const FALLBACK_REVIEWS = [
   },
 ];
 
+const hasEnoughFrenchSignals = (text: string) => /[àâäçéèêëîïôöùûüÿœæ]/i.test(text);
+
 router.get("/", async (_req, res) => {
   try {
     const apiKey = (process.env.GOOGLE_MAPS_API_KEY || "").trim();
@@ -62,7 +64,7 @@ router.get("/", async (_req, res) => {
       reviews?: Array<{
         authorAttribution?: { displayName?: string };
         rating?: number;
-        text?: { text?: string };
+        text?: { text?: string; languageCode?: string };
         publishTime?: string;
       }>;
     };
@@ -136,15 +138,22 @@ router.get("/", async (_req, res) => {
 
       if (placeId) {
         const detailsNew = await getPlaceDetailsNew(placeId);
-        const reviewsNew = (detailsNew.reviews || []).map(review => {
+        const mappedReviewsNew = (detailsNew.reviews || []).map(review => {
           const publishEpoch = review.publishTime ? Math.floor(new Date(review.publishTime).getTime() / 1000) : 0;
           return {
             authorName: review.authorAttribution?.displayName || "Client Google",
             rating: review.rating || 0,
             text: review.text?.text || "",
+            languageCode: String(review.text?.languageCode || "").toLowerCase(),
             time: Number.isFinite(publishEpoch) ? publishEpoch : 0,
           };
         });
+        const frenchReviewsNew = mappedReviewsNew.filter(
+          review => review.languageCode.startsWith("fr") || hasEnoughFrenchSignals(review.text)
+        );
+        const reviewsNew = (frenchReviewsNew.length >= 2 ? frenchReviewsNew : mappedReviewsNew).map(
+          ({ languageCode: _languageCode, ...review }) => review
+        );
 
         if ((detailsNew.displayName?.text || "").trim()) {
           return res.json({
@@ -183,6 +192,7 @@ router.get("/", async (_req, res) => {
           author_name?: string;
           rating?: number;
           text?: string;
+          language?: string;
           time?: number;
         }>;
       };
@@ -224,12 +234,19 @@ router.get("/", async (_req, res) => {
 
       if (details.status === "OK" && details.result) {
         const place = details.result;
-        const reviews = (place.reviews || []).map(review => ({
+        const mappedReviews = (place.reviews || []).map(review => ({
           authorName: review.author_name || "Client Google",
           rating: review.rating || 0,
           text: review.text || "",
+          languageCode: String(review.language || "").toLowerCase(),
           time: review.time || 0,
         }));
+        const frenchReviews = mappedReviews.filter(
+          review => review.languageCode.startsWith("fr") || hasEnoughFrenchSignals(review.text)
+        );
+        const reviews = (frenchReviews.length >= 2 ? frenchReviews : mappedReviews).map(
+          ({ languageCode: _languageCode, ...review }) => review
+        );
 
         return res.json({
           placeId: place.place_id || placeId,
