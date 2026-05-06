@@ -43,6 +43,13 @@
       "when": 1778500000000,
       "tag": "0005_doc_categories_crew_passenger",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1778084192400,
+      "tag": "0006_marvelous_wrecker",
+      "breakpoints": true
     }
   ]
 }
