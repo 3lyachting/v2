@@ -4,7 +4,7 @@ import { eq, gte } from "drizzle-orm";
 import type { CalendarResponse, FetchOptions, VEvent } from "node-ical";
 import { getDb } from "../db";
 import { ENV } from "../_core/env";
-import { config, disponibilites } from "../../drizzle/schema";
+import { charterSlots, config, disponibilites } from "../../drizzle/schema";
 
 const router = Router();
 
@@ -288,7 +288,8 @@ router.post("/verify", async (req, res) => {
 
 router.get("/config", async (_req, res) => {
   const db = await getDb();
-  const exportPath = "/api/ical/export.ics";
+  // Prefer extension-less path: some proxies/CDNs mishandle ".ics" routes.
+  const exportPath = "/api/ical/export";
   if (!db) return res.json({ url: "", exportUrl: exportPath });
   const [row] = await db.select().from(config).where(eq(config.cle, ICAL_KEY)).limit(1);
   const origin = resolvePublicOrigin(_req);
@@ -332,12 +333,18 @@ async function sendPlanningExportIcs(_req: Request, res: Response) {
     if (!db) return res.status(500).send("DB indisponible");
 
     const now = new Date();
-    const events = await db
+    const legacyDisponibilites = await db
       .select()
       .from(disponibilites)
       .where(gte(disponibilites.fin, now))
       .orderBy(disponibilites.debut);
-    const blockingEvents = events.filter((ev) => isBlockingPlanningExport(ev));
+    const blockingLegacy = legacyDisponibilites.filter((ev) => isBlockingPlanningExport(ev));
+    const inactiveCharterSlots = await db
+      .select()
+      .from(charterSlots)
+      .where(gte(charterSlots.fin, now))
+      .orderBy(charterSlots.debut);
+    const blockingSlots = inactiveCharterSlots.filter((s) => !s.active);
 
     const lines: string[] = [
       "BEGIN:VCALENDAR",
@@ -349,7 +356,7 @@ async function sendPlanningExportIcs(_req: Request, res: Response) {
       "X-WR-TIMEZONE:UTC",
     ];
 
-    for (const ev of blockingEvents) {
+    for (const ev of blockingLegacy) {
       const title = `[${ev.planningType}] ${ev.destination} - ${ev.statut}`;
       const descriptionParts = [
         `Type: ${ev.planningType}`,
@@ -367,11 +374,30 @@ async function sendPlanningExportIcs(_req: Request, res: Response) {
       lines.push(`LOCATION:${escapeIcs(ev.destination)}`);
       lines.push("END:VEVENT");
     }
+    for (const slot of blockingSlots) {
+      const title = `[charter] ${slot.product} - indisponible`;
+      const descriptionParts = [
+        "Type: charter-slot",
+        `Produit: ${slot.product}`,
+        slot.note ? `Note: ${slot.note}` : "",
+        slot.publicNote ? `Public: ${slot.publicNote}` : "",
+      ].filter(Boolean);
+
+      lines.push("BEGIN:VEVENT");
+      lines.push(`UID:charter-slot-${slot.id}@sabine-sailing.com`);
+      lines.push(`DTSTAMP:${toIcsDateTime(new Date())}`);
+      lines.push(`DTSTART:${toIcsDateTime(new Date(slot.debut))}`);
+      lines.push(`DTEND:${toIcsDateTime(new Date(slot.fin))}`);
+      lines.push(`SUMMARY:${escapeIcs(title)}`);
+      lines.push(`DESCRIPTION:${escapeIcs(descriptionParts.join("\n"))}`);
+      lines.push(`LOCATION:${escapeIcs("Sabine Sailing")}`);
+      lines.push("END:VEVENT");
+    }
 
     lines.push("END:VCALENDAR");
 
     res.setHeader("Content-Type", "text/calendar; charset=utf-8");
-    res.setHeader("Content-Disposition", "attachment; filename=\"sabine-planning.ics\"");
+    res.setHeader("Content-Disposition", "inline; filename=\"sabine-planning.ics\"");
     return res.send(lines.join("\r\n"));
   } catch (err: unknown) {
     console.error("[iCal export] Erreur:", err);

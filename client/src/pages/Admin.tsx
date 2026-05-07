@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
-import { Calendar, CreditCard, FileText, Link2, LogOut, Package, UsersRound, Wrench } from "lucide-react";
+import { Calendar, CreditCard, FileText, Link2, LogOut, NotebookPen, Package, UsersRound, Wrench } from "lucide-react";
 import ConfigIcal from "@/components/ConfigIcal";
 import BackofficeOps from "@/components/BackofficeOps";
 import BackofficeAccountsPanel from "@/components/BackofficeAccountsPanel";
+import BackofficeNotes from "@/components/BackofficeNotes";
 import AdminDocumentsManager from "@/components/AdminDocumentsManager";
 import InventoryManager from "@/components/InventoryManager";
 import SeasonPricingManager from "@/components/SeasonPricingManager";
@@ -14,6 +15,7 @@ type AdminTab =
   | "finances_reset"
   | "inventaire"
   | "documents"
+  | "notes"
   | "comptes"
   | "maintenance"
   | "config";
@@ -133,6 +135,7 @@ export default function Admin() {
             { id: "finances_reset" as const, label: "Finances", icon: CreditCard },
             { id: "inventaire" as const, label: "Inventaire", icon: Package },
             { id: "documents" as const, label: "Documents", icon: FileText },
+            { id: "notes" as const, label: "Notes", icon: NotebookPen },
             { id: "comptes" as const, label: "Comptes", icon: UsersRound },
             { id: "maintenance" as const, label: "Maintenance", icon: Wrench },
             { id: "config" as const, label: "Configuration", icon: Link2 },
@@ -232,6 +235,7 @@ export default function Admin() {
         {tab === "maintenance" && <BackofficeOps mode="maintenance" />}
         {tab === "inventaire" && <InventoryManager />}
         {tab === "documents" && <AdminDocumentsManager canMutate={sessionRole === "admin"} />}
+        {tab === "notes" && <BackofficeNotes canMutate={sessionRole === "admin"} />}
         {tab === "comptes" && sessionRole === "admin" && <BackofficeAccountsPanel />}
       </main>
     </div>
