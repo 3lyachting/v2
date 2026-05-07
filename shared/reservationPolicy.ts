@@ -42,6 +42,32 @@ function isTransatDestination(destination?: string | null) {
   return String(destination || "").toLowerCase().includes("transat");
 }
 
+function isCaribbeanDestination(destination?: string | null) {
+  const d = String(destination || "").toLowerCase();
+  return (
+    d.includes("caraib") ||
+    d.includes("caraïb") ||
+    d.includes("antill") ||
+    d.includes("martinique") ||
+    d.includes("fort-de-france") ||
+    d.includes("fort de france")
+  );
+}
+
+function caribbeanWinterWindowForYear(year: number) {
+  return { start: `${year}-12-01`, end: `${year + 1}-03-31` };
+}
+
+function isInsideAnyCaribbeanWinterWindow(startIso: string, endIso: string) {
+  const yStart = Number(startIso.slice(0, 4));
+  const yEnd = Number(endIso.slice(0, 4));
+  for (let y = yStart - 1; y <= yEnd; y++) {
+    const win = caribbeanWinterWindowForYear(y);
+    if (isInsideWindow(startIso, endIso, win.start, win.end)) return true;
+  }
+  return false;
+}
+
 export function validateReservationPolicy(input: {
   dateDebut: string | Date;
   dateFin: string | Date;
@@ -87,6 +113,23 @@ export function validateReservationPolicy(input: {
   }
   if (isTransatBooking && insideTransatWindow) {
     return { ok: true, policy: "transat_window" };
+  }
+
+  const isCaribbeanBooking =
+    isCaribbeanDestination(input.destination) ||
+    String(input.charterProduct || "").toLowerCase() === "caraibes";
+  if (isCaribbeanBooking && isInsideAnyCaribbeanWinterWindow(startIso, endIso)) {
+    const startSaturday = dayOfWeekIso(startIso) === 6;
+    const endSaturday = dayOfWeekIso(endIso) === 6;
+    const weeklySpan = diffDays(startIso, endIso) === 7;
+    if (!startSaturday || !endSaturday || !weeklySpan) {
+      return {
+        ok: false,
+        reason:
+          "Pour les croisières Caraïbes (décembre à fin mars), les réservations sont obligatoirement du samedi au samedi.",
+      };
+    }
+    return { ok: true, policy: "weekly_saturday" };
   }
 
   const aprilMayStart = `${startYear}-04-01`;

@@ -41,12 +41,23 @@ function defaultRange() {
 }
 
 function mapDbError(error: any, fallback: string) {
-  const message = String(error?.message || "");
+  const rawMessage = String(error?.message || "");
+  const cause: any = error?.cause ?? error;
+  const code = String(cause?.code || "");
+  const detail = String(cause?.detail || "");
+  const message = `${rawMessage}\n${detail}`;
   if (message.includes("relation") && message.includes("does not exist")) {
     return "Table charterSlots absente. Appliquez la migration (pnpm db:push ou drizzle migrer) puis redemarrez.";
   }
-  if (message.includes("charterSlots_uniq_range_product_idx") || message.includes("duplicate key")) {
+  if (
+    code === "23505" ||
+    message.includes("charterSlots_uniq_range_product_idx") ||
+    message.includes("duplicate key")
+  ) {
     return "Une periode identique existe deja pour ce produit (memes dates).";
+  }
+  if (code === "22P02") {
+    return "Valeur invalide envoyee a la base (format de date ou produit incorrect).";
   }
   return error?.message || fallback;
 }
