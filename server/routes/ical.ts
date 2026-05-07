@@ -88,6 +88,12 @@ function detectTarif(text: string): number | null {
   return null;
 }
 
+function eurosFromCents(value: unknown): string {
+  const n = Number(value ?? 0);
+  if (!Number.isFinite(n)) return "0.00";
+  return (n / 100).toFixed(2);
+}
+
 /** Valeurs iCal avec paramètres → chaîne lisible (node-ical). */
 function paramToString(value: unknown): string {
   if (value == null) return "";
@@ -370,6 +376,13 @@ async function sendPlanningExportIcs(_req: Request, res: Response) {
       const descriptionParts = [
         `Type: ${ev.planningType}`,
         `Statut: ${ev.statut}`,
+        ev.tarif != null ? `Tarif bateau entier: ${ev.tarif} EUR` : "",
+        ev.tarifCabine != null ? `Tarif cabine: ${ev.tarifCabine} EUR` : "",
+        ev.tarifJourPersonne != null ? `Tarif/jour/personne: ${ev.tarifJourPersonne} EUR` : "",
+        ev.tarifJourPriva != null ? `Tarif jour privatif: ${ev.tarifJourPriva} EUR` : "",
+        ev.capaciteTotale != null ? `Capacité totale: ${ev.capaciteTotale}` : "",
+        ev.cabinesReservees != null ? `Cabines réservées: ${ev.cabinesReservees}` : "",
+        ev.note ? `Note interne: ${ev.note}` : "",
         ev.notePublique ? `Public: ${ev.notePublique}` : "",
       ].filter(Boolean);
 
@@ -387,7 +400,11 @@ async function sendPlanningExportIcs(_req: Request, res: Response) {
       const title = `[charter] ${slot.product} - indisponible`;
       const descriptionParts = [
         "Type: charter-slot",
+        `ID slot: ${slot.id}`,
         `Produit: ${slot.product}`,
+        `Actif: ${slot.active ? "oui" : "non"}`,
+        slot.debut ? `Début brut: ${new Date(slot.debut).toISOString()}` : "",
+        slot.fin ? `Fin brute: ${new Date(slot.fin).toISOString()}` : "",
         slot.note ? `Note: ${slot.note}` : "",
         slot.publicNote ? `Public: ${slot.publicNote}` : "",
       ].filter(Boolean);
@@ -405,10 +422,35 @@ async function sendPlanningExportIcs(_req: Request, res: Response) {
     for (const r of exportableReservations) {
       const title = `[reservation] ${r.destination || "Sabine Sailing"} - ${r.formule}`;
       const descriptionParts = [
+        `ID réservation: ${r.id}`,
         `Client: ${r.nomClient}${r.prenomClient ? ` ${r.prenomClient}` : ""}`.trim(),
+        r.emailClient ? `Email: ${r.emailClient}` : "",
+        r.telClient ? `Téléphone: ${r.telClient}` : "",
+        r.customerId != null ? `Customer ID: ${r.customerId}` : "",
+        r.disponibiliteId != null ? `Disponibilité ID: ${r.disponibiliteId}` : "",
+        `Personnes: ${r.nbPersonnes}`,
+        `Formule: ${r.formule}`,
+        r.destination ? `Destination: ${r.destination}` : "",
+        `Statut paiement: ${r.statutPaiement || "en_attente"}`,
+        `Type paiement: ${r.typePaiement || "acompte"}`,
+        `Montant total: ${eurosFromCents(r.montantTotal)} EUR`,
+        `Montant payé: ${eurosFromCents(r.montantPaye)} EUR`,
+        `Acompte %: ${r.acomptePercent ?? 0}`,
+        `Acompte montant: ${eurosFromCents(r.acompteMontant)} EUR`,
+        `Solde montant: ${eurosFromCents(r.soldeMontant)} EUR`,
+        r.soldeEcheanceAt ? `Échéance solde: ${new Date(r.soldeEcheanceAt).toISOString()}` : "",
         `Statut demande: ${r.requestStatus || "nouvelle"}`,
         `Workflow: ${r.workflowStatut || "demande"}`,
         `Type: ${r.typeReservation || "bateau_entier"}`,
+        r.nbCabines != null ? `Nb cabines/places: ${r.nbCabines}` : "",
+        r.bookingOrigin ? `Origine: ${r.bookingOrigin}` : "",
+        r.message ? `Message client: ${r.message}` : "",
+        r.internalComment ? `Commentaire interne: ${r.internalComment}` : "",
+        r.ownerValidatedAt ? `Validée le: ${new Date(r.ownerValidatedAt).toISOString()}` : "",
+        r.ownerValidatedBy != null ? `Validée par user ID: ${r.ownerValidatedBy}` : "",
+        r.archivedAt ? `Archivée le: ${new Date(r.archivedAt).toISOString()}` : "",
+        r.createdAt ? `Créée le: ${new Date(r.createdAt).toISOString()}` : "",
+        r.updatedAt ? `Modifiée le: ${new Date(r.updatedAt).toISOString()}` : "",
       ].filter(Boolean);
 
       lines.push("BEGIN:VEVENT");
