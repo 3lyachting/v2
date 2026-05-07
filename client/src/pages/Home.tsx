@@ -23,6 +23,27 @@ const AvisGoogle = lazy(() => import("@/components/AvisGoogle"));
 const BRAND_SAND = "#B58E6E";
 const BRAND_DEEP = "#00384A";
 
+function LanguageFlag({ code }: { code: "FR" | "GB" }) {
+  if (code === "FR") {
+    return (
+      <svg viewBox="0 0 24 16" className="h-3.5 w-5 rounded-[2px] border border-white/20" aria-hidden="true">
+        <rect width="8" height="16" x="0" y="0" fill="#0055A4" />
+        <rect width="8" height="16" x="8" y="0" fill="#FFFFFF" />
+        <rect width="8" height="16" x="16" y="0" fill="#EF4135" />
+      </svg>
+    );
+  }
+  return (
+    <svg viewBox="0 0 24 16" className="h-3.5 w-5 rounded-[2px] border border-white/20" aria-hidden="true">
+      <rect width="24" height="16" fill="#012169" />
+      <rect x="10" width="4" height="16" fill="#FFFFFF" />
+      <rect y="6" width="24" height="4" fill="#FFFFFF" />
+      <rect x="10.8" width="2.4" height="16" fill="#C8102E" />
+      <rect y="6.8" width="24" height="2.4" fill="#C8102E" />
+    </svg>
+  );
+}
+
 // ── Navbar ────────────────────────────────────────────────────────────────────
 function Navbar({ isEnglish = false }: { isEnglish?: boolean }) {
   const [scrolled, setScrolled] = useState(false);
@@ -114,8 +135,10 @@ function Navbar({ isEnglish = false }: { isEnglish?: boolean }) {
             </button>
             <a
               href={isEnglish ? "/" : "/en"}
-              className="rounded-full border border-[#c8a96b]/70 px-4 py-2 text-sm font-bold text-[#f7e8c6] transition-all hover:bg-[#c8a96b] hover:text-[#111827]"
+              aria-label={isEnglish ? "Basculer en français" : "Switch to English"}
+              className="inline-flex items-center gap-2 rounded-full border border-[#c8a96b]/70 px-4 py-2 text-sm font-bold text-[#f7e8c6] transition-all hover:bg-[#c8a96b] hover:text-[#111827]"
             >
+              <LanguageFlag code={isEnglish ? "FR" : "GB"} />
               {isEnglish ? "FR" : "EN"}
             </a>
             <a
@@ -159,9 +182,11 @@ function Navbar({ isEnglish = false }: { isEnglish?: boolean }) {
             <a
               href={isEnglish ? "/" : "/en"}
               onClick={() => setOpen(false)}
-              className="block w-full mt-2 px-5 py-2.5 rounded-full border border-white/30 text-white text-center text-sm font-bold"
+              aria-label={isEnglish ? "Basculer en français" : "Switch to English"}
+              className="mt-2 flex w-full items-center justify-center gap-2 rounded-full border border-white/30 px-5 py-2.5 text-center text-sm font-bold text-white"
             >
-              {isEnglish ? "Switch to French" : "Switch to English"}
+              <LanguageFlag code={isEnglish ? "FR" : "GB"} />
+              {isEnglish ? "FR" : "EN"}
             </a>
             <a
               href={withBasePath("/espace-client")}
@@ -554,7 +579,7 @@ function SectionDestinations({ isEnglish = false }: { isEnglish?: boolean }) {
       emoji: "🌊",
       color: "#00384A",
       colorLight: "#EBDACA",
-      img: "/photos%20site/dji_fly_20260313_105718_116_1773396190675_photo_optimized.jpg",
+      img: "/photos%20site/dji_fly_20260314_171456_155_1773505004694_photo_optimized.jpg",
       titre: "Corsica & Sardinia",
       depart: "La Ciotat / Ajaccio",
       description: "Sail between Corsica and Sardinia from La Ciotat or Ajaccio: turquoise coves, wild anchorages and characterful stopovers.",
@@ -580,7 +605,7 @@ function SectionDestinations({ isEnglish = false }: { isEnglish?: boolean }) {
       emoji: "🌴",
       color: "#B58E6E",
       colorLight: "#f2e4d5",
-      img: "/photos%20site/IMG_4449.jpeg",
+      img: "/photos%20site/dji_fly_20260313_143914_122_1773409216418_photo_optimized.jpg",
       titre: "Martinique & Grenadines",
       depart: "Fort-de-France / Pointe-à-Pitre",
       description: "From Martinique or Guadeloupe to iconic Grenadine anchorages: turquoise waters, Caribbean vibes and custom itineraries.",
@@ -594,16 +619,17 @@ function SectionDestinations({ isEnglish = false }: { isEnglish?: boolean }) {
       emoji: "🌊",
       color: "#00384A",
       colorLight: "#EBDACA",
-      img: "/photos%20site/dji_fly_20260313_105718_116_1773396190675_photo_optimized.jpg",
+      img: "/photos%20site/dji_fly_20260314_171456_155_1773505004694_photo_optimized.jpg",
       titre: "Corse & Sardaigne",
-      depart: "La Ciotat / Ajaccio",
-      description: "Naviguez entre Corse et Sardaigne depuis La Ciotat ou Ajaccio: calanques turquoise, mouillages sauvages et escales de caractere. Une Mediterranee authentique, elegante et accessible en toute serenite.",
+      depart: "Ajaccio",
+      description:
+        "Au départ d'Ajaccio, choisissez votre itinéraire: cap au nord vers Girolata, la réserve de Scandola, les calanques de Piana et les Sanguinaires, ou cap au sud vers les bouches de Bonifacio, l'archipel de la Maddalena, Lavezzi et Cavallo.",
       points: [
-        "Calanques des Calanques de Piana (Corse)",
-        "Bonifacio & ses falaises blanches",
-        "Archipel de La Maddalena (Sardaigne)",
-        "Golfe de Porto & réserve naturelle",
-        "Plages de Palombaggia",
+        "Itinéraire nord: Girolata, réserve de Scandola, calanques de Piana, îles Sanguinaires",
+        "Itinéraire sud: bouches de Bonifacio, archipel de la Maddalena, Lavezzi, Cavallo",
+        "Mouillages sauvages et escales corses de caractère",
+        "Navigation adaptable selon météo et vos envies",
+        "Baignades et snorkeling dans les eaux cristallines",
       ],
     },
     {
@@ -632,16 +658,17 @@ function SectionDestinations({ isEnglish = false }: { isEnglish?: boolean }) {
       emoji: "🌴",
       color: "#B58E6E",
       colorLight: "#f2e4d5",
-      img: "/photos%20site/IMG_4449.jpeg",
+      img: "/photos%20site/dji_fly_20260313_143914_122_1773409216418_photo_optimized.jpg",
       titre: "Martinique & Grenadines",
-      depart: "Fort-de-France / Pointe-à-Pitre",
-      description: "Depuis Fort-de-France ou Pointe-a-Pitre, cap sur les Grenadines et les mouillages iconiques des Caraibes. Eaux turquoise, ambiance creole et itineraires adaptes a votre rythme.",
+      depart: "Fort-de-France",
+      description:
+        "Au départ de Fort-de-France, cap sur Sainte-Lucie, Saint-Vincent et les Grenadines: Mayreau, Bequia, Union, Morpion, Petit St Vincent, Tobago Cays... Un itinéraire tropical modulable selon la durée et la météo.",
       points: [
-        "Les Saintes & Marie-Galante",
-        "Tobago Cays (réserve marine)",
-        "Bequia & Mustique",
-        "Carriacou & Petite Martinique",
-        "Saint-Vincent & Grenadines",
+        "Fort-de-France → Sainte-Lucie → Saint-Vincent",
+        "Grenadines: Mayreau, Bequia, Union",
+        "Morpion, Petit St Vincent, Tobago Cays",
+        "Mouillages turquoise et navigation d'île en île",
+        "Escales adaptables selon vos préférences",
       ],
     },
   ];
