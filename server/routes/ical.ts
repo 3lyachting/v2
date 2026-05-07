@@ -4,7 +4,7 @@ import { eq, gte } from "drizzle-orm";
 import type { CalendarResponse, FetchOptions, VEvent } from "node-ical";
 import { getDb } from "../db";
 import { ENV } from "../_core/env";
-import { charterSlots, config, disponibilites } from "../../drizzle/schema";
+import { charterSlots, config, disponibilites, reservations } from "../../drizzle/schema";
 
 const router = Router();
 
@@ -345,6 +345,15 @@ async function sendPlanningExportIcs(_req: Request, res: Response) {
       .where(gte(charterSlots.fin, now))
       .orderBy(charterSlots.debut);
     const blockingSlots = inactiveCharterSlots.filter((s) => !s.active);
+    const liveReservations = await db
+      .select()
+      .from(reservations)
+      .where(gte(reservations.dateFin, now))
+      .orderBy(reservations.dateDebut);
+    const exportableReservations = liveReservations.filter((r) => {
+      const status = String(r.requestStatus || "");
+      return status !== "refusee" && status !== "archivee";
+    });
 
     const lines: string[] = [
       "BEGIN:VCALENDAR",
@@ -391,6 +400,25 @@ async function sendPlanningExportIcs(_req: Request, res: Response) {
       lines.push(`SUMMARY:${escapeIcs(title)}`);
       lines.push(`DESCRIPTION:${escapeIcs(descriptionParts.join("\n"))}`);
       lines.push(`LOCATION:${escapeIcs("Sabine Sailing")}`);
+      lines.push("END:VEVENT");
+    }
+    for (const r of exportableReservations) {
+      const title = `[reservation] ${r.destination || "Sabine Sailing"} - ${r.formule}`;
+      const descriptionParts = [
+        `Client: ${r.nomClient}${r.prenomClient ? ` ${r.prenomClient}` : ""}`.trim(),
+        `Statut demande: ${r.requestStatus || "nouvelle"}`,
+        `Workflow: ${r.workflowStatut || "demande"}`,
+        `Type: ${r.typeReservation || "bateau_entier"}`,
+      ].filter(Boolean);
+
+      lines.push("BEGIN:VEVENT");
+      lines.push(`UID:reservation-${r.id}@sabine-sailing.com`);
+      lines.push(`DTSTAMP:${toIcsDateTime(new Date())}`);
+      lines.push(`DTSTART:${toIcsDateTime(new Date(r.dateDebut))}`);
+      lines.push(`DTEND:${toIcsDateTime(new Date(r.dateFin))}`);
+      lines.push(`SUMMARY:${escapeIcs(title)}`);
+      lines.push(`DESCRIPTION:${escapeIcs(descriptionParts.join("\n"))}`);
+      lines.push(`LOCATION:${escapeIcs(r.destination || "Sabine Sailing")}`);
       lines.push("END:VEVENT");
     }
 

@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
-import { Calendar, CreditCard, FileText, Link2, LogOut, NotebookPen, Package, UsersRound, Wrench } from "lucide-react";
-import ConfigIcal from "@/components/ConfigIcal";
+import { Calendar, CreditCard, FileText, LogOut, NotebookPen, Package, UsersRound, Wrench } from "lucide-react";
 import BackofficeOps from "@/components/BackofficeOps";
 import BackofficeAccountsPanel from "@/components/BackofficeAccountsPanel";
 import BackofficeNotes from "@/components/BackofficeNotes";
@@ -17,8 +16,7 @@ type AdminTab =
   | "documents"
   | "notes"
   | "comptes"
-  | "maintenance"
-  | "config";
+  | "maintenance";
 
 type ReservationLite = {
   id: number;
@@ -138,7 +136,6 @@ export default function Admin() {
             { id: "notes" as const, label: "Notes", icon: NotebookPen },
             { id: "comptes" as const, label: "Comptes", icon: UsersRound },
             { id: "maintenance" as const, label: "Maintenance", icon: Wrench },
-            { id: "config" as const, label: "Configuration", icon: Link2 },
           ]
             .filter((item) => item.id !== "comptes" || sessionRole === "admin")
             .map((item) => (
@@ -231,11 +228,10 @@ export default function Admin() {
           </div>
         )}
 
-        {tab === "config" && <ConfigIcal />}
         {tab === "maintenance" && <BackofficeOps mode="maintenance" />}
         {tab === "inventaire" && <InventoryManager />}
         {tab === "documents" && <AdminDocumentsManager canMutate={sessionRole === "admin"} />}
-        {tab === "notes" && <BackofficeNotes canMutate={sessionRole === "admin"} />}
+        {tab === "notes" && <BackofficeNotes canMutate={sessionRole === "admin" || sessionRole === "viewer"} />}
         {tab === "comptes" && sessionRole === "admin" && <BackofficeAccountsPanel />}
       </main>
     </div>

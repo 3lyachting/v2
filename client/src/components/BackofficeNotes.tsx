@@ -53,8 +53,7 @@ export default function BackofficeNotes({ canMutate = true }: { canMutate?: bool
           Notes partagées
         </h2>
         <p className="mt-2 text-sm text-slate-600">
-          Bloc-notes commun du backoffice. Les administrateurs peuvent modifier le contenu, les comptes consultatifs
-          peuvent le lire.
+          Bloc-notes commun du backoffice. Les administrateurs et comptes consultatifs peuvent modifier le contenu.
         </p>
       </div>
 
