@@ -351,12 +351,11 @@ async function sendPlanningExportIcs(_req: Request, res: Response) {
       .where(gte(charterSlots.fin, now))
       .orderBy(charterSlots.debut);
     const blockingSlots = inactiveCharterSlots.filter((s) => !s.active);
-    const liveReservations = await db
+    const allReservations = await db
       .select()
       .from(reservations)
-      .where(gte(reservations.dateFin, now))
       .orderBy(reservations.dateDebut);
-    const exportableReservations = liveReservations.filter((r) => {
+    const exportableReservations = allReservations.filter((r) => {
       const status = String(r.requestStatus || "");
       return status !== "refusee" && status !== "archivee";
     });
