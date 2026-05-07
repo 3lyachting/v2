@@ -46,16 +46,16 @@ async function sendMagicLink(email: string, token: string, reqOrigin: string) {
     await transporter.sendMail({
       from: fromEmail,
       to: toEmail,
-      subject: "Bienvenue a bord - Votre acces client Sabine Sailing",
+      subject: "Bienvenue à bord - Votre accès client Sabine Sailing",
       text: [
         "Bonjour,",
         "",
-        "Votre compte client Sabine Sailing est pret.",
-        "Cliquez sur ce lien securise (valide 30 minutes) pour acceder a votre espace client :",
+        "Votre compte client Sabine Sailing est prêt.",
+        "Cliquez sur ce lien sécurisé (valide 30 minutes) pour accéder à votre espace client :",
         url,
         "",
-        "A bientot a bord,",
-        "L'equipe Sabine Sailing",
+        "À bientôt à bord,",
+        "L'équipe Sabine Sailing",
       ].join("\n"),
       html: `
         <div style="margin:0;padding:24px;background:#f3f6fb;font-family:Arial,Helvetica,sans-serif;color:#10233f;">
@@ -67,17 +67,17 @@ async function sendMagicLink(email: string, token: string, reqOrigin: string) {
             </tr>
             <tr>
               <td style="padding:28px 24px 24px 24px;">
-                <h2 style="margin:0 0 10px 0;font-size:22px;line-height:1.2;color:#112a4a;">Bienvenue a bord</h2>
+                <h2 style="margin:0 0 10px 0;font-size:22px;line-height:1.2;color:#112a4a;">Bienvenue à bord</h2>
                 <p style="margin:0 0 14px 0;font-size:15px;line-height:1.6;color:#2b3d57;">
-                  Votre compte client <strong>Sabine Sailing</strong> est cree.
+                  Votre compte client <strong>Sabine Sailing</strong> est créé.
                 </p>
                 <p style="margin:0 0 18px 0;font-size:15px;line-height:1.6;color:#2b3d57;">
-                  Cliquez sur le bouton ci-dessous pour acceder a votre espace client.
-                  Ce lien est securise et valable <strong>30 minutes</strong>.
+                  Cliquez sur le bouton ci-dessous pour accéder à votre espace client.
+                  Ce lien est sécurisé et valable <strong>30 minutes</strong>.
                 </p>
                 <p style="margin:0 0 24px 0;">
                   <a href="${url}" style="display:inline-block;background:#12355e;color:#ffffff;text-decoration:none;font-weight:700;font-size:14px;padding:12px 18px;border-radius:9px;">
-                    Acceder a mon espace client
+                    Accéder à mon espace client
                   </a>
                 </p>
                 <p style="margin:0 0 8px 0;font-size:13px;line-height:1.6;color:#4a5f7e;">
@@ -90,8 +90,8 @@ async function sendMagicLink(email: string, token: string, reqOrigin: string) {
             </tr>
             <tr>
               <td style="padding:16px 24px;background:#f8fbff;border-top:1px solid #e4ebf5;font-size:12px;line-height:1.5;color:#60748f;">
-                A bientot a bord,<br/>
-                L'equipe Sabine Sailing
+                À bientôt à bord,<br/>
+                L'équipe Sabine Sailing
               </td>
             </tr>
           </table>

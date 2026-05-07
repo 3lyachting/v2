@@ -148,12 +148,7 @@ router.get("/", async (_req, res) => {
             time: Number.isFinite(publishEpoch) ? publishEpoch : 0,
           };
         });
-        const frenchReviewsNew = mappedReviewsNew.filter(
-          review => review.languageCode.startsWith("fr") || hasEnoughFrenchSignals(review.text)
-        );
-        const reviewsNew = (frenchReviewsNew.length >= 2 ? frenchReviewsNew : mappedReviewsNew).map(
-          ({ languageCode: _languageCode, ...review }) => review
-        );
+        const reviewsNew = mappedReviewsNew.map(({ languageCode: _languageCode, ...review }) => review);
 
         if ((detailsNew.displayName?.text || "").trim()) {
           return res.json({
@@ -241,12 +236,7 @@ router.get("/", async (_req, res) => {
           languageCode: String(review.language || "").toLowerCase(),
           time: review.time || 0,
         }));
-        const frenchReviews = mappedReviews.filter(
-          review => review.languageCode.startsWith("fr") || hasEnoughFrenchSignals(review.text)
-        );
-        const reviews = (frenchReviews.length >= 2 ? frenchReviews : mappedReviews).map(
-          ({ languageCode: _languageCode, ...review }) => review
-        );
+        const reviews = mappedReviews.map(({ languageCode: _languageCode, ...review }) => review);
 
         return res.json({
           placeId: place.place_id || placeId,

@@ -50,14 +50,14 @@ export async function sendCustomerPasswordEmail(email: string, password: string,
     text: [
       "Bonjour,",
       "",
-      "Votre compte client est cree.",
+      "Votre compte client est créé.",
       `Email: ${email}`,
       `Mot de passe: ${password}`,
       "",
       `Connectez-vous ici: ${loginUrl}`,
       "",
       "Conservez ce mot de passe. Vous pourrez demander un lien magique si besoin.",
-      "L'equipe Sabine Sailing",
+      "L'équipe Sabine Sailing",
     ].join("\n"),
     html: `
       <div style="margin:0;padding:24px;background:#f3f6fb;font-family:Arial,Helvetica,sans-serif;color:#10233f;">
@@ -69,9 +69,9 @@ export async function sendCustomerPasswordEmail(email: string, password: string,
           </tr>
           <tr>
             <td style="padding:28px 24px 24px 24px;">
-              <h2 style="margin:0 0 10px 0;font-size:22px;line-height:1.2;color:#112a4a;">Votre espace client est pret</h2>
+              <h2 style="margin:0 0 10px 0;font-size:22px;line-height:1.2;color:#112a4a;">Votre espace client est prêt</h2>
               <p style="margin:0 0 16px 0;font-size:15px;line-height:1.6;color:#2b3d57;">
-                Voici vos identifiants pour vous connecter a votre espace client.
+                Voici vos identifiants pour vous connecter à votre espace client.
               </p>
               <div style="background:#f8fbff;border:1px solid #d7e3f4;border-radius:10px;padding:12px 14px;margin:0 0 18px 0;">
                 <p style="margin:0 0 6px 0;font-size:14px;"><strong>Email:</strong> ${email}</p>
@@ -83,7 +83,7 @@ export async function sendCustomerPasswordEmail(email: string, password: string,
                 </a>
               </p>
               <p style="margin:0;font-size:12px;line-height:1.6;color:#60748f;">
-                Conservez ce mot de passe en lieu sur. Vous pourrez aussi demander un lien de connexion.
+                Conservez ce mot de passe en lieu sûr. Vous pourrez aussi demander un lien de connexion.
               </p>
             </td>
           </tr>
