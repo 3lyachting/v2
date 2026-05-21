@@ -14,6 +14,7 @@ import {
   isReservationBlockingForCharterCalendar,
   rangesOverlapForStay,
 } from "@shared/charterCapacity";
+import { snapToSaturdayWeekSpan } from "@shared/charterWeekPolicy";
 
 const BRAND_DEEP = "#00384A";
 const BRAND_SAND = "#D8C19E";
@@ -190,7 +191,15 @@ function isDayTripReservation(reservation: ReservationRow): boolean {
   );
 }
 
-export default function CharterSlotManager() {
+type CharterSlotManagerProps = {
+  focusReservationId?: number | null;
+  onFocusReservationHandled?: () => void;
+};
+
+export default function CharterSlotManager({
+  focusReservationId = null,
+  onFocusReservationHandled,
+}: CharterSlotManagerProps) {
   const [rows, setRows] = useState<SlotRow[]>([]);
   const [reservations, setReservations] = useState<ReservationRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -250,9 +259,6 @@ export default function CharterSlotManager() {
     note: "",
     publicNote: "",
   });
-  const didInitNewDemandRef = useRef(false);
-  const knownNewDemandIdsRef = useRef<Set<number>>(new Set());
-
   const load = async () => {
     try {
       setLoading(true);
@@ -279,31 +285,14 @@ export default function CharterSlotManager() {
 
   useEffect(() => {
     void load();
+    const timer = window.setInterval(() => void load(), 60_000);
+    const onRefresh = () => void load();
+    window.addEventListener("sabine:refresh-reservations", onRefresh);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener("sabine:refresh-reservations", onRefresh);
+    };
   }, []);
-
-  useEffect(() => {
-    const newDemandIds = new Set(
-      reservations
-        .filter((r) => String(r.requestStatus || "nouvelle") === "nouvelle")
-        .map((r) => r.id)
-    );
-
-    if (!didInitNewDemandRef.current) {
-      didInitNewDemandRef.current = true;
-      knownNewDemandIdsRef.current = newDemandIds;
-      return;
-    }
-
-    const incomingIds = Array.from(newDemandIds).filter((id) => !knownNewDemandIdsRef.current.has(id));
-    if (incomingIds.length > 0) {
-      setMessage(
-        incomingIds.length === 1
-          ? `🔔 Nouvelle demande de réservation reçue (#${incomingIds[0]}).`
-          : `🔔 ${incomingIds.length} nouvelles demandes de réservation reçues.`
-      );
-    }
-    knownNewDemandIdsRef.current = newDemandIds;
-  }, [reservations]);
 
   const startCreate = () => {
     setEditingId(null);
@@ -638,6 +627,15 @@ export default function CharterSlotManager() {
     });
   };
 
+  useEffect(() => {
+    if (!focusReservationId) return;
+    const target = reservations.find((r) => r.id === focusReservationId);
+    if (!target) return;
+    setCalendarMode("list");
+    openReservationEdit(target);
+    onFocusReservationHandled?.();
+  }, [focusReservationId, reservations, onFocusReservationHandled]);
+
   const saveReservationEdit = async () => {
     if (!editingReservation) return;
     try {
@@ -672,6 +670,7 @@ export default function CharterSlotManager() {
       await handleApiResponse(res);
       setEditingReservation(null);
       setMessage("Réservation mise à jour.");
+      window.dispatchEvent(new CustomEvent("sabine:refresh-reservations"));
       await load();
     } catch (e: any) {
       setMessage(e?.message || "Erreur mise à jour réservation.");
@@ -1305,8 +1304,33 @@ export default function CharterSlotManager() {
               <input className="rounded-lg border border-slate-200 px-3 py-2 text-sm" value={editingReservation.prenomClient} onChange={(e) => setEditingReservation((s) => s && ({ ...s, prenomClient: e.target.value }))} placeholder="Prénom" />
               <input className="rounded-lg border border-slate-200 px-3 py-2 text-sm" value={editingReservation.emailClient} onChange={(e) => setEditingReservation((s) => s && ({ ...s, emailClient: e.target.value }))} placeholder="Email" />
               <input className="rounded-lg border border-slate-200 px-3 py-2 text-sm" value={editingReservation.telClient} onChange={(e) => setEditingReservation((s) => s && ({ ...s, telClient: e.target.value }))} placeholder="Téléphone" />
-              <input type="date" className="rounded-lg border border-slate-200 px-3 py-2 text-sm" value={editingReservation.dateDebut} onChange={(e) => setEditingReservation((s) => s && ({ ...s, dateDebut: e.target.value }))} />
-              <input type="date" className="rounded-lg border border-slate-200 px-3 py-2 text-sm" value={editingReservation.dateFin} onChange={(e) => setEditingReservation((s) => s && ({ ...s, dateFin: e.target.value }))} />
+              <div className="sm:col-span-2 space-y-1">
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <label className="text-xs text-slate-500">
+                    Début
+                    <input type="date" className="mt-1 block w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" value={editingReservation.dateDebut} onChange={(e) => setEditingReservation((s) => s && ({ ...s, dateDebut: e.target.value }))} />
+                  </label>
+                  <label className="text-xs text-slate-500">
+                    Fin
+                    <input type="date" className="mt-1 block w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" value={editingReservation.dateFin} onChange={(e) => setEditingReservation((s) => s && ({ ...s, dateFin: e.target.value }))} />
+                  </label>
+                </div>
+                <p className="text-xs text-slate-500">
+                  Croisière : préférez un samedi → samedi (ex. 13 juin → 20 juin). Le backoffice accepte toute date ; le site public impose le samedi.
+                </p>
+                <button
+                  type="button"
+                  className="text-xs font-semibold text-[#00384A] hover:underline"
+                  onClick={() =>
+                    setEditingReservation((s) => {
+                      if (!s) return s;
+                      return { ...s, ...snapToSaturdayWeekSpan(s.dateDebut, s.dateFin) };
+                    })
+                  }
+                >
+                  Aligner sur la semaine du samedi le plus proche
+                </button>
+              </div>
               <input type="number" min={1} className="rounded-lg border border-slate-200 px-3 py-2 text-sm" value={editingReservation.nbPersonnes} onChange={(e) => setEditingReservation((s) => s && ({ ...s, nbPersonnes: Math.max(1, Number(e.target.value || 1)) }))} />
               <input type="number" min={0} className="rounded-lg border border-slate-200 px-3 py-2 text-sm" value={editingReservation.montantTotalEur} onChange={(e) => setEditingReservation((s) => s && ({ ...s, montantTotalEur: Math.max(0, Number(e.target.value || 0)) }))} placeholder="Montant total €" />
               <select className="rounded-lg border border-slate-200 px-3 py-2 text-sm" value={editingReservation.typeReservation} onChange={(e) => setEditingReservation((s) => s && ({ ...s, typeReservation: e.target.value as "bateau_entier" | "cabine" | "place" }))}>

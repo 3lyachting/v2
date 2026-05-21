@@ -6,6 +6,7 @@
 dist/
 build/
 *.dist
+reels-export/
 
 # Environment variables
 .env

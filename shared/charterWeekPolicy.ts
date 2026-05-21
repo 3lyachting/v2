@@ -85,6 +85,28 @@ export function getCharterHighSeasonError(
 }
 
 /** Champs type input date: dateFin manquant = règle partielle. */
+function toLocalIso(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+/** Ramène début/fin sur une semaine charter samedi → samedi (+7j par semaine de durée). */
+export function snapToSaturdayWeekSpan(dateDebut: string, dateFin: string): { dateDebut: string; dateFin: string } {
+  const start = parseLocalYmd(dateDebut);
+  const end = parseLocalYmd(dateFin);
+  if (!start) return { dateDebut, dateFin };
+  const spanDays = end ? Math.max(0, dayDiffLocalStartEnd(dateDebut, dateFin)) : 0;
+  const weeks = Math.max(1, Math.round(spanDays / 7) || 1);
+  const offsetToSaturday = (start.getDay() + 1) % 7;
+  const satStart = new Date(start);
+  satStart.setDate(satStart.getDate() - offsetToSaturday);
+  const satEnd = new Date(satStart);
+  satEnd.setDate(satEnd.getDate() + weeks * 7);
+  return { dateDebut: toLocalIso(satStart), dateFin: toLocalIso(satEnd) };
+}
+
 export function getCharterHighSeasonErrorForForm(
   dateDebut: string,
   dateFin: string,

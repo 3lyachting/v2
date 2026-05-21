@@ -596,6 +596,37 @@ router.get("/", requireAdmin, async (req, res) => {
   }
 });
 
+router.get("/pending-requests", requireAdmin, async (_req, res) => {
+  try {
+    const db = await getDb();
+    if (!db) {
+      return res.status(500).json({ error: "Base de données non disponible" });
+    }
+    const all = await listReservationsSafe(db);
+    const items = all
+      .filter((r: any) => String(r.requestStatus || "nouvelle") === "nouvelle")
+      .sort((a: any, b: any) => {
+        const ta = new Date(a.createdAt || 0).getTime();
+        const tb = new Date(b.createdAt || 0).getTime();
+        return tb - ta;
+      })
+      .map((r: any) => ({
+        id: r.id,
+        nomClient: r.nomClient,
+        prenomClient: r.prenomClient ?? null,
+        emailClient: r.emailClient,
+        dateDebut: r.dateDebut,
+        dateFin: r.dateFin,
+        destination: r.destination ?? null,
+        formule: r.formule ?? null,
+        createdAt: r.createdAt,
+      }));
+    return res.json({ count: items.length, items });
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message || "Erreur lors du chargement des demandes" });
+  }
+});
+
 router.get("/origins-summary", requireAdmin, async (_req, res) => {
   try {
     const db = await getDb();
@@ -751,7 +782,10 @@ router.put("/:id", requireAdmin, async (req, res) => {
       nbPersonnes: parsedNbPersonnes,
       nbCabines: nbCabines !== undefined ? parseInt(nbCabines) : existing[0].nbCabines,
     });
-    if (touchesScheduling) {
+    // Mise à jour admin : pas de contrôle « samedi → samedi » (aligné sur simpleRequest à la création).
+    // La politique client reste appliquée sur POST /request lié au calendrier public.
+    const enforceClientPolicyOnUpdate = req.body?.enforceClientPolicy === true;
+    if (touchesScheduling && enforceClientPolicyOnUpdate) {
       const policyCheck = validateReservationPolicy({
         dateDebut: effectiveDateDebut,
         dateFin: effectiveDateFin,

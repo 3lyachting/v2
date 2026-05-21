@@ -1,5 +1,6 @@
-import { useEffect, useState } from "react";
-import { Calendar, CreditCard, FileText, LogOut, NotebookPen, Package, UsersRound, Wrench } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
+import { Bell, Calendar, CreditCard, FileText, LogOut, NotebookPen, Package, UsersRound, Wrench } from "lucide-react";
+import { usePendingReservationAlerts } from "@/hooks/usePendingReservationAlerts";
 import BackofficeOps from "@/components/BackofficeOps";
 import BackofficeAccountsPanel from "@/components/BackofficeAccountsPanel";
 import BackofficeNotes from "@/components/BackofficeNotes";
@@ -35,6 +36,17 @@ export default function Admin() {
   const [financeError, setFinanceError] = useState<string | null>(null);
   const [financeReservations, setFinanceReservations] = useState<ReservationLite[]>([]);
   const [originsSummary, setOriginsSummary] = useState<OriginSummary | null>(null);
+  const [focusReservationId, setFocusReservationId] = useState<number | null>(null);
+
+  const openPendingRequest = useCallback((id: number) => {
+    setTab("calendar_reset");
+    setFocusReservationId(id);
+  }, []);
+
+  const { pendingCount } = usePendingReservationAlerts({
+    enabled: authOk,
+    onOpenRequest: openPendingRequest,
+  });
 
   const redirectToLogin = () => {
     window.location.href = "/admin/login";
@@ -118,6 +130,17 @@ export default function Admin() {
             <img src={logoSabine} alt="Sabine" className="h-8" />
             <div className="h-6 w-px bg-slate-200" />
             <h1 className="text-lg font-bold text-slate-900">Backoffice</h1>
+            {pendingCount > 0 && (
+              <button
+                type="button"
+                onClick={() => setTab("calendar_reset")}
+                className="relative ml-2 flex items-center gap-1.5 rounded-full bg-amber-100 px-3 py-1 text-xs font-bold text-amber-900 transition-colors hover:bg-amber-200"
+                title="Demandes de réservation à traiter"
+              >
+                <Bell className="h-3.5 w-3.5" />
+                {pendingCount} à traiter
+              </button>
+            )}
         </div>
           <button onClick={handleLogout} className="flex items-center gap-2 text-sm font-semibold text-slate-600 transition-colors hover:text-rose-600">
             <LogOut className="h-4 w-4" />
@@ -152,7 +175,12 @@ export default function Admin() {
           ))}
         </div>
 
-        {tab === "calendar_reset" && <CharterSlotManager />}
+        {tab === "calendar_reset" && (
+          <CharterSlotManager
+            focusReservationId={focusReservationId}
+            onFocusReservationHandled={() => setFocusReservationId(null)}
+          />
+        )}
 
         {tab === "finances_reset" && (
           <div className="space-y-4">
