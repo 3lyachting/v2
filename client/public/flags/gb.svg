@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 16" role="img" aria-label="Drapeau britannique">
+  <rect width="24" height="16" fill="#012169"/>
+  <path d="M0 0l10 6.5L8.2 8 0 2.8V0zm24 0v2.8L15.8 8 14 6.5 24 0zM0 16v-2.8L8.2 8 10 9.5 0 16zm24 16" fill="#FFF"/>
+  <path d="M24 16l-10-6.5 1.8-1.5L24 13.2V16z" fill="#FFF"/>
+  <path d="M0 0l9.2 6H7.1L0 1.2V0zm24 0v1.2L16.9 6h-2.1L24 0zM0 16v-1.2L7.1 10h2.1L0 16zm24 0l-9.2-6h2.1l7.1 4.8V16z" fill="#C8102E"/>
+  <rect x="10" width="4" height="16" fill="#FFF"/>
+  <rect y="6" width="24" height="4" fill="#FFF"/>
+  <rect x="10.8" width="2.4" height="16" fill="#C8102E"/>
+  <rect y="6.8" width="24" height="2.4" fill="#C8102E"/>
+</svg>
