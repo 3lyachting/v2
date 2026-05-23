@@ -350,7 +350,15 @@ export async function buildQuotePdf(r: Reservation, quoteNumber: string, optionE
   // Inclusions / exclusions block (as in charter contract, depends on mode)
   page.drawRectangle({ x: 40, y: 150, width: 515, height: 130, borderColor: rgb(0.83, 0.85, 0.9), borderWidth: 1 });
   page.drawText("RAPPEL INCLUS / NON INCLUS", { x: 44, y: 262, font: bold, size: 11, color: rgb(0.1, 0.2, 0.36) });
-  if (isPrivate) {
+  if (isDayTrip) {
+    page.drawText("Inclus:", { x: 44, y: 244, font: bold, size: 9.5, color: rgb(0.2, 0.2, 0.2) });
+    page.drawText("- Mise a disposition privee du navire avec equipage professionnel.", { x: 95, y: 244, font, size: 9.5, color: rgb(0.2, 0.2, 0.2) });
+    page.drawText("- Carburant pour navigation normale locale.", { x: 95, y: 230, font, size: 9.5, color: rgb(0.2, 0.2, 0.2) });
+    page.drawText("- Assurance du navire, materiel loisirs (paddle, kayak, snorkeling).", { x: 95, y: 216, font, size: 9.5, color: rgb(0.2, 0.2, 0.2) });
+    page.drawText("Non inclus:", { x: 44, y: 198, font: bold, size: 9.5, color: rgb(0.2, 0.2, 0.2) });
+    page.drawText("- Repas / boissons, transferts terrestres, prestations traiteur.", { x: 110, y: 198, font, size: 9.5, color: rgb(0.2, 0.2, 0.2) });
+    page.drawText("- Options: bouee tractee, depassement horaire, mouillages payants specifiques.", { x: 110, y: 184, font, size: 9.5, color: rgb(0.2, 0.2, 0.2) });
+  } else if (isPrivate) {
     page.drawText("Inclus:", { x: 44, y: 244, font: bold, size: 9.5, color: rgb(0.2, 0.2, 0.2) });
     page.drawText("- Mise a disposition exclusive du navire avec equipage professionnel.", { x: 95, y: 244, font, size: 9.5, color: rgb(0.2, 0.2, 0.2) });
     page.drawText("- Hebergement a bord selon capacite autorisee, 2 paddles et 1 kayak.", { x: 95, y: 230, font, size: 9.5, color: rgb(0.2, 0.2, 0.2) });
@@ -480,33 +488,11 @@ export async function buildContractPdf(r: Reservation, contractNumber: string) {
     drawRow("Embarquement", embarkDateTime);
     drawRow("Debarquement", disembarkDateTime);
     drawRow("Duree estimee", `${durationHours} h`);
+    drawRow("Carburant", "Inclus (navigation locale)");
     drawRow("Tarif total TTC", totalTtc);
     drawRow(`Acompte (${DAY_TRIP_ACOMPTE_PERCENT}%)`, acompteText);
     drawRow("Solde (1 sem. avant embarq.)", soldeText);
     drawRow("Reglement", `Virement - IBAN ${BANK_DETAILS.iban}`);
-
-    // Page 3 — aligner l'article 4 du modèle PDF (texte statique « 50 % »).
-    const page3 = pages[2];
-    if (page3) {
-      const page3Size = page3.getSize();
-      const patchY = page3Size.height - 268;
-      page3.drawRectangle({
-        x: 38,
-        y: patchY - 8,
-        width: 520,
-        height: 42,
-        color: rgb(1, 1, 1),
-      });
-      drawAt(
-        page3,
-        `Acompte de ${DAY_TRIP_ACOMPTE_PERCENT} % a la reservation,`,
-        50,
-        patchY + 18,
-        10,
-        false,
-      );
-      drawAt(page3, "Solde au plus tard 7 jours avant embarquement.", 50, patchY, 10, false);
-    }
 
     // Page 5 - Signatures
     drawAt(page5, "La Ciotat", 95, 214);
