@@ -17,7 +17,15 @@ import {
   reservationStatusHistory,
   esignEvents,
 } from "../../drizzle/schema";
-import { buildContractPdf, buildInvoicePdf, buildQuotePdf } from "../_core/commercialDocs";
+import {
+  buildContractPdf,
+  buildInvoicePdf,
+  buildQuotePdf,
+  computeReservationPaymentSchedule,
+  DAY_TRIP_DISEMBARK_HOUR,
+  DAY_TRIP_EMBARK_HOUR,
+  isDayTripReservation,
+} from "../_core/commercialDocs";
 import { storageGetSignedUrl } from "../storage";
 import {
   resolveDisponibiliteIdForReservation,
@@ -36,16 +44,7 @@ const buildInvoiceNumber = (id: number, type: "acompte" | "solde" | "full") =>
   `FAC-${type.toUpperCase()}-${nowYear()}-${pad(id)}`;
 
 function isDayReservation(reservation: any): boolean {
-  const formule = String(reservation?.formule || "").toLowerCase();
-  const destination = String(reservation?.destination || "").toLowerCase();
-  const start = String(reservation?.dateDebut || "").slice(0, 10);
-  const end = String(reservation?.dateFin || "").slice(0, 10);
-  return (
-    formule.includes("journee") ||
-    formule.includes("journ") ||
-    destination.includes("journee") ||
-    Boolean(start && end && start === end)
-  );
+  return isDayTripReservation(reservation);
 }
 
 function toAbsoluteUrl(req: any, rawUrl: string | null | undefined): string | null {
@@ -131,16 +130,13 @@ router.post("/reservations/:id/owner-validate", requireAdmin, async (req, res) =
     const optionExpiresAt = new Date();
     optionExpiresAt.setUTCDate(optionExpiresAt.getUTCDate() + 7);
 
-    const acompteMontant = Math.round((r.montantTotal * 20) / 100);
-    const soldeMontant = Math.max(0, r.montantTotal - acompteMontant);
-    const soldeEcheanceAt = new Date(r.dateDebut);
-    soldeEcheanceAt.setUTCDate(soldeEcheanceAt.getUTCDate() - 45);
+    const { acomptePercent, acompteMontant, soldeMontant, soldeEcheanceAt } = computeReservationPaymentSchedule(r);
 
     await db
       .update(reservations)
       .set({
         workflowStatut: "validee_owner",
-        acomptePercent: 20,
+        acomptePercent,
         acompteMontant,
         soldeMontant,
         soldeEcheanceAt,
@@ -471,8 +467,10 @@ router.post("/reservations/:id/send-proposal-email", requireAdmin, async (req, r
 
     const subject = `Votre proposition de croisière - réservation #${reservationId}`;
     const fullName = `${String(r.prenomClient || "").trim()} ${String(r.nomClient || "").trim()}`.trim() || "Client";
-    const embarkDate = formatDateForEmail(r.dateDebut);
-    const disembarkDate = formatDateForEmail(r.dateFin);
+    const embarkDate = isDayTrip
+      ? `${formatDateForEmail(r.dateDebut)} · ${DAY_TRIP_EMBARK_HOUR.replace(":", "h")} - ${DAY_TRIP_DISEMBARK_HOUR.replace(":", "h")}`
+      : formatDateForEmail(r.dateDebut);
+    const disembarkDate = isDayTrip ? "—" : formatDateForEmail(r.dateFin);
     const reservationLabel = isDayTrip ? "Sortie journée" : "Croisière";
     const destinationLabel = String(r.destination || "La Ciotat");
     const totalTtc = `${(Number(r.montantTotal || 0) / 100).toLocaleString("fr-FR")} € TTC`;
@@ -574,7 +572,7 @@ router.post("/reservations/:id/send-proposal-email", requireAdmin, async (req, r
                            : `<span style="color:#64748b;">Lien de paiement indisponible.</span>`
                        }
                      </p>`
-                  : `<p style="margin:0 0 16px;color:#334155;font-size:14px;">Le règlement des sorties journée se fait par virement bancaire (IBAN indiqué sur le devis).</p>`
+                  : `<p style="margin:0 0 16px;color:#334155;font-size:14px;">Règlement sortie journée : acompte de 20 % à la réservation, solde au plus tard 1 semaine avant l'embarquement, par virement (IBAN sur le devis).</p>`
               }
 
               <p style="margin:0;color:#334155;font-size:14px;">Si vous avez la moindre question, répondez simplement à ce message.</p>

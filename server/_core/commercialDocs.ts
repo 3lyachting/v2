@@ -91,11 +91,27 @@ function resolveContractTemplatePath(): string | null {
   return null;
 }
 
-function isDayTripReservation(r: Reservation): boolean {
+export const DAY_TRIP_EMBARK_HOUR = "10:00";
+export const DAY_TRIP_DISEMBARK_HOUR = "16:00";
+export const DAY_TRIP_DURATION_HOURS = 6;
+export const DAY_TRIP_ACOMPTE_PERCENT = 20;
+export const DAY_TRIP_SOLDE_DAYS_BEFORE_EMBARK = 7;
+
+export function isDayTripReservation(r: Reservation): boolean {
   const formule = String(r.formule || "").toLowerCase();
   const destination = String(r.destination || "").toLowerCase();
   const sameDay = dateFr(r.dateDebut) === dateFr(r.dateFin);
   return formule.includes("journee") || formule.includes("journ") || destination.includes("journee") || sameDay;
+}
+
+export function computeReservationPaymentSchedule(r: Reservation) {
+  const acomptePercent = DAY_TRIP_ACOMPTE_PERCENT;
+  const acompteMontant = Math.round((r.montantTotal * acomptePercent) / 100);
+  const soldeMontant = Math.max(0, r.montantTotal - acompteMontant);
+  const soldeEcheanceAt = new Date(r.dateDebut);
+  const soldeLeadDays = isDayTripReservation(r) ? DAY_TRIP_SOLDE_DAYS_BEFORE_EMBARK : 45;
+  soldeEcheanceAt.setUTCDate(soldeEcheanceAt.getUTCDate() - soldeLeadDays);
+  return { acomptePercent, acompteMontant, soldeMontant, soldeEcheanceAt };
 }
 
 function resolveDayContractTemplatePath(): string | null {
@@ -221,6 +237,8 @@ export async function buildQuotePdf(r: Reservation, quoteNumber: string, optionE
     return d;
   })();
   const isPrivate = r.typeReservation === "bateau_entier";
+  const isDayTrip = isDayTripReservation(r);
+  const paymentSchedule = computeReservationPaymentSchedule(r);
 
   // Header
   page.drawRectangle({ x: 0, y: 780, width: 595, height: 62, color: rgb(0.1, 0.2, 0.36) });
@@ -264,7 +282,13 @@ export async function buildQuotePdf(r: Reservation, quoteNumber: string, optionE
   page.drawRectangle({ x: 40, y: 560, width: 515, height: 70, borderColor: rgb(0.83, 0.85, 0.9), borderWidth: 1 });
   page.drawText("PRESTATION", { x: 44, y: 614, font: bold, size: 11, color: rgb(0.1, 0.2, 0.36) });
   drawLabelValue(596, "Formule", r.formule);
-  drawLabelValue(580, "Periode", `${dateFr(r.dateDebut)} au ${dateFr(r.dateFin)}`);
+  drawLabelValue(
+    580,
+    "Periode",
+    isDayTrip
+      ? `${dateFr(r.dateDebut)} · ${DAY_TRIP_EMBARK_HOUR} - ${DAY_TRIP_DISEMBARK_HOUR}`
+      : `${dateFr(r.dateDebut)} au ${dateFr(r.dateFin)}`,
+  );
   drawLabelValue(564, "Blocage", `Option 7 jours (jusqu'au ${dateFr(optionUntil)})`);
 
   // Price table
@@ -281,8 +305,37 @@ export async function buildQuotePdf(r: Reservation, quoteNumber: string, optionE
   // Payment terms block
   page.drawRectangle({ x: 40, y: 290, width: 515, height: 125, borderColor: rgb(0.83, 0.85, 0.9), borderWidth: 1 });
   page.drawText("CONDITIONS DE PAIEMENT", { x: 44, y: 398, font: bold, size: 11, color: rgb(0.1, 0.2, 0.36) });
-  page.drawText(isPrivate ? "- Acompte 10 % a la reservation" : "- Acompte 20 % a la reservation", { x: 44, y: 378, font, size: 10, color: rgb(0.15, 0.15, 0.15) });
-  page.drawText(isPrivate ? "- Solde 60 jours avant depart" : "- Solde 45 jours avant depart", { x: 44, y: 362, font, size: 10, color: rgb(0.15, 0.15, 0.15) });
+  if (isDayTrip) {
+    page.drawText(`- Acompte ${DAY_TRIP_ACOMPTE_PERCENT} % a la reservation`, {
+      x: 44,
+      y: 378,
+      font,
+      size: 10,
+      color: rgb(0.15, 0.15, 0.15),
+    });
+    page.drawText(`- Solde ${euro(paymentSchedule.soldeMontant)} EUR au plus tard 1 semaine avant embarquement`, {
+      x: 44,
+      y: 362,
+      font,
+      size: 10,
+      color: rgb(0.15, 0.15, 0.15),
+    });
+  } else {
+    page.drawText(isPrivate ? "- Acompte 10 % a la reservation" : "- Acompte 20 % a la reservation", {
+      x: 44,
+      y: 378,
+      font,
+      size: 10,
+      color: rgb(0.15, 0.15, 0.15),
+    });
+    page.drawText(isPrivate ? "- Solde 60 jours avant depart" : "- Solde 45 jours avant depart", {
+      x: 44,
+      y: 362,
+      font,
+      size: 10,
+      color: rgb(0.15, 0.15, 0.15),
+    });
+  }
   page.drawText("Reglement par virement bancaire", { x: 44, y: 343, font: bold, size: 10, color: rgb(0.15, 0.15, 0.15) });
   page.drawText(`Titulaire: ${BANK_DETAILS.accountName}`, { x: 44, y: 327, font, size: 9.5, color: rgb(0.2, 0.2, 0.2) });
   page.drawText(`IBAN ${BANK_DETAILS.iban}`, { x: 44, y: 313, font, size: 9.5, color: rgb(0.2, 0.2, 0.2) });
@@ -372,19 +425,13 @@ export async function buildContractPdf(r: Reservation, contractNumber: string) {
 
   if (isDayTrip) {
     const datePrestation = dateFr(r.dateDebut) || "-";
-    const embarkHour = formatHour(r.dateDebut, "09:00");
-    const disembarkHour = formatHour(r.dateFin, "18:00");
-    const startTs = new Date(r.dateDebut).getTime();
-    const endTs = new Date(r.dateFin).getTime();
-    // Sur les sorties journee, la duree contractuelle est 8h sauf horaires explicites coherents.
-    const computedHours =
-      Number.isFinite(startTs) && Number.isFinite(endTs) && endTs > startTs
-        ? Math.round((endTs - startTs) / 3600000)
-        : NaN;
-    const durationHours = Number.isFinite(computedHours) && computedHours > 0 && computedHours <= 18 ? computedHours : 8;
+    const embarkHour = formatHour(r.dateDebut, DAY_TRIP_EMBARK_HOUR);
+    const disembarkHour = formatHour(r.dateFin, DAY_TRIP_DISEMBARK_HOUR);
+    const durationHours = DAY_TRIP_DURATION_HOURS;
     const totalTtc = `${euro(r.montantTotal)} EUR`;
-    const acompte = Math.round(r.montantTotal * 0.5);
-    const acompteText = `${euro(acompte)} EUR`;
+    const { acompteMontant, soldeMontant } = computeReservationPaymentSchedule(r);
+    const acompteText = `${euro(acompteMontant)} EUR`;
+    const soldeText = `${euro(soldeMontant)} EUR`;
     const todayDate = dateFr(new Date()) || "-";
     const fullName = sanitizePdfText(String(r.nomClient || "-"));
     const addressLine = sanitizePdfText(String(r.destination || "A completer"));
@@ -434,8 +481,32 @@ export async function buildContractPdf(r: Reservation, contractNumber: string) {
     drawRow("Debarquement", disembarkDateTime);
     drawRow("Duree estimee", `${durationHours} h`);
     drawRow("Tarif total TTC", totalTtc);
-    drawRow("Acompte (50%)", acompteText);
+    drawRow(`Acompte (${DAY_TRIP_ACOMPTE_PERCENT}%)`, acompteText);
+    drawRow("Solde (1 sem. avant embarq.)", soldeText);
     drawRow("Reglement", `Virement - IBAN ${BANK_DETAILS.iban}`);
+
+    // Page 3 — aligner l'article 4 du modèle PDF (texte statique « 50 % »).
+    const page3 = pages[2];
+    if (page3) {
+      const page3Size = page3.getSize();
+      const patchY = page3Size.height - 268;
+      page3.drawRectangle({
+        x: 38,
+        y: patchY - 8,
+        width: 520,
+        height: 42,
+        color: rgb(1, 1, 1),
+      });
+      drawAt(
+        page3,
+        `Acompte de ${DAY_TRIP_ACOMPTE_PERCENT} % a la reservation,`,
+        50,
+        patchY + 18,
+        10,
+        false,
+      );
+      drawAt(page3, "Solde au plus tard 7 jours avant embarquement.", 50, patchY, 10, false);
+    }
 
     // Page 5 - Signatures
     drawAt(page5, "La Ciotat", 95, 214);
@@ -470,8 +541,8 @@ export async function buildContractPdf(r: Reservation, contractNumber: string) {
   drawField("Email", r.emailClient || "-", topY - 86);
   drawField("Navire", "Catamaran Sabine", topY - 100);
   drawField("Destination", r.destination || "-", topY - 114);
-  const embarkDefaultHour = isDayTrip ? "09:00" : "15:00";
-  const disembarkDefaultHour = isDayTrip ? "18:00" : "10:00";
+  const embarkDefaultHour = isDayTrip ? DAY_TRIP_EMBARK_HOUR : "15:00";
+  const disembarkDefaultHour = isDayTrip ? DAY_TRIP_DISEMBARK_HOUR : "10:00";
   drawField("Date d'embarquement", formatFrDateTime(r.dateDebut, embarkDefaultHour), topY - 128);
   drawField("Date de debarquement", formatFrDateTime(r.dateFin, disembarkDefaultHour), topY - 142);
 
