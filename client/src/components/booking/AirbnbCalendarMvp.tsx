@@ -469,6 +469,7 @@ export default function AirbnbCalendarMvp({
       dateFin: endDate || startDate,
       montant: String(totalEur ?? 0),
       ...(selectedSlot ? { charterSlotId: String(selectedSlot.id), charterProduct: product } : {}),
+      ...(isEnglish ? { lang: "en" } : {}),
     });
 
     return {
