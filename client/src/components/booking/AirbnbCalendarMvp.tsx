@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
-import { CHARTER_PRODUCT_LABELS, type CharterProductCode } from "@shared/charterProduct";
+import { CHARTER_PRODUCT_LABELS, charterProductLabel, type CharterProductCode } from "@shared/charterProduct";
 import { getCharterHighSeasonError } from "@shared/charterWeekPolicy";
 import { getProductFromDisponibilite } from "@shared/calendarSelection";
 import {
@@ -302,7 +302,7 @@ export default function AirbnbCalendarMvp({
 
   const nights = startDate && endDate ? dateDiffDays(startDate, endDate) : 0;
   const panelTitle = isEnglish ? "Stay details" : "Détails du séjour";
-  const productLabel = CHARTER_PRODUCT_LABELS[product];
+  const productLabel = charterProductLabel(product, isEnglish);
   const rangeCoverage = useMemo(
     () => coverageForRange(dayAvailability, startDate, endDate),
     [dayAvailability, endDate, startDate]

@@ -12,6 +12,17 @@ export const CHARTER_PRODUCT_LABELS: Record<CharterProductCode, string> = {
   transat: "Transatlantique",
 };
 
+export const CHARTER_PRODUCT_LABELS_EN: Record<CharterProductCode, string> = {
+  med: "Mediterranean Cruise",
+  caraibes: "Caribbean Cruise",
+  journee: "Day Trip La Ciotat",
+  transat: "Transatlantic",
+};
+
+export function charterProductLabel(code: CharterProductCode, isEnglish = false): string {
+  return isEnglish ? CHARTER_PRODUCT_LABELS_EN[code] : CHARTER_PRODUCT_LABELS[code];
+}
+
 export function isCharterProductCode(value: unknown): value is CharterProductCode {
   return typeof value === "string" && (CHARTER_PRODUCTS as readonly string[]).includes(value);
 }

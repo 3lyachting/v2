@@ -354,25 +354,25 @@ export async function buildQuotePdf(r: Reservation, quoteNumber: string, optionE
     page.drawText("Inclus:", { x: 44, y: 244, font: bold, size: 9.5, color: rgb(0.2, 0.2, 0.2) });
     page.drawText("- Mise a disposition privee du navire avec equipage professionnel.", { x: 95, y: 244, font, size: 9.5, color: rgb(0.2, 0.2, 0.2) });
     page.drawText("- Carburant pour navigation normale locale.", { x: 95, y: 230, font, size: 9.5, color: rgb(0.2, 0.2, 0.2) });
-    page.drawText("- Assurance du navire, materiel loisirs (paddle, kayak, snorkeling).", { x: 95, y: 216, font, size: 9.5, color: rgb(0.2, 0.2, 0.2) });
+    page.drawText("- Assurance du navire, materiel loisirs (2 paddles, 1 kayak, snorkeling).", { x: 95, y: 216, font, size: 9.5, color: rgb(0.2, 0.2, 0.2) });
     page.drawText("Non inclus:", { x: 44, y: 198, font: bold, size: 9.5, color: rgb(0.2, 0.2, 0.2) });
     page.drawText("- Repas / boissons, transferts terrestres, prestations traiteur.", { x: 110, y: 198, font, size: 9.5, color: rgb(0.2, 0.2, 0.2) });
-    page.drawText("- Options: bouee tractee, depassement horaire, mouillages payants specifiques.", { x: 110, y: 184, font, size: 9.5, color: rgb(0.2, 0.2, 0.2) });
+    page.drawText("- Options: 2 scooters sous-marins, moteur electrique paddle, bouee tractee.", { x: 110, y: 184, font, size: 9.5, color: rgb(0.2, 0.2, 0.2) });
   } else if (isPrivate) {
     page.drawText("Inclus:", { x: 44, y: 244, font: bold, size: 9.5, color: rgb(0.2, 0.2, 0.2) });
     page.drawText("- Mise a disposition exclusive du navire avec equipage professionnel.", { x: 95, y: 244, font, size: 9.5, color: rgb(0.2, 0.2, 0.2) });
     page.drawText("- Hebergement a bord selon capacite autorisee, 2 paddles et 1 kayak.", { x: 95, y: 230, font, size: 9.5, color: rgb(0.2, 0.2, 0.2) });
     page.drawText("Non inclus:", { x: 44, y: 212, font: bold, size: 9.5, color: rgb(0.2, 0.2, 0.2) });
     page.drawText("- Carburant, avitaillement alimentaire et boissons (caisse de bord).", { x: 110, y: 212, font, size: 9.5, color: rgb(0.2, 0.2, 0.2) });
-    page.drawText("- Options: bouee tractee, scooters sous-marins, moteur electrique paddle.", { x: 110, y: 198, font, size: 9.5, color: rgb(0.2, 0.2, 0.2) });
+    page.drawText("- Options: 2 scooters sous-marins, 1 moteur electrique paddle, bouee tractee.", { x: 110, y: 198, font, size: 9.5, color: rgb(0.2, 0.2, 0.2) });
   } else {
     page.drawText("Inclus:", { x: 44, y: 244, font: bold, size: 9.5, color: rgb(0.2, 0.2, 0.2) });
     page.drawText("- Hebergement en cabine, equipage, pension complete.", { x: 95, y: 244, font, size: 9.5, color: rgb(0.2, 0.2, 0.2) });
     page.drawText("- Boissons de base pendant les repas, carburant programme standard.", { x: 95, y: 230, font, size: 9.5, color: rgb(0.2, 0.2, 0.2) });
-    page.drawText("- Materiel de loisirs: snorkeling, paddle, kayak.", { x: 95, y: 216, font, size: 9.5, color: rgb(0.2, 0.2, 0.2) });
+    page.drawText("- Materiel de loisirs: snorkeling, 2 paddles, 1 kayak.", { x: 95, y: 216, font, size: 9.5, color: rgb(0.2, 0.2, 0.2) });
     page.drawText("Non inclus:", { x: 44, y: 198, font: bold, size: 9.5, color: rgb(0.2, 0.2, 0.2) });
     page.drawText("- Transport vers/depuis le port, depenses a terre, assurances personnelles.", { x: 110, y: 198, font, size: 9.5, color: rgb(0.2, 0.2, 0.2) });
-    page.drawText("- Options: bouee tractee, scooters sous-marins, moteur electrique paddle.", { x: 110, y: 184, font, size: 9.5, color: rgb(0.2, 0.2, 0.2) });
+    page.drawText("- Options: 2 scooters sous-marins, 1 moteur electrique paddle, bouee tractee.", { x: 110, y: 184, font, size: 9.5, color: rgb(0.2, 0.2, 0.2) });
   }
 
   // Footer validation block

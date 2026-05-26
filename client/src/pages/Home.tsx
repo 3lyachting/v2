@@ -8,7 +8,7 @@
 import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import AirbnbCalendarMvp from "@/components/booking/AirbnbCalendarMvp";
 import { addDays, format, subDays } from "date-fns";
-import { CHARTER_PRODUCT_LABELS, type CharterProductCode } from "@shared/charterProduct";
+import { charterProductLabel, type CharterProductCode } from "@shared/charterProduct";
 import { useLocation } from "wouter";
 import { motion, useInView } from "framer-motion";
 import { withBasePath } from "@/lib/basePath";
@@ -498,6 +498,8 @@ function SectionCatamaran({ isEnglish = false }: { isEnglish?: boolean }) {
                 "2 stand-up paddle boards (10.6 ft)",
                 "1 rigid 2-person kayak",
                 "Fins, masks and snorkels",
+                "2 underwater scooters (optional)",
+                "1 electric paddle motor (optional)",
                 "4.5 m semi-rigid tender with 25 hp outboard",
               ],
             },
@@ -530,8 +532,10 @@ function SectionCatamaran({ isEnglish = false }: { isEnglish?: boolean }) {
               img: "/photos%20site/dji_fly_20260313_182138_138_1773422563093_photo_optimized.jpg",
               items: [
                 "2 Stand Up Paddles (10,6 pieds)",
-                "1 canoe-kayak rigide 2 places",
+                "1 canoë-kayak rigide 2 places",
                 "Palmes, masques et tubas",
+                "2 scooters sous-marins (en option)",
+                "1 moteur électrique pour paddle (en option)",
                 "Annexe semi-rigide 4,5 m avec hors-bord 25 cv",
               ],
             },
@@ -916,7 +920,7 @@ function SectionProgramme({ isEnglish = false }: { isEnglish?: boolean }) {
                     prix: `From €${formatPrice(journeeFromPrice)} all-inclusive · full boat`,
                     desc: "Route: La Ciotat → Cassis (Arène beach) → return.",
                     color: "#1f5f70",
-                    items: ["Periods: April, May and September", "Sailing", "Kayak", "Paddle"],
+                    items: ["Periods: April, May and September", "Paddle, Kayak, Snorkeling", "2 underwater scooters (optional)", "1 electric paddle motor (optional)"],
                   },
                 ]
               : [
@@ -947,7 +951,7 @@ function SectionProgramme({ isEnglish = false }: { isEnglish?: boolean }) {
                     prix: `À partir de ${formatPrice(journeeFromPrice)}€ tout inclus · bateau entier`,
                     desc: "Programme: La Ciotat → Cassis (plage de l'Arène) → retour",
                     color: "#1f5f70",
-                    items: ["Périodes: avril, mai et septembre", "Voile", "Kayak", "Paddle"],
+                    items: ["Périodes: avril, mai et septembre", "Paddle, Kayak, Snorkeling", "2 scooters sous-marins (en option)", "1 moteur électrique paddle (en option)"],
                   },
                 ]).map(f => (
               <div
@@ -1229,7 +1233,7 @@ function SectionCalendrier({ isEnglish = false }: { isEnglish?: boolean }) {
                         : "0 8px 20px rgba(168,138,104,0.22)",
                     }}
                   >
-                    {CHARTER_PRODUCT_LABELS[p]}
+                    {charterProductLabel(p, isEnglish)}
                   </button>
                 );
               })}
@@ -1398,8 +1402,8 @@ function SectionContact({ isEnglish = false }: { isEnglish?: boolean }) {
                 />
                 <div className="absolute inset-0 bg-gradient-to-r from-[oklch(0.2_0.06_240)]/70 to-transparent flex items-center px-6">
                   <div>
-                    <div className="text-white font-extrabold text-xl" style={{ fontFamily: "Cormorant Garamond, Times New Roman, serif" }}>Embarquez pour</div>
-                    <div className="font-extrabold text-xl" style={{ fontFamily: "Cormorant Garamond, Times New Roman, serif", color: "#f2e4d5" }}>l'aventure !</div>
+                    <div className="text-white font-extrabold text-xl" style={{ fontFamily: "Cormorant Garamond, Times New Roman, serif" }}>{isEnglish ? "Set sail for" : "Embarquez pour"}</div>
+                    <div className="font-extrabold text-xl" style={{ fontFamily: "Cormorant Garamond, Times New Roman, serif", color: "#f2e4d5" }}>{isEnglish ? "adventure!" : "l'aventure !"}</div>
                   </div>
                 </div>
               </div>
@@ -1414,29 +1418,29 @@ function SectionContact({ isEnglish = false }: { isEnglish?: boolean }) {
                   <div className="w-16 h-16 rounded-full bg-[oklch(0.2_0.06_240)]/10 flex items-center justify-center mx-auto mb-4">
                     <Anchor className="w-8 h-8 text-[oklch(0.2_0.06_240)]" />
                   </div>
-                  <h3 className="text-xl font-bold text-[oklch(0.2_0.06_240)] mb-2" style={{ fontFamily: "Cormorant Garamond, Times New Roman, serif" }}>Message envoyé !</h3>
-                  <p className="text-[oklch(0.45_0.03_240)] text-sm">Capitaine Victor vous répondra dans les 24h. Bon vent !</p>
+                  <h3 className="text-xl font-bold text-[oklch(0.2_0.06_240)] mb-2" style={{ fontFamily: "Cormorant Garamond, Times New Roman, serif" }}>{isEnglish ? "Message sent!" : "Message envoyé !"}</h3>
+                  <p className="text-[oklch(0.45_0.03_240)] text-sm">{isEnglish ? "Captain Victor will reply within 24h. Fair winds!" : "Capitaine Victor vous répondra dans les 24h. Bon vent !"}</p>
                   <button onClick={() => setSent(false)} className="mt-4 text-[oklch(0.2_0.06_240)] text-sm hover:underline">
-                    Envoyer un autre message
+                    {isEnglish ? "Send another message" : "Envoyer un autre message"}
                   </button>
                 </div>
               ) : (
                 <form onSubmit={handleSubmit} className="space-y-4">
-                  <h3 className="text-xl font-bold text-[oklch(0.2_0.06_240)] mb-2" style={{ fontFamily: "Cormorant Garamond, Times New Roman, serif" }}>Demande de réservation</h3>
+                  <h3 className="text-xl font-bold text-[oklch(0.2_0.06_240)] mb-2" style={{ fontFamily: "Cormorant Garamond, Times New Roman, serif" }}>{isEnglish ? "Booking request" : "Demande de réservation"}</h3>
 
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <label className="text-[oklch(0.5_0.03_240)] text-xs mb-1 block">Nom *</label>
+                      <label className="text-[oklch(0.5_0.03_240)] text-xs mb-1 block">{isEnglish ? "Name *" : "Nom *"}</label>
                       <input
                         required
                         value={form.nom}
                         onChange={e => setForm(f => ({ ...f, nom: e.target.value }))}
                         className="w-full bg-[oklch(0.99_0.004_95)] border border-[oklch(0.88_0.02_220)] rounded-xl px-4 py-2.5 text-[oklch(0.2_0.06_240)] placeholder-[oklch(0.65_0.02_240)] text-sm focus:outline-none focus:border-[oklch(0.2_0.06_240)]"
-                        placeholder="Votre nom"
+                        placeholder={isEnglish ? "Your name" : "Votre nom"}
                       />
                     </div>
                     <div>
-                      <label className="text-[oklch(0.5_0.03_240)] text-xs mb-1 block">Téléphone</label>
+                      <label className="text-[oklch(0.5_0.03_240)] text-xs mb-1 block">{isEnglish ? "Phone" : "Téléphone"}</label>
                       <input
                         value={form.tel}
                         onChange={e => setForm(f => ({ ...f, tel: e.target.value }))}
@@ -1459,28 +1463,28 @@ function SectionContact({ isEnglish = false }: { isEnglish?: boolean }) {
                   </div>
 
                   <div>
-                    <label className="text-[oklch(0.5_0.03_240)] text-xs mb-1 block">Formule souhaitée</label>
+                    <label className="text-[oklch(0.5_0.03_240)] text-xs mb-1 block">{isEnglish ? "Desired formula" : "Formule souhaitée"}</label>
                     <select
                       value={form.formule}
                       onChange={e => setForm(f => ({ ...f, formule: e.target.value }))}
                       className="w-full bg-[oklch(0.99_0.004_95)] border border-[oklch(0.88_0.02_220)] rounded-xl px-4 py-2.5 text-[oklch(0.2_0.06_240)] text-sm focus:outline-none focus:border-[oklch(0.2_0.06_240)]"
                     >
-                      <option value="croisiere_mediterranee">Semaine Méditerranée</option>
-                      <option value="transatlantique">Transatlantique</option>
-                      <option value="croisiere_caraibes">Semaine Caraïbes</option>
-                      <option value="journee_privee">Journée privative La Ciotat - Cassis</option>
+                      <option value="croisiere_mediterranee">{isEnglish ? "Mediterranean Week" : "Semaine Méditerranée"}</option>
+                      <option value="transatlantique">{isEnglish ? "Transatlantic" : "Transatlantique"}</option>
+                      <option value="croisiere_caraibes">{isEnglish ? "Caribbean Week" : "Semaine Caraïbes"}</option>
+                      <option value="journee_privee">{isEnglish ? "Day Trip La Ciotat - Cassis" : "Journée privative La Ciotat - Cassis"}</option>
                     </select>
                   </div>
 
                   <div>
-                    <label className="text-[oklch(0.5_0.03_240)] text-xs mb-1 block">Votre message *</label>
+                    <label className="text-[oklch(0.5_0.03_240)] text-xs mb-1 block">{isEnglish ? "Your message *" : "Votre message *"}</label>
                     <textarea
                       required
                       rows={4}
                       value={form.message}
                       onChange={e => setForm(f => ({ ...f, message: e.target.value }))}
                       className="w-full bg-[oklch(0.99_0.004_95)] border border-[oklch(0.88_0.02_220)] rounded-xl px-4 py-2.5 text-[oklch(0.2_0.06_240)] placeholder-[oklch(0.65_0.02_240)] text-sm focus:outline-none focus:border-[oklch(0.2_0.06_240)] resize-none"
-                      placeholder="Dates souhaitées, nombre de personnes, questions..."
+                      placeholder={isEnglish ? "Desired dates, number of guests, questions..." : "Dates souhaitées, nombre de personnes, questions..."}
                     />
                   </div>
 
@@ -1489,7 +1493,7 @@ function SectionContact({ isEnglish = false }: { isEnglish?: boolean }) {
                     disabled={submitting}
                     className="w-full py-3.5 rounded-xl bg-[oklch(0.2_0.06_240)] text-white font-bold text-sm hover:bg-[oklch(0.16_0.05_240)] transition-all hover:scale-[1.01] shadow-lg"
                   >
-                    {submitting ? "Envoi en cours..." : "Envoyer ma demande →"}
+                    {submitting ? (isEnglish ? "Sending..." : "Envoi en cours...") : (isEnglish ? "Send my request →" : "Envoyer ma demande →")}
                   </button>
 
                   {submitError && (
@@ -1497,7 +1501,7 @@ function SectionContact({ isEnglish = false }: { isEnglish?: boolean }) {
                   )}
 
                   <p className="text-[oklch(0.5_0.03_240)] text-xs text-center">
-                    Réponse garantie sous 24h · Aucun engagement
+                    {isEnglish ? "Guaranteed reply within 24h · No commitment" : "Réponse garantie sous 24h · Aucun engagement"}
                   </p>
                 </form>
               )}
