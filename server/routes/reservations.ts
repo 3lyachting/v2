@@ -185,12 +185,33 @@ function diffDays(startIso: string, endIso: string) {
   return Math.round((end - start) / 86400000);
 }
 
+function parseReservationDateTime(dayOrIso: unknown, timeHHmm: unknown, fallbackTime = "00:00") {
+  const dayRaw = String(dayOrIso || "").trim();
+  const day = dayRaw.slice(0, 10);
+  const hasDay = /^\d{4}-\d{2}-\d{2}$/.test(day);
+  if (!hasDay) return null;
+  const timeRaw = String(timeHHmm || "").trim();
+  const hhmm = /^\d{2}:\d{2}$/.test(timeRaw) ? timeRaw : fallbackTime;
+  return `${day}T${hhmm}:00.000Z`;
+}
+
 function isHighSeasonMonth(month: number) {
   // Février, Juillet, Août, Décembre
   return month === 2 || month === 7 || month === 8 || month === 12;
 }
 
+function hasExplicitHour(value: string | Date) {
+  if (value instanceof Date) {
+    return value.getUTCHours() !== 0 || value.getUTCMinutes() !== 0 || value.getUTCSeconds() !== 0;
+  }
+  if (typeof value !== "string") return false;
+  return /t\d{2}:\d{2}/i.test(value) && !/t00:00(:00)?(\.000)?z?$/i.test(value);
+}
+
 function applyHighSeasonCheckinCheckout(dateDebut: string | Date, dateFin: string | Date) {
+  if (hasExplicitHour(dateDebut) || hasExplicitHour(dateFin)) {
+    return { startDate: new Date(dateDebut), endDate: new Date(dateFin) };
+  }
   const startIso = toIsoDay(dateDebut);
   const endIso = toIsoDay(dateFin);
   if (!startIso || !endIso) {
@@ -238,6 +259,8 @@ router.post("/request", async (req, res) => {
       disponibiliteId,
       bookingOrigin,
       simpleRequest,
+      heureDebut,
+      heureFin,
     } = req.body;
 
     const isSimpleRequest = Boolean(simpleRequest);
@@ -361,7 +384,9 @@ router.post("/request", async (req, res) => {
         return res.status(400).json({ error: policyCheck.reason });
       }
     }
-    const normalizedSchedule = applyHighSeasonCheckinCheckout(dateDebut, dateFin);
+    const parsedDateDebut = parseReservationDateTime(dateDebut, heureDebut, "00:00") || String(dateDebut || "");
+    const parsedDateFin = parseReservationDateTime(dateFin, heureFin, "00:00") || String(dateFin || "");
+    const normalizedSchedule = applyHighSeasonCheckinCheckout(parsedDateDebut, parsedDateFin);
     const resolvedBookingOrigin = inferBookingOriginFromRequest({ bookingOrigin, emailClient, message });
 
     const parsedDisponibiliteId = isSimpleRequest
@@ -491,8 +516,8 @@ router.post("/request", async (req, res) => {
         nbPersonnes: parsedNbPersonnes,
         formule: finalFormule,
         destination: finalDestination,
-        dateDebut: isSimpleRequest ? new Date(dateDebut) : normalizedSchedule.startDate,
-        dateFin: isSimpleRequest ? new Date(dateFin) : normalizedSchedule.endDate,
+        dateDebut: isSimpleRequest ? new Date(parsedDateDebut) : normalizedSchedule.startDate,
+        dateFin: isSimpleRequest ? new Date(parsedDateFin) : normalizedSchedule.endDate,
         montantTotal: finalMontantTotal,
         typePaiement: "acompte",
         montantPaye: 0,
@@ -712,6 +737,8 @@ router.put("/:id", requireAdmin, async (req, res) => {
       requestStatus,
       internalComment,
       archivedAt,
+      heureDebut,
+      heureFin,
     } = req.body;
 
     const db = await getDb();
@@ -770,8 +797,14 @@ router.put("/:id", requireAdmin, async (req, res) => {
       touchesScheduling && resolvedDisponibiliteId && Number.isFinite(resolvedDisponibiliteId)
         ? await db.select().from(disponibilites).where(eq(disponibilites.id, resolvedDisponibiliteId)).limit(1)
         : [];
-    const effectiveDateDebut = dateDebut ? String(dateDebut) : new Date(existing[0].dateDebut).toISOString();
-    const effectiveDateFin = dateFin ? String(dateFin) : new Date(existing[0].dateFin).toISOString();
+    const effectiveDateDebut =
+      dateDebut !== undefined
+        ? parseReservationDateTime(dateDebut, heureDebut, "00:00") || String(dateDebut)
+        : new Date(existing[0].dateDebut).toISOString();
+    const effectiveDateFin =
+      dateFin !== undefined
+        ? parseReservationDateTime(dateFin, heureFin, "00:00") || String(dateFin)
+        : new Date(existing[0].dateFin).toISOString();
     const effectiveDestination = destination || selectedDispoForPolicy[0]?.destination || existing[0].destination || "";
     const selectedTypeReservation: "bateau_entier" | "cabine" | "place" =
       typeReservation === "cabine" || typeReservation === "place" || typeReservation === "bateau_entier"

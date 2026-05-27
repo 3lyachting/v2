@@ -61,6 +61,8 @@ type ReservationEditState = {
   telClient: string;
   dateDebut: string;
   dateFin: string;
+  heureDebut: string;
+  heureFin: string;
   nbPersonnes: number;
   typeReservation: "bateau_entier" | "cabine" | "place";
   montantTotalEur: number;
@@ -114,6 +116,19 @@ const BOOKING_ORIGIN_OPTIONS: Array<{ value: BookingOrigin; label: string }> = [
 
 function toInputDateFromApi(iso: string) {
   return iso.slice(0, 10);
+}
+
+function toInputTimeFromApi(isoLike: string, fallback = "00:00") {
+  const raw = String(isoLike || "");
+  const match = raw.match(/T(\d{2}:\d{2})/i);
+  if (!match) return fallback;
+  return match[1];
+}
+
+function combineDateAndTimeToIso(date: string, time: string) {
+  const safeDate = String(date || "").slice(0, 10);
+  const safeTime = /^\d{2}:\d{2}$/.test(String(time || "")) ? String(time) : "00:00";
+  return `${safeDate}T${safeTime}:00.000Z`;
 }
 
 function toFrDate(isoLike: string) {
@@ -225,6 +240,8 @@ export default function CharterSlotManager({
   const slotEditorRef = useRef<HTMLDivElement | null>(null);
   const [manualReservation, setManualReservation] = useState<{
     slotId: string;
+    heureDebut: string;
+    heureFin: string;
     nomClient: string;
     emailClient: string;
     telClient: string;
@@ -235,6 +252,8 @@ export default function CharterSlotManager({
     bookingOrigin: BookingOrigin;
   }>({
     slotId: "",
+    heureDebut: "10:00",
+    heureFin: "16:00",
     nomClient: "",
     emailClient: "",
     telClient: "",
@@ -444,8 +463,10 @@ export default function CharterSlotManager({
           nbPersonnes: manualReservation.nbPersonnes,
           nbCabines: manualReservation.typeReservation === "bateau_entier" ? 4 : 1,
         }),
-        dateDebut: selected.debut,
-        dateFin: selected.fin,
+        dateDebut: combineDateAndTimeToIso(selected.debut.slice(0, 10), manualReservation.heureDebut),
+        dateFin: combineDateAndTimeToIso(selected.fin.slice(0, 10), manualReservation.heureFin),
+        heureDebut: manualReservation.heureDebut,
+        heureFin: manualReservation.heureFin,
         disponibiliteId: null,
         destination: CHARTER_PRODUCT_LABELS[selected.product],
         formule: selected.product === "journee" ? "journee_privee" : "semaine",
@@ -464,6 +485,8 @@ export default function CharterSlotManager({
       setMessage("Réservation manuelle enregistrée.");
       setManualReservation((m) => ({
         ...m,
+        heureDebut: "10:00",
+        heureFin: "16:00",
         nomClient: "",
         emailClient: "",
         telClient: "",
@@ -612,6 +635,8 @@ export default function CharterSlotManager({
       telClient: r.telClient || "",
       dateDebut: toInputDateFromApi(String(r.dateDebut)),
       dateFin: toInputDateFromApi(String(r.dateFin)),
+      heureDebut: toInputTimeFromApi(String(r.dateDebut), "00:00"),
+      heureFin: toInputTimeFromApi(String(r.dateFin), "00:00"),
       nbPersonnes: Math.max(1, Number(r.nbPersonnes || 1)),
       typeReservation: r.typeReservation || "cabine",
       montantTotalEur: Math.max(0, Number(r.montantTotal || 0) / 100),
@@ -647,8 +672,10 @@ export default function CharterSlotManager({
         prenomClient: editingReservation.prenomClient.trim() || null,
         emailClient: editingReservation.emailClient.trim(),
         telClient: editingReservation.telClient.trim() || null,
-        dateDebut: `${editingReservation.dateDebut}T00:00:00.000Z`,
-        dateFin: `${editingReservation.dateFin}T00:00:00.000Z`,
+        dateDebut: combineDateAndTimeToIso(editingReservation.dateDebut, editingReservation.heureDebut),
+        dateFin: combineDateAndTimeToIso(editingReservation.dateFin, editingReservation.heureFin),
+        heureDebut: editingReservation.heureDebut,
+        heureFin: editingReservation.heureFin,
         nbPersonnes: Math.max(1, Number(editingReservation.nbPersonnes || 1)),
         typeReservation: editingReservation.typeReservation,
         montantTotal: Math.max(100, Math.round((editingReservation.montantTotalEur || 0) * 100)),
@@ -1150,7 +1177,20 @@ export default function CharterSlotManager({
               <select
                 className="rounded-lg border border-slate-200 px-3 py-2"
                 value={manualReservation.slotId}
-                onChange={(e) => setManualReservation((m) => ({ ...m, slotId: e.target.value }))}
+                onChange={(e) =>
+                  setManualReservation((m) => {
+                    const slotId = e.target.value;
+                    const selected = rows.find((r) => String(r.id) === slotId);
+                    if (!selected) return { ...m, slotId };
+                    const isDayTrip = selected.product === "journee" || toIsoDay(selected.debut) === toIsoDay(selected.fin);
+                    return {
+                      ...m,
+                      slotId,
+                      heureDebut: isDayTrip ? "10:00" : "15:00",
+                      heureFin: isDayTrip ? "16:00" : "10:00",
+                    };
+                  })
+                }
               >
                 <option value="">Sélectionner une période</option>
                 {rows
@@ -1161,6 +1201,20 @@ export default function CharterSlotManager({
                     </option>
                   ))}
               </select>
+              <div className="grid grid-cols-2 gap-2">
+                <input
+                  className="rounded-lg border border-slate-200 px-3 py-2"
+                  type="time"
+                  value={manualReservation.heureDebut}
+                  onChange={(e) => setManualReservation((m) => ({ ...m, heureDebut: e.target.value || "00:00" }))}
+                />
+                <input
+                  className="rounded-lg border border-slate-200 px-3 py-2"
+                  type="time"
+                  value={manualReservation.heureFin}
+                  onChange={(e) => setManualReservation((m) => ({ ...m, heureFin: e.target.value || "00:00" }))}
+                />
+              </div>
               <input
                 className="rounded-lg border border-slate-200 px-3 py-2"
                 placeholder="Nom client"
@@ -1309,10 +1363,12 @@ export default function CharterSlotManager({
                   <label className="text-xs text-slate-500">
                     Début
                     <input type="date" className="mt-1 block w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" value={editingReservation.dateDebut} onChange={(e) => setEditingReservation((s) => s && ({ ...s, dateDebut: e.target.value }))} />
+                    <input type="time" className="mt-1 block w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" value={editingReservation.heureDebut} onChange={(e) => setEditingReservation((s) => s && ({ ...s, heureDebut: e.target.value || "00:00" }))} />
                   </label>
                   <label className="text-xs text-slate-500">
                     Fin
                     <input type="date" className="mt-1 block w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" value={editingReservation.dateFin} onChange={(e) => setEditingReservation((s) => s && ({ ...s, dateFin: e.target.value }))} />
+                    <input type="time" className="mt-1 block w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" value={editingReservation.heureFin} onChange={(e) => setEditingReservation((s) => s && ({ ...s, heureFin: e.target.value || "00:00" }))} />
                   </label>
                 </div>
                 <p className="text-xs text-slate-500">

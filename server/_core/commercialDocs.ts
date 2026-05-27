@@ -152,7 +152,10 @@ function formatFrDateTime(value: Date | string | null | undefined, fallbackHour 
   if (Number.isNaN(d.getTime())) return "-";
   const date = d.toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit", year: "numeric" });
   const hasExplicitTime =
-    typeof value === "string" && /t\d{2}:\d{2}/i.test(value) && !/t00:00(:00)?(\.000)?z?$/i.test(value);
+    (typeof value === "string" && /t\d{2}:\d{2}/i.test(value) && !/t00:00(:00)?(\.000)?z?$/i.test(value)) ||
+    d.getUTCHours() !== 0 ||
+    d.getUTCMinutes() !== 0 ||
+    d.getUTCSeconds() !== 0;
   const hh = String(d.getHours()).padStart(2, "0");
   const mm = String(d.getMinutes()).padStart(2, "0");
   const time = hasExplicitTime ? `${hh}:${mm}` : fallbackHour;
@@ -164,7 +167,10 @@ function formatHour(value: Date | string | null | undefined, fallbackHour = "00:
   const d = new Date(value);
   if (Number.isNaN(d.getTime())) return fallbackHour;
   const hasExplicitTime =
-    typeof value === "string" && /t\d{2}:\d{2}/i.test(value) && !/t00:00(:00)?(\.000)?z?$/i.test(value);
+    (typeof value === "string" && /t\d{2}:\d{2}/i.test(value) && !/t00:00(:00)?(\.000)?z?$/i.test(value)) ||
+    d.getUTCHours() !== 0 ||
+    d.getUTCMinutes() !== 0 ||
+    d.getUTCSeconds() !== 0;
   if (!hasExplicitTime) return fallbackHour;
   const hh = String(d.getHours()).padStart(2, "0");
   const mm = String(d.getMinutes()).padStart(2, "0");
@@ -286,7 +292,7 @@ export async function buildQuotePdf(r: Reservation, quoteNumber: string, optionE
     580,
     "Periode",
     isDayTrip
-      ? `${dateFr(r.dateDebut)} · ${DAY_TRIP_EMBARK_HOUR} - ${DAY_TRIP_DISEMBARK_HOUR}`
+      ? `${dateFr(r.dateDebut)} · ${formatHour(r.dateDebut, DAY_TRIP_EMBARK_HOUR)} - ${formatHour(r.dateFin, DAY_TRIP_DISEMBARK_HOUR)}`
       : `${dateFr(r.dateDebut)} au ${dateFr(r.dateFin)}`,
   );
   drawLabelValue(564, "Blocage", `Option 7 jours (jusqu'au ${dateFr(optionUntil)})`);
