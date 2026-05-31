@@ -32,13 +32,14 @@ import { validateReservationPolicy } from "@shared/reservationPolicy";
 const router = Router();
 const CUSTOMER_COOKIE = "customer_session_id";
 const CAPACITY_BLOCKING_WORKFLOW = ["validee_owner", "contrat_envoye", "contrat_signe", "acompte_confirme", "solde_confirme"];
-const BOOKING_ORIGINS = ["direct", "clicknboat", "skippair", "samboat"] as const;
+const BOOKING_ORIGINS = ["direct", "clicknboat", "skippair", "samboat", "boataround"] as const;
 type BookingOrigin = typeof BOOKING_ORIGINS[number];
 let bookingOriginColumnAvailable: boolean | null = null;
 
 function normalizeBookingOrigin(value: unknown): BookingOrigin {
   const normalized = String(value || "").trim().toLowerCase();
   if (normalized === "click&boat" || normalized === "click_and_boat") return "clicknboat";
+  if (normalized === "boat-around" || normalized === "boat_around") return "boataround";
   if ((BOOKING_ORIGINS as readonly string[]).includes(normalized)) return normalized as BookingOrigin;
   return "direct";
 }
@@ -50,6 +51,7 @@ function inferBookingOriginFromRequest(payload: { bookingOrigin?: unknown; email
   if (haystack.includes("clicknboat") || haystack.includes("click&boat")) return "clicknboat";
   if (haystack.includes("skippair")) return "skippair";
   if (haystack.includes("samboat")) return "samboat";
+  if (haystack.includes("boataround") || haystack.includes("boat around")) return "boataround";
   return "direct";
 }
 
@@ -664,6 +666,7 @@ router.get("/origins-summary", requireAdmin, async (_req, res) => {
       clicknboat: { count: 0, revenueCents: 0, source: "local" },
       skippair: { count: 0, revenueCents: 0, source: "local" },
       samboat: { count: 0, revenueCents: 0, source: "local" },
+      boataround: { count: 0, revenueCents: 0, source: "local" },
     };
     all.forEach((r: any) => {
       const origin = normalizeBookingOrigin(r.bookingOrigin);

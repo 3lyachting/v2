@@ -236,7 +236,17 @@ export default function Admin() {
                         <tbody>
                           {Object.entries(originsSummary).map(([k, v]) => (
                             <tr key={k} className="border-b border-slate-100">
-                              <td className="py-2 pr-2 font-medium text-slate-800">{k}</td>
+                              <td className="py-2 pr-2 font-medium text-slate-800">
+                                {k === "clicknboat"
+                                  ? "ClicknBoat"
+                                  : k === "skippair"
+                                    ? "Skippair"
+                                    : k === "samboat"
+                                      ? "Samboat"
+                                      : k === "boataround"
+                                        ? "BoatAround"
+                                        : "Direct"}
+                              </td>
                               <td className="py-2 pr-2 text-slate-700">{v.count}</td>
                               <td className="py-2 pr-2 text-slate-700">{(Number(v.revenueCents || 0) / 100).toLocaleString("fr-FR")} €</td>
                               <td className="py-2 pr-2 text-slate-500">{v.source}</td>

@@ -38,7 +38,7 @@ interface Reservation {
   montantPaye?: number;
   statutPaiement?: "en_attente" | "paye" | "echec" | "rembourse";
   typePaiement?: "acompte" | "complet";
-  bookingOrigin?: "direct" | "clicknboat" | "skippair" | "samboat";
+  bookingOrigin?: "direct" | "clicknboat" | "skippair" | "samboat" | "boataround";
   message?: string | null;
   workflowStatut?: string;
   typeReservation?: string;
@@ -326,6 +326,7 @@ export default function AdminCalendarView({
     if (origin === "clicknboat") return "ClicknBoat";
     if (origin === "skippair") return "Skippair";
     if (origin === "samboat") return "Samboat";
+    if (origin === "boataround") return "BoatAround";
     return "Direct";
   };
 

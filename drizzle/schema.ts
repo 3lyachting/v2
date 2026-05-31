@@ -33,7 +33,7 @@ export const reservationRequestStatusEnum = pgEnum("reservation_request_status",
   "refusee",
   "archivee",
 ]);
-export const bookingOriginEnum = pgEnum("booking_origin", ["direct", "clicknboat", "skippair", "samboat"]);
+export const bookingOriginEnum = pgEnum("booking_origin", ["direct", "clicknboat", "skippair", "samboat", "boataround"]);
 export const documentCategoryEnum = pgEnum("document_category", ["identity", "reservation", "boat", "crew", "passenger"]);
 export const esignProviderEnum = pgEnum("esign_provider", ["yousign", "docusign", "other"]);
 

@@ -51,7 +51,7 @@ type ReservationRow = {
   internalComment?: string | null;
 };
 
-type BookingOrigin = "direct" | "clicknboat" | "skippair" | "samboat";
+type BookingOrigin = "direct" | "clicknboat" | "skippair" | "samboat" | "boataround";
 
 type ReservationEditState = {
   id: number;
@@ -112,6 +112,7 @@ const BOOKING_ORIGIN_OPTIONS: Array<{ value: BookingOrigin; label: string }> = [
   { value: "clicknboat", label: "ClicknBoat" },
   { value: "skippair", label: "Skippair" },
   { value: "samboat", label: "Samboat" },
+  { value: "boataround", label: "BoatAround" },
 ];
 
 function toInputDateFromApi(iso: string) {
@@ -138,9 +139,67 @@ function toFrDate(isoLike: string) {
   return d.toLocaleDateString("fr-FR");
 }
 
-function toIsoDay(value?: string | null) {
+function toIsoDayFromValue(value?: string | null) {
   const raw = String(value || "").slice(0, 10);
   return /^\d{4}-\d{2}-\d{2}$/.test(raw) ? raw : "";
+}
+
+function toIsoDay(value?: string | null) {
+  return toIsoDayFromValue(value);
+}
+
+function dayDiffIso(fromIso: string, toIso: string) {
+  const start = new Date(`${fromIso}T00:00:00.000Z`).getTime();
+  const end = new Date(`${toIso}T00:00:00.000Z`).getTime();
+  return Math.round((end - start) / 86400000);
+}
+
+function todayIsoDay() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+type ReservationTiming = "past" | "in_progress" | "soon" | "upcoming";
+
+function getReservationTiming(r: Pick<ReservationRow, "dateDebut" | "dateFin">): ReservationTiming {
+  const today = todayIsoDay();
+  const start = toIsoDayFromValue(r.dateDebut);
+  const end = toIsoDayFromValue(r.dateFin);
+  if (!start || !end) return "upcoming";
+  if (end < today) return "past";
+  if (start <= today && end >= today) return "in_progress";
+  const daysUntilStart = dayDiffIso(today, start);
+  if (daysUntilStart <= 14) return "soon";
+  return "upcoming";
+}
+
+function reservationTimingLabel(timing: ReservationTiming, r: Pick<ReservationRow, "dateDebut">) {
+  if (timing === "in_progress") return "En cours";
+  if (timing === "soon") {
+    const days = dayDiffIso(todayIsoDay(), toIsoDayFromValue(r.dateDebut));
+    if (days === 0) return "Aujourd'hui";
+    if (days === 1) return "Demain";
+    return `Dans ${days} j`;
+  }
+  return null;
+}
+
+function reservationTimingRowClass(timing: ReservationTiming) {
+  if (timing === "in_progress") return "bg-sky-50/80 border-l-4 border-sky-500";
+  if (timing === "soon") return "bg-amber-50/90 border-l-4 border-amber-500";
+  if (timing === "past") return "opacity-60";
+  return "";
+}
+
+function sortReservationsChronologically<T extends Pick<ReservationRow, "dateDebut" | "dateFin" | "id">>(items: T[]) {
+  return items.slice().sort((a, b) => {
+    const aPast = getReservationTiming(a) === "past";
+    const bPast = getReservationTiming(b) === "past";
+    if (aPast !== bPast) return aPast ? 1 : -1;
+    const byStart = String(a.dateDebut).localeCompare(String(b.dateDebut));
+    if (aPast && bPast) return -byStart;
+    if (byStart !== 0) return byStart;
+    return Number(a.id) - Number(b.id);
+  });
 }
 
 function getReservationStatus(r: Pick<ReservationRow, "requestStatus" | "workflowStatut">): ReservationStatus {
@@ -294,7 +353,7 @@ export default function CharterSlotManager({
       const slotsData = await handleApiResponse<SlotRow[]>(slotsRes);
       const reservationsData = await handleApiResponse<ReservationRow[]>(reservationsRes);
       setRows(slotsData.sort((a, b) => a.debut.localeCompare(b.debut) || a.product.localeCompare(b.product)));
-      setReservations(reservationsData.slice().sort((a, b) => String(b.dateDebut).localeCompare(String(a.dateDebut))));
+      setReservations(sortReservationsChronologically(reservationsData));
     } catch (e: any) {
       setMessage(e?.message || "Erreur chargement.");
     } finally {
@@ -772,7 +831,7 @@ export default function CharterSlotManager({
 
   const filteredReservations = useMemo(() => {
     const q = reservationSearch.trim().toLowerCase();
-    return reservations.filter((r) => {
+    const filtered = reservations.filter((r) => {
       const payment = (r.statutPaiement || "en_attente") as "en_attente" | "paye" | "echec" | "rembourse";
       const status = getReservationStatus(r);
       const matchesPayment = paymentFilter === "all" || payment === paymentFilter;
@@ -785,7 +844,15 @@ export default function CharterSlotManager({
         String(r.telClient || "").toLowerCase().includes(q);
       return matchesPayment && matchesWorkflow && matchesSearch;
     });
+    return sortReservationsChronologically(filtered);
   }, [reservations, reservationSearch, paymentFilter, workflowFilter]);
+  const upcomingReservationCount = useMemo(
+    () => filteredReservations.filter((r) => {
+      const timing = getReservationTiming(r);
+      return timing === "in_progress" || timing === "soon";
+    }).length,
+    [filteredReservations]
+  );
   const newDemandCount = useMemo(
     () => reservations.filter((r) => String(r.requestStatus || "nouvelle") === "nouvelle").length,
     [reservations]
@@ -878,7 +945,7 @@ export default function CharterSlotManager({
     () =>
       reservations.map((r) => ({
         ...r,
-        bookingOrigin: (r.bookingOrigin as "direct" | "clicknboat" | "skippair" | "samboat" | undefined) || "direct",
+        bookingOrigin: (r.bookingOrigin as "direct" | "clicknboat" | "skippair" | "samboat" | "boataround" | undefined) || "direct",
         requestStatus: (r.requestStatus as "nouvelle" | "en_cours" | "validee" | "refusee" | "archivee" | undefined) || "nouvelle",
         statutPaiement: (r.statutPaiement as "en_attente" | "paye" | "echec" | "rembourse" | undefined) || "en_attente",
       })),
@@ -998,10 +1065,15 @@ export default function CharterSlotManager({
           <div className="rounded-xl border border-slate-200 bg-white p-5">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="flex items-center gap-2">
-                <h3 className="text-sm font-bold text-slate-800">Dernières réservations</h3>
+                <h3 className="text-sm font-bold text-slate-800">Réservations</h3>
                 {newDemandCount > 0 && (
                   <span className="rounded-full bg-rose-100 px-2 py-1 text-[11px] font-bold text-rose-700">
                     🔔 {newDemandCount} nouvelle{newDemandCount > 1 ? "s" : ""}
+                  </span>
+                )}
+                {upcomingReservationCount > 0 && (
+                  <span className="rounded-full bg-amber-100 px-2 py-1 text-[11px] font-bold text-amber-800">
+                    ⏳ {upcomingReservationCount} bientôt / en cours
                   </span>
                 )}
               </div>
@@ -1050,7 +1122,7 @@ export default function CharterSlotManager({
             </div>
 
             <div className="mt-2 text-xs text-slate-500">
-              {filteredReservations.length} réservation(s) affichée(s) sur {reservations.length}
+              {filteredReservations.length} réservation(s) affichée(s) sur {reservations.length} · ordre chronologique (prochain départ en premier)
             </div>
 
             {reservations.length === 0 ? (
@@ -1071,8 +1143,11 @@ export default function CharterSlotManager({
                     </tr>
                   </thead>
                   <tbody>
-                    {filteredReservations.map((r) => (
-                      <tr key={r.id} className="border-b border-slate-100">
+                    {filteredReservations.map((r) => {
+                      const timing = getReservationTiming(r);
+                      const timingLabel = reservationTimingLabel(timing, r);
+                      return (
+                      <tr key={r.id} className={`border-b border-slate-100 ${reservationTimingRowClass(timing)}`}>
                         <td className="py-2 pr-2">
                           <div className="font-medium text-slate-800">
                             👤 {r.prenomClient ? `${r.prenomClient} ${r.nomClient}` : r.nomClient}
@@ -1080,7 +1155,20 @@ export default function CharterSlotManager({
                           <div className="text-xs text-slate-500">{r.emailClient}</div>
                         </td>
                         <td className="py-2 pr-2 text-slate-700">
-                          {toFrDate(String(r.dateDebut))} <span className="text-slate-400">→</span> {toFrDate(String(r.dateFin))}
+                          {timingLabel && (
+                            <span
+                              className={`mb-1 inline-block rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${
+                                timing === "in_progress"
+                                  ? "bg-sky-200 text-sky-900"
+                                  : "bg-amber-200 text-amber-900"
+                              }`}
+                            >
+                              {timingLabel}
+                            </span>
+                          )}
+                          <div>
+                            {toFrDate(String(r.dateDebut))} <span className="text-slate-400">→</span> {toFrDate(String(r.dateFin))}
+                          </div>
                         </td>
                         <td className="py-2 pr-2 text-slate-700">
                           <div>{reservationTypeLabel(r.typeReservation)}</div>
@@ -1164,7 +1252,8 @@ export default function CharterSlotManager({
                           })()}
                         </td>
                       </tr>
-                    ))}
+                    );
+                    })}
                   </tbody>
                 </table>
               </div>
