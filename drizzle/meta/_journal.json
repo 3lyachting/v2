@@ -64,6 +64,13 @@
       "when": 1778086000000,
       "tag": "0008_backoffice_local_accounts_rls_off",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1778090000000,
+      "tag": "0009_boataround_booking_origin",
+      "breakpoints": true
     }
   ]
 }

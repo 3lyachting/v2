@@ -52,6 +52,23 @@ export async function ensureBackofficeLocalAccountsTable(): Promise<void> {
   }
 }
 
+/** Valeur enum prod (Render) si la migration 0009 n’a pas encore été appliquée. */
+export async function ensureBoataroundBookingOrigin(): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  try {
+    await db.execute(
+      sql`ALTER TYPE "public"."booking_origin" ADD VALUE IF NOT EXISTS 'boataround'`
+    );
+    console.log("[Database] booking_origin « boataround » vérifié.");
+  } catch (e) {
+    console.warn(
+      "[Database] ensureBoataroundBookingOrigin:",
+      (e as Error)?.message || e
+    );
+  }
+}
+
 export async function upsertUser(user: InsertUser): Promise<void> {
   if (!user.openId) {
     throw new Error("User openId is required for upsert");
