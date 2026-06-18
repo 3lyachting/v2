@@ -236,7 +236,7 @@ export default function AirbnbCalendarMvp({
 
   const handleSelectDate = (date: Date) => {
     const iso = toIso(date);
-    if (dayAvailability && !dayAvailability.has(iso)) {
+    if (dayAvailability === null || !dayAvailability.has(iso)) {
       return;
     }
     if (charterPeriods.length > 0) {
@@ -309,7 +309,11 @@ export default function AirbnbCalendarMvp({
     [dayAvailability, endDate, startDate]
   );
   const availabilityHint =
-    rangeCoverage.kind === "unknown"
+    dayAvailability != null && dayAvailability.size === 0
+      ? isEnglish
+        ? "No published slots for this product yet. Contact us or check back later."
+        : "Aucun créneau publié pour ce produit pour l'instant. Contactez-nous ou revenez plus tard."
+      : rangeCoverage.kind === "unknown"
       ? isEnglish
         ? "Loading availability…"
         : "Chargement des periodes…"
@@ -473,11 +477,30 @@ export default function AirbnbCalendarMvp({
       ...(isEnglish ? { lang: "en" } : {}),
     });
 
+    const datesPublished =
+      dayAvailability != null &&
+      dayAvailability.size > 0 &&
+      rangeCoverage.kind === "full" &&
+      (charterPeriods.length === 0 ? false : isDayTrip ? Boolean(selectedSlot) : true);
+
     return {
-      canBook: Boolean(totalEur != null && isReady && (reservationMode !== "priva" || canChoosePrivatif)),
+      canBook: Boolean(
+        totalEur != null &&
+          isReady &&
+          datesPublished &&
+          (reservationMode !== "priva" || canChoosePrivatif)
+      ),
       totalEur,
       info:
-        totalEur == null
+        dayAvailability != null && dayAvailability.size === 0
+          ? isEnglish
+            ? "No published slots for this product."
+            : "Aucun créneau publié pour ce produit."
+          : !datesPublished && startDate
+            ? isEnglish
+              ? "Choose a published date from the calendar."
+              : "Choisissez une date publiée dans le calendrier."
+            : totalEur == null
           ? isEnglish
             ? "No price configured for this product."
             : "Aucun tarif configuré pour ce produit."
@@ -505,6 +528,8 @@ export default function AirbnbCalendarMvp({
     startDate,
     charterPeriods,
     maxPassengers,
+    rangeCoverage.kind,
+    dayAvailability,
   ]);
 
   return (
@@ -576,8 +601,8 @@ export default function AirbnbCalendarMvp({
           {days.map((date) => {
             const iso = toIso(date);
             const isCurrentMonth = date.getMonth() === month.getMonth();
-            const inAvail = dayAvailability ? dayAvailability.has(iso) : true;
-            const isDisabled = isCurrentMonth && dayAvailability ? !inAvail : false;
+            const inAvail = dayAvailability?.has(iso) ?? false;
+            const isDisabled = isCurrentMonth && (dayAvailability === null || !inAvail);
             const isStart = !!startDate && iso === startDate;
             const isEnd = !!endDate && iso === endDate;
             const isSelectedRange = inRange(iso);

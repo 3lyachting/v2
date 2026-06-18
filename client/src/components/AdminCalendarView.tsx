@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Calendar, ChevronLeft, ChevronRight, Plus, Edit2, Trash2, AlertCircle, User, CreditCard, Clock3, Mail, X } from "lucide-react";
 import { toast } from "sonner";
 import { inferSlotType } from "@shared/slotRules";
+import { reservationScheduleLines, RESERVATION_KIND_STYLES } from "@shared/reservationDisplay";
 
 interface Disponibilite {
   id: number;
@@ -42,6 +43,8 @@ interface Reservation {
   message?: string | null;
   workflowStatut?: string;
   typeReservation?: string;
+  formule?: string | null;
+  destination?: string | null;
   requestStatus?: "nouvelle" | "en_cours" | "validee" | "refusee" | "archivee";
 }
 
@@ -568,12 +571,14 @@ export default function AdminCalendarView({
                     <div className="space-y-2 max-h-40 overflow-y-auto pr-1">
                       {selectedDayReservations.map((reservation) => {
                         const active = selectedReservation?.id === reservation.id;
+                        const schedule = reservationScheduleLines(reservation);
+                        const kindStyle = RESERVATION_KIND_STYLES[schedule.kind];
                         return (
                           <button
                             key={reservation.id}
                             onClick={() => handleSelectReservation(reservation, selectedDayKey || undefined)}
                             className={`w-full text-left rounded-lg border px-3 py-2 transition-colors ${
-                              active ? "border-amber-400 bg-amber-50" : "border-slate-200 hover:bg-white"
+                              active ? "border-amber-400 bg-amber-50" : `border-slate-200 hover:bg-white ${kindStyle.row}`
                             }`}
                           >
                             <div className="flex items-center justify-between gap-3">
@@ -581,13 +586,18 @@ export default function AdminCalendarView({
                                 {reservation.prenomClient ? `${reservation.prenomClient} ` : ""}
                                 {reservation.nomClient}
                               </p>
-                              <span className={`px-2 py-0.5 rounded-full border text-[10px] font-semibold ${getRequestStatusClass(reservation.requestStatus)}`}>
-                                {getRequestStatusLabel(reservation.requestStatus)}
+                              <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${kindStyle.badge}`}>
+                                {kindStyle.label}
                               </span>
                             </div>
-                            <p className="mt-1 text-[11px] text-slate-600 truncate">
-                              {new Date(reservation.dateDebut).toLocaleDateString("fr-FR", { timeZone: "UTC" })} →{" "}
-                              {new Date(reservation.dateFin).toLocaleDateString("fr-FR", { timeZone: "UTC" })}
+                            <p className="mt-1 text-[11px] font-medium text-slate-700">{schedule.dateLine}</p>
+                            {schedule.hoursLine && (
+                              <p className="text-[11px] text-slate-600">🕐 {schedule.hoursLine}</p>
+                            )}
+                            <p className="mt-0.5 text-[10px] text-slate-500">
+                              <span className={`px-1.5 py-0.5 rounded-full border ${getRequestStatusClass(reservation.requestStatus)}`}>
+                                {getRequestStatusLabel(reservation.requestStatus)}
+                              </span>
                             </p>
                           </button>
                         );
@@ -734,8 +744,23 @@ export default function AdminCalendarView({
                             <Clock3 className="w-3.5 h-3.5" /> Dates / heures
                           </p>
                           <p className="text-sm font-semibold text-slate-900 mt-1">
-                            {new Date(selectedReservation.dateDebut).toLocaleDateString("fr-FR", { timeZone: "UTC" })} →{" "}
-                            {new Date(selectedReservation.dateFin).toLocaleDateString("fr-FR", { timeZone: "UTC" })}
+                            {(() => {
+                              const schedule = reservationScheduleLines(selectedReservation);
+                              const kindStyle = RESERVATION_KIND_STYLES[schedule.kind];
+                              return (
+                                <>
+                                  <span className={`mr-2 inline-block rounded-full px-2 py-0.5 text-[10px] font-bold ${kindStyle.badge}`}>
+                                    {kindStyle.label}
+                                  </span>
+                                  {schedule.dateLine}
+                                  {schedule.hoursLine && (
+                                    <span className="mt-1 block text-xs font-semibold text-slate-600">
+                                      🕐 {schedule.hoursLine}
+                                    </span>
+                                  )}
+                                </>
+                              );
+                            })()}
                           </p>
                           <p className="text-xs text-slate-600 mt-1">{selectedReservation.typeReservation || "Type non renseigné"}</p>
                         </div>
@@ -884,8 +909,21 @@ export default function AdminCalendarView({
                 <div className="rounded-lg border border-slate-200 bg-slate-50 p-2.5">
                   <p className="text-[11px] uppercase text-slate-500">Période</p>
                   <p className="font-semibold text-slate-900">
-                    {new Date(reservationModal.dateDebut).toLocaleDateString("fr-FR", { timeZone: "UTC" })} →{" "}
-                    {new Date(reservationModal.dateFin).toLocaleDateString("fr-FR", { timeZone: "UTC" })}
+                    {(() => {
+                      const schedule = reservationScheduleLines(reservationModal);
+                      const kindStyle = RESERVATION_KIND_STYLES[schedule.kind];
+                      return (
+                        <>
+                          <span className={`mr-1 inline-block rounded-full px-2 py-0.5 text-[10px] font-bold ${kindStyle.badge}`}>
+                            {kindStyle.label}
+                          </span>
+                          {schedule.dateLine}
+                          {schedule.hoursLine && (
+                            <span className="mt-1 block text-xs text-slate-600">🕐 {schedule.hoursLine}</span>
+                          )}
+                        </>
+                      );
+                    })()}
                   </p>
                 </div>
                 <div className="rounded-lg border border-slate-200 bg-slate-50 p-2.5">

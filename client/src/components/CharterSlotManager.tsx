@@ -17,6 +17,12 @@ import {
   rangesOverlapForStay,
 } from "@shared/charterCapacity";
 import { snapToSaturdayWeekSpan } from "@shared/charterWeekPolicy";
+import {
+  getReservationCharterKind,
+  isShortCharterKind,
+  reservationScheduleLines,
+  RESERVATION_KIND_STYLES,
+} from "@shared/reservationDisplay";
 
 const BRAND_DEEP = "#00384A";
 const BRAND_SAND = "#D8C19E";
@@ -186,10 +192,24 @@ function reservationTimingLabel(timing: ReservationTiming, r: Pick<ReservationRo
 }
 
 function reservationTimingRowClass(timing: ReservationTiming) {
-  if (timing === "in_progress") return "bg-sky-50/80 border-l-4 border-sky-500";
-  if (timing === "soon") return "bg-amber-50/90 border-l-4 border-amber-500";
   if (timing === "past") return "opacity-60";
   return "";
+}
+
+function reservationRowClass(
+  r: Pick<ReservationRow, "dateDebut" | "dateFin" | "formule" | "destination">
+) {
+  const kind = getReservationCharterKind(r);
+  const timing = getReservationTiming(r);
+  const kindClass = RESERVATION_KIND_STYLES[kind].row;
+  const timingClass = reservationTimingRowClass(timing);
+  const highlight =
+    timing === "in_progress"
+      ? "ring-1 ring-inset ring-sky-400"
+      : timing === "soon"
+        ? "ring-1 ring-inset ring-amber-300"
+        : "";
+  return [kindClass, timingClass, highlight].filter(Boolean).join(" ");
 }
 
 function sortReservationsChronologically<T extends Pick<ReservationRow, "dateDebut" | "dateFin" | "id">>(items: T[]) {
@@ -255,16 +275,7 @@ function isConfirmedReservationForCalendar(reservation: ReservationRow): boolean
 }
 
 function isDayTripReservation(reservation: ReservationRow): boolean {
-  const formule = String(reservation.formule || "").toLowerCase();
-  const destination = String(reservation.destination || "").toLowerCase();
-  const start = toIsoDay(reservation.dateDebut);
-  const end = toIsoDay(reservation.dateFin);
-  return (
-    formule.includes("journee") ||
-    formule.includes("journ") ||
-    destination.includes("journee") ||
-    Boolean(start && end && start === end)
-  );
+  return isShortCharterKind(getReservationCharterKind(reservation));
 }
 
 type CharterSlotManagerProps = {
@@ -1123,8 +1134,12 @@ export default function CharterSlotManager({
               </select>
             </div>
 
-            <div className="mt-2 text-xs text-slate-500">
-              {filteredReservations.length} réservation(s) affichée(s) sur {reservations.length} · ordre chronologique (prochain départ en premier)
+            <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-slate-500">
+              <span>{filteredReservations.length} réservation(s) affichée(s) sur {reservations.length} · ordre chronologique (prochain départ en premier)</span>
+              <span className="hidden sm:inline text-slate-300">|</span>
+              <span className={`rounded-full px-2 py-0.5 font-semibold ${RESERVATION_KIND_STYLES.journee.badge}`}>Journée</span>
+              <span className={`rounded-full px-2 py-0.5 font-semibold ${RESERVATION_KIND_STYLES.soiree.badge}`}>Soirée</span>
+              <span className={`rounded-full px-2 py-0.5 font-semibold ${RESERVATION_KIND_STYLES.semaine.badge}`}>Semaine</span>
             </div>
 
             {reservations.length === 0 ? (
@@ -1148,8 +1163,10 @@ export default function CharterSlotManager({
                     {filteredReservations.map((r) => {
                       const timing = getReservationTiming(r);
                       const timingLabel = reservationTimingLabel(timing, r);
+                      const schedule = reservationScheduleLines(r);
+                      const kindStyle = RESERVATION_KIND_STYLES[schedule.kind];
                       return (
-                      <tr key={r.id} className={`border-b border-slate-100 ${reservationTimingRowClass(timing)}`}>
+                      <tr key={r.id} className={`border-b border-slate-100 ${reservationRowClass(r)}`}>
                         <td className="py-2 pr-2">
                           <div className="font-medium text-slate-800">
                             👤 {r.prenomClient ? `${r.prenomClient} ${r.nomClient}` : r.nomClient}
@@ -1157,9 +1174,14 @@ export default function CharterSlotManager({
                           <div className="text-xs text-slate-500">{r.emailClient}</div>
                         </td>
                         <td className="py-2 pr-2 text-slate-700">
+                          <span
+                            className={`mb-1 inline-block rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${kindStyle.badge}`}
+                          >
+                            {kindStyle.label}
+                          </span>
                           {timingLabel && (
                             <span
-                              className={`mb-1 inline-block rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${
+                              className={`mb-1 ml-1 inline-block rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${
                                 timing === "in_progress"
                                   ? "bg-sky-200 text-sky-900"
                                   : "bg-amber-200 text-amber-900"
@@ -1168,9 +1190,10 @@ export default function CharterSlotManager({
                               {timingLabel}
                             </span>
                           )}
-                          <div>
-                            {toFrDate(String(r.dateDebut))} <span className="text-slate-400">→</span> {toFrDate(String(r.dateFin))}
-                          </div>
+                          <div className="font-medium">{schedule.dateLine}</div>
+                          {schedule.hoursLine && (
+                            <div className="text-xs font-semibold text-slate-600">🕐 {schedule.hoursLine}</div>
+                          )}
                         </td>
                         <td className="py-2 pr-2 text-slate-700">
                           <div>{reservationTypeLabel(r.typeReservation)}</div>
@@ -1211,7 +1234,7 @@ export default function CharterSlotManager({
                             className="rounded-md border border-emerald-200 bg-emerald-50 px-2 py-1 text-xs font-semibold text-emerald-700 hover:bg-emerald-100 disabled:opacity-50"
                             title={
                               isDayTrip
-                                ? "Génère/envoie devis + contrat journée (sans lien de paiement)"
+                                ? "Génère/envoie devis + contrat (journée ou soirée, sans lien de paiement)"
                                 : "Génère/envoie devis + contrat, puis crée le lien de paiement"
                             }
                           >
@@ -1229,7 +1252,7 @@ export default function CharterSlotManager({
                             onClick={() => createMolliePaymentLink(r.id)}
                             disabled={creatingPaymentForId === r.id || isDayTrip}
                             className="rounded-md border border-slate-200 px-2 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
-                            title={isDayTrip ? "Pas de lien de paiement pour une réservation journée" : "Créer un lien de paiement"}
+                            title={isDayTrip ? "Pas de lien de paiement pour une journée ou soirée" : "Créer un lien de paiement"}
                           >
                             {creatingPaymentForId === r.id ? "Création..." : isDayTrip ? "Lien paiement (off)" : "Lien paiement"}
                           </button>

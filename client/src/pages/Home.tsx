@@ -1168,10 +1168,8 @@ function SectionCalendrier({ isEnglish = false }: { isEnglish?: boolean }) {
       setSlotOccupancy(blockedPayload?.slotOccupancy && typeof blockedPayload.slotOccupancy === "object" ? blockedPayload.slotOccupancy : {});
       const periods: Array<{ id: number; startIso: string; endIso: string; publicNote?: string | null }> = [];
       const s = new Set<string>();
-      let hasAnyActiveSlot = false;
       for (const r of rows) {
         if (r.active === false) continue;
-        hasAnyActiveSlot = true;
         const startIso = String(r.debut ?? "").slice(0, 10);
         const endIso = String(r.fin ?? "").slice(0, 10);
         if (/^\d{4}-\d{2}-\d{2}$/.test(startIso) && /^\d{4}-\d{2}-\d{2}$/.test(endIso) && startIso <= endIso) {
@@ -1181,9 +1179,8 @@ function SectionCalendrier({ isEnglish = false }: { isEnglish?: boolean }) {
       }
       setCharterPeriods(periods);
       for (const d of blockedDays) s.delete(String(d || "").slice(0, 10));
-      // null = aucun slot public pour ce produit ; Set (meme vide) = slots connus et filtrés.
-      // Important: Set vide => tout est bloque, il ne faut pas retomber en mode "aucune contrainte".
-      setDayAvailability(hasAnyActiveSlot ? s : null);
+      // Set vide = produit chargé mais aucun créneau publié → tout grisé (ne pas utiliser null).
+      setDayAvailability(s);
     } catch {
       // Erreur reseau: ne pas ecraser un Set valide deja en memoire
     }
