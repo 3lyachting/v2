@@ -30,6 +30,7 @@ import { serveStatic, setupVite } from "./vite";
 import {
   ensureBackofficeLocalAccountsTable,
   ensureBoataroundBookingOrigin,
+  ensureSoireeCharterProduct,
 } from "../db";
 
 function isPortAvailable(port: number): Promise<boolean> {
@@ -120,6 +121,7 @@ async function startServer() {
 
   await ensureBackofficeLocalAccountsTable();
   await ensureBoataroundBookingOrigin();
+  await ensureSoireeCharterProduct();
 
   server.listen(port, () => {
     console.log(`Server running on http://localhost:${port}/`);

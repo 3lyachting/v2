@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
-import { CHARTER_PRODUCT_LABELS, charterProductLabel, type CharterProductCode } from "@shared/charterProduct";
+import { CHARTER_PRODUCT_LABELS, charterProductFormule, charterProductLabel, isSingleDayPrivateProduct, type CharterProductCode } from "@shared/charterProduct";
 import { getCharterHighSeasonError } from "@shared/charterWeekPolicy";
 import { getProductFromDisponibilite } from "@shared/calendarSelection";
 import {
@@ -33,10 +33,11 @@ const DEFAULT_PRIVATE_WEEKLY_PRICE: Record<Exclude<CharterProductCode, "transat"
   med: 14000,
   caraibes: 14000,
   journee: 1000,
+  soiree: 580,
 };
 
 function maxPassengersByProduct(product: CharterProductCode): number {
-  return product === "journee" ? 12 : 8;
+  return isSingleDayPrivateProduct(product) ? 12 : 8;
 }
 
 function startOfWeekSaturday(iso: string): string {
@@ -325,7 +326,7 @@ export default function AirbnbCalendarMvp({
             : "";
 
   const highSeasonError = getCharterHighSeasonError(startDate, endDate, selectionMode, { isEnglish });
-  const isDayTrip = product === "journee";
+  const isDayTrip = isSingleDayPrivateProduct(product);
   const isTransat = product === "transat";
   const canChooseCabine = !isDayTrip;
 
@@ -448,12 +449,12 @@ export default function AirbnbCalendarMvp({
       );
       const base =
         seasonalPrivate ?? DEFAULT_PRIVATE_WEEKLY_PRICE[product as Exclude<CharterProductCode, "transat">] ?? 0;
-      totalEur = product === "journee" ? base : base * weekBlocks;
+      totalEur = isDayTrip ? base : base * weekBlocks;
     }
 
     const reservationType =
       reservationMode === "priva" ? "bateau_entier" : isTransat ? "place" : "cabine";
-    const formule = isDayTrip ? "journee" : "semaine";
+    const formule = charterProductFormule(product);
     const destination = CHARTER_PRODUCT_LABELS[product];
     const selectedSlot =
       startDate && (endDate || startDate)

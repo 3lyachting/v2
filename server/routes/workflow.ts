@@ -24,7 +24,9 @@ import {
   computeReservationPaymentSchedule,
   DAY_TRIP_DISEMBARK_HOUR,
   DAY_TRIP_EMBARK_HOUR,
-  isDayTripReservation,
+  getReservationCharterHours,
+  isShortCharterReservation,
+  isSunsetReservation,
 } from "../_core/commercialDocs";
 import { storageGetSignedUrl } from "../storage";
 import {
@@ -44,7 +46,7 @@ const buildInvoiceNumber = (id: number, type: "acompte" | "solde" | "full") =>
   `FAC-${type.toUpperCase()}-${nowYear()}-${pad(id)}`;
 
 function isDayReservation(reservation: any): boolean {
-  return isDayTripReservation(reservation);
+  return isShortCharterReservation(reservation);
 }
 
 function toAbsoluteUrl(req: any, rawUrl: string | null | undefined): string | null {
@@ -432,6 +434,8 @@ router.post("/reservations/:id/send-proposal-email", requireAdmin, async (req, r
       }
     }
     const isDayTrip = isDayReservation(r);
+    const isSunset = isSunsetReservation(r);
+    const charterHours = getReservationCharterHours(r);
     const esignEnabled = String(ENV.eSignProvider || "other").toLowerCase() !== "other";
     if (esignEnabled && !signUrl) {
       console.warn("[Workflow][send-proposal-email] Missing signUrl while e-sign enabled, fallback email", {
@@ -468,10 +472,10 @@ router.post("/reservations/:id/send-proposal-email", requireAdmin, async (req, r
     const subject = `Votre proposition de croisière - réservation #${reservationId}`;
     const fullName = `${String(r.prenomClient || "").trim()} ${String(r.nomClient || "").trim()}`.trim() || "Client";
     const embarkDate = isDayTrip
-      ? `${formatDateForEmail(r.dateDebut)} · ${DAY_TRIP_EMBARK_HOUR.replace(":", "h")} - ${DAY_TRIP_DISEMBARK_HOUR.replace(":", "h")}`
+      ? `${formatDateForEmail(r.dateDebut)} · ${charterHours.embark.replace(":", "h")} - ${charterHours.disembark.replace(":", "h")}`
       : formatDateForEmail(r.dateDebut);
     const disembarkDate = isDayTrip ? "—" : formatDateForEmail(r.dateFin);
-    const reservationLabel = isDayTrip ? "Sortie journée" : "Croisière";
+    const reservationLabel = isSunset ? "Soirée coucher de soleil" : isDayTrip ? "Sortie journée" : "Croisière";
     const destinationLabel = String(r.destination || "La Ciotat");
     const totalTtc = `${(Number(r.montantTotal || 0) / 100).toLocaleString("fr-FR")} € TTC`;
     const logoPathCandidates = [

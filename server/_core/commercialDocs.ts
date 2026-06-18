@@ -94,14 +94,57 @@ function resolveContractTemplatePath(): string | null {
 export const DAY_TRIP_EMBARK_HOUR = "10:00";
 export const DAY_TRIP_DISEMBARK_HOUR = "16:00";
 export const DAY_TRIP_DURATION_HOURS = 6;
+export const SUNSET_EMBARK_HOUR = "18:30";
+export const SUNSET_DISEMBARK_HOUR = "22:00";
+export const SUNSET_DURATION_HOURS = 3.5;
 export const DAY_TRIP_ACOMPTE_PERCENT = 20;
 export const DAY_TRIP_SOLDE_DAYS_BEFORE_EMBARK = 7;
 
+export function isSunsetReservation(r: Reservation): boolean {
+  const formule = String(r.formule || "").toLowerCase();
+  const destination = String(r.destination || "").toLowerCase();
+  return (
+    formule.includes("soiree") ||
+    formule.includes("soirée") ||
+    destination.includes("soiree") ||
+    destination.includes("soirée") ||
+    destination.includes("coucher") ||
+    destination.includes("sunset")
+  );
+}
+
 export function isDayTripReservation(r: Reservation): boolean {
+  if (isSunsetReservation(r)) return false;
   const formule = String(r.formule || "").toLowerCase();
   const destination = String(r.destination || "").toLowerCase();
   const sameDay = dateFr(r.dateDebut) === dateFr(r.dateFin);
   return formule.includes("journee") || formule.includes("journ") || destination.includes("journee") || sameDay;
+}
+
+export function isShortCharterReservation(r: Reservation): boolean {
+  return isDayTripReservation(r) || isSunsetReservation(r);
+}
+
+export function getReservationCharterHours(r: Reservation): {
+  embark: string;
+  disembark: string;
+  durationHours: number;
+} {
+  if (isSunsetReservation(r)) {
+    return {
+      embark: SUNSET_EMBARK_HOUR,
+      disembark: SUNSET_DISEMBARK_HOUR,
+      durationHours: SUNSET_DURATION_HOURS,
+    };
+  }
+  if (isDayTripReservation(r)) {
+    return {
+      embark: DAY_TRIP_EMBARK_HOUR,
+      disembark: DAY_TRIP_DISEMBARK_HOUR,
+      durationHours: DAY_TRIP_DURATION_HOURS,
+    };
+  }
+  return { embark: "15:00", disembark: "10:00", durationHours: 0 };
 }
 
 export function computeReservationPaymentSchedule(r: Reservation) {
@@ -109,7 +152,7 @@ export function computeReservationPaymentSchedule(r: Reservation) {
   const acompteMontant = Math.round((r.montantTotal * acomptePercent) / 100);
   const soldeMontant = Math.max(0, r.montantTotal - acompteMontant);
   const soldeEcheanceAt = new Date(r.dateDebut);
-  const soldeLeadDays = isDayTripReservation(r) ? DAY_TRIP_SOLDE_DAYS_BEFORE_EMBARK : 45;
+  const soldeLeadDays = isShortCharterReservation(r) ? DAY_TRIP_SOLDE_DAYS_BEFORE_EMBARK : 45;
   soldeEcheanceAt.setUTCDate(soldeEcheanceAt.getUTCDate() - soldeLeadDays);
   return { acomptePercent, acompteMontant, soldeMontant, soldeEcheanceAt };
 }
@@ -243,7 +286,8 @@ export async function buildQuotePdf(r: Reservation, quoteNumber: string, optionE
     return d;
   })();
   const isPrivate = r.typeReservation === "bateau_entier";
-  const isDayTrip = isDayTripReservation(r);
+  const isShortCharter = isShortCharterReservation(r);
+  const charterHours = getReservationCharterHours(r);
   const paymentSchedule = computeReservationPaymentSchedule(r);
 
   // Header
@@ -291,8 +335,8 @@ export async function buildQuotePdf(r: Reservation, quoteNumber: string, optionE
   drawLabelValue(
     580,
     "Periode",
-    isDayTrip
-      ? `${dateFr(r.dateDebut)} · ${formatHour(r.dateDebut, DAY_TRIP_EMBARK_HOUR)} - ${formatHour(r.dateFin, DAY_TRIP_DISEMBARK_HOUR)}`
+    isShortCharter
+      ? `${dateFr(r.dateDebut)} · ${formatHour(r.dateDebut, charterHours.embark)} - ${formatHour(r.dateFin, charterHours.disembark)}`
       : `${dateFr(r.dateDebut)} au ${dateFr(r.dateFin)}`,
   );
   drawLabelValue(564, "Blocage", `Option 7 jours (jusqu'au ${dateFr(optionUntil)})`);
@@ -311,7 +355,7 @@ export async function buildQuotePdf(r: Reservation, quoteNumber: string, optionE
   // Payment terms block
   page.drawRectangle({ x: 40, y: 290, width: 515, height: 125, borderColor: rgb(0.83, 0.85, 0.9), borderWidth: 1 });
   page.drawText("CONDITIONS DE PAIEMENT", { x: 44, y: 398, font: bold, size: 11, color: rgb(0.1, 0.2, 0.36) });
-  if (isDayTrip) {
+  if (isShortCharter) {
     page.drawText(`- Acompte ${DAY_TRIP_ACOMPTE_PERCENT} % a la reservation`, {
       x: 44,
       y: 378,
@@ -356,7 +400,7 @@ export async function buildQuotePdf(r: Reservation, quoteNumber: string, optionE
   // Inclusions / exclusions block (as in charter contract, depends on mode)
   page.drawRectangle({ x: 40, y: 150, width: 515, height: 130, borderColor: rgb(0.83, 0.85, 0.9), borderWidth: 1 });
   page.drawText("RAPPEL INCLUS / NON INCLUS", { x: 44, y: 262, font: bold, size: 11, color: rgb(0.1, 0.2, 0.36) });
-  if (isDayTrip) {
+  if (isShortCharter) {
     page.drawText("Inclus:", { x: 44, y: 244, font: bold, size: 9.5, color: rgb(0.2, 0.2, 0.2) });
     page.drawText("- Mise a disposition privee du navire avec equipage professionnel.", { x: 95, y: 244, font, size: 9.5, color: rgb(0.2, 0.2, 0.2) });
     page.drawText("- Carburant pour navigation normale locale.", { x: 95, y: 230, font, size: 9.5, color: rgb(0.2, 0.2, 0.2) });
@@ -395,12 +439,13 @@ export async function buildQuotePdf(r: Reservation, quoteNumber: string, optionE
 }
 
 export async function buildContractPdf(r: Reservation, contractNumber: string) {
-  const isDayTrip = isDayTripReservation(r);
-  const dayTemplatePath = isDayTrip ? resolveDayContractTemplatePath() : null;
+  const isShortCharter = isShortCharterReservation(r);
+  const charterHours = getReservationCharterHours(r);
+  const dayTemplatePath = isShortCharter ? resolveDayContractTemplatePath() : null;
   const weekTemplatePath = resolveContractTemplatePath();
-  const templatePath = isDayTrip ? dayTemplatePath : weekTemplatePath;
+  const templatePath = isShortCharter ? dayTemplatePath : weekTemplatePath;
   if (!templatePath) {
-    if (isDayTrip) {
+    if (isShortCharter) {
       throw new Error(
         "[DAY_CONTRACT_TEMPLATE_REQUIRED] Modèle contrat journée introuvable. Ajoutez CONTRACT_TEMPLATE_DAY_PATH ou placez day-charter-template.pdf dans public/docs ou dist/public/docs.",
       );
@@ -437,11 +482,11 @@ export async function buildContractPdf(r: Reservation, contractNumber: string) {
     });
   };
 
-  if (isDayTrip) {
+  if (isShortCharter) {
     const datePrestation = dateFr(r.dateDebut) || "-";
-    const embarkHour = formatHour(r.dateDebut, DAY_TRIP_EMBARK_HOUR);
-    const disembarkHour = formatHour(r.dateFin, DAY_TRIP_DISEMBARK_HOUR);
-    const durationHours = DAY_TRIP_DURATION_HOURS;
+    const embarkHour = formatHour(r.dateDebut, charterHours.embark);
+    const disembarkHour = formatHour(r.dateFin, charterHours.disembark);
+    const durationHours = charterHours.durationHours;
     const totalTtc = `${euro(r.montantTotal)} EUR`;
     const { acompteMontant, soldeMontant } = computeReservationPaymentSchedule(r);
     const acompteText = `${euro(acompteMontant)} EUR`;
@@ -533,8 +578,8 @@ export async function buildContractPdf(r: Reservation, contractNumber: string) {
   drawField("Email", r.emailClient || "-", topY - 86);
   drawField("Navire", "Catamaran Sabine", topY - 100);
   drawField("Destination", r.destination || "-", topY - 114);
-  const embarkDefaultHour = isDayTrip ? DAY_TRIP_EMBARK_HOUR : "15:00";
-  const disembarkDefaultHour = isDayTrip ? DAY_TRIP_DISEMBARK_HOUR : "10:00";
+  const embarkDefaultHour = charterHours.embark;
+  const disembarkDefaultHour = charterHours.disembark;
   drawField("Date d'embarquement", formatFrDateTime(r.dateDebut, embarkDefaultHour), topY - 128);
   drawField("Date de debarquement", formatFrDateTime(r.dateFin, disembarkDefaultHour), topY - 142);
 

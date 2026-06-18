@@ -802,7 +802,7 @@ function SectionProgramme({ isEnglish = false }: { isEnglish?: boolean }) {
     void loadSeasonPricing();
   }, []);
 
-  const getStartingPrivatePrice = (product: "med" | "caraibes" | "journee", fallback: number) => {
+  const getStartingPrivatePrice = (product: "med" | "caraibes" | "journee" | "soiree", fallback: number) => {
     const row = seasonPricing?.[product];
     const candidates = [row?.highSeasonPrivate, row?.lowSeasonPrivate].filter(
       (value): value is number => typeof value === "number" && Number.isFinite(value) && value > 0
@@ -813,6 +813,7 @@ function SectionProgramme({ isEnglish = false }: { isEnglish?: boolean }) {
   const medFromPrice = getStartingPrivatePrice("med", 14000);
   const caraibesFromPrice = getStartingPrivatePrice("caraibes", 14000);
   const journeeFromPrice = getStartingPrivatePrice("journee", 1000);
+  const soireeFromPrice = getStartingPrivatePrice("soiree", 580);
   const formatPrice = (value: number) => value.toLocaleString("fr-FR");
 
   const programmeVideoSrc = "/photos%20site/dji_fly_20260311_123045_0_1773228645468_video_low_quality.mp4";
@@ -922,6 +923,13 @@ function SectionProgramme({ isEnglish = false }: { isEnglish?: boolean }) {
                     color: "#1f5f70",
                     items: ["Periods: April, May and September", "Paddle, Kayak, Snorkeling", "2 underwater scooters (optional)", "1 electric paddle motor (optional)"],
                   },
+                  {
+                    titre: "Sunset Evening La Ciotat",
+                    prix: `From €${formatPrice(soireeFromPrice)} all-inclusive · full boat`,
+                    desc: "Private sunset cruise along the Calanques and La Ciotat bay.",
+                    color: "#5a3d6e",
+                    items: ["April to September evenings", "Aperitif at sunset", "Paddle & kayak on board", "Up to 12 guests"],
+                  },
                 ]
               : [
                   {
@@ -952,6 +960,13 @@ function SectionProgramme({ isEnglish = false }: { isEnglish?: boolean }) {
                     desc: "Programme: La Ciotat → Cassis (plage de l'Arène) → retour",
                     color: "#1f5f70",
                     items: ["Périodes: avril, mai et septembre", "Paddle, Kayak, Snorkeling", "2 scooters sous-marins (en option)", "1 moteur électrique paddle (en option)"],
+                  },
+                  {
+                    titre: "Soirée coucher de soleil La Ciotat",
+                    prix: `À partir de ${formatPrice(soireeFromPrice)}€ tout inclus · bateau entier`,
+                    desc: "Croisière privative au coucher du soleil sur la baie de La Ciotat et les calanques",
+                    color: "#5a3d6e",
+                    items: ["Avril à septembre en soirée", "Apéritif au coucher du soleil", "Paddle & kayak à bord", "Jusqu'à 12 personnes"],
                   },
                 ]).map(f => (
               <div
@@ -1214,7 +1229,7 @@ function SectionCalendrier({ isEnglish = false }: { isEnglish?: boolean }) {
         <Reveal delay={0.05}>
           <div className="mx-auto mb-6 max-w-6xl">
             <div className="mb-5 flex flex-wrap justify-center gap-3">
-              {(["journee", "med", "transat", "caraibes"] as CharterProductCode[]).map((p) => {
+              {(["journee", "soiree", "med", "transat", "caraibes"] as CharterProductCode[]).map((p) => {
                 const active = p === product;
                 return (
                   <button
@@ -1473,6 +1488,7 @@ function SectionContact({ isEnglish = false }: { isEnglish?: boolean }) {
                       <option value="transatlantique">{isEnglish ? "Transatlantic" : "Transatlantique"}</option>
                       <option value="croisiere_caraibes">{isEnglish ? "Caribbean Week" : "Semaine Caraïbes"}</option>
                       <option value="journee_privee">{isEnglish ? "Day Trip La Ciotat - Cassis" : "Journée privative La Ciotat - Cassis"}</option>
+                      <option value="soiree_coucher_soleil">{isEnglish ? "Sunset Evening La Ciotat" : "Soirée coucher de soleil La Ciotat"}</option>
                     </select>
                   </div>
 

@@ -93,6 +93,8 @@ router.post("/create-checkout-session", async (req, res) => {
     // Titre et description de la croisière
     const formuleLabels: Record<string, string> = {
       journee: "Journée catamaran",
+      soiree_coucher_soleil: "Soirée coucher de soleil",
+      journee_privee: "Journée catamaran",
       weekend: "Week-end catamaran",
       semaine: "Semaine catamaran",
       traversee: "Traversée Atlantique",

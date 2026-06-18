@@ -4,7 +4,7 @@ import { ChevronRight, MapPin, Users, Anchor, Info } from "lucide-react";
 import { useLocation } from "wouter";
 
 type Statut = "disponible" | "reserve" | "option" | "ferme";
-type Produit = "all" | "med" | "transat" | "caraibes" | "journee";
+type Produit = "all" | "med" | "transat" | "caraibes" | "journee" | "soiree";
 type ReservationMode = "priva" | "cabine";
 
 type Disponibilite = {
@@ -47,6 +47,7 @@ function getProduct(dispo: Disponibilite): Produit {
   const start = safeToIsoDay(dispo.debut);
   const end = safeToIsoDay(dispo.fin);
   const isDay = Boolean(start && end && start === end);
+  if (destination.includes("soiree") || destination.includes("soirée") || destination.includes("coucher")) return "soiree";
   if (isDay && destination.includes("la ciotat")) return "journee";
   if (destination.includes("transat")) return "transat";
   if (destination.includes("cara")) return "caraibes";
@@ -127,6 +128,7 @@ function getProductLabel(product: Produit, isEnglish: boolean = false): string {
     transat: { fr: "Transatlantique", en: "Transatlantic" },
     caraibes: { fr: "Caraïbes", en: "Caribbean" },
     journee: { fr: "Journées", en: "Day trips" },
+    soiree: { fr: "Soirées coucher de soleil", en: "Sunset evenings" },
   };
   return isEnglish ? labels[product].en : labels[product].fr;
 }
@@ -179,7 +181,7 @@ export default function CalendrierDisponibilites({ isEnglish = false }: { isEngl
     <div className="space-y-8">
       {/* Filtres */}
       <div className="flex flex-wrap gap-3 justify-center">
-        {(["all", "med", "transat", "caraibes", "journee"] as Produit[]).map((product) => (
+        {(["all", "med", "transat", "caraibes", "journee", "soiree"] as Produit[]).map((product) => (
           <motion.button
             key={product}
             onClick={() => setFilter(product)}

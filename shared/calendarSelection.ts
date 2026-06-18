@@ -7,7 +7,7 @@ export type DisponibiliteLike = {
   planningType?: "charter" | "technical_stop" | "maintenance" | "blocked";
 };
 
-export type ProductType = "med" | "transat" | "caraibes" | "journee";
+export type ProductType = "med" | "transat" | "caraibes" | "journee" | "soiree";
 import { inferSlotType, isTransatType, slotTypePriority } from "./slotRules";
 
 export function toIsoDayUtc(input: string | Date | null | undefined) {
@@ -25,6 +25,10 @@ export function parseIsoDayUtc(iso: string) {
 }
 
 export function getProductFromDisponibilite(dispo: Pick<DisponibiliteLike, "destination" | "debut" | "fin">): ProductType {
+  const destination = String(dispo.destination || "").toLowerCase();
+  if (destination.includes("soiree") || destination.includes("soirée") || destination.includes("coucher")) {
+    return "soiree";
+  }
   const slotType = inferSlotType(dispo);
   if (isTransatType(slotType)) return "transat";
   if (slotType === "day_private") return "journee";

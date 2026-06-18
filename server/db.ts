@@ -69,6 +69,22 @@ export async function ensureBoataroundBookingOrigin(): Promise<void> {
   }
 }
 
+export async function ensureSoireeCharterProduct(): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  try {
+    await db.execute(
+      sql`ALTER TYPE "public"."charter_product" ADD VALUE IF NOT EXISTS 'soiree'`
+    );
+    console.log("[Database] charter_product « soiree » vérifié.");
+  } catch (e) {
+    console.warn(
+      "[Database] ensureSoireeCharterProduct:",
+      (e as Error)?.message || e
+    );
+  }
+}
+
 export async function upsertUser(user: InsertUser): Promise<void> {
   if (!user.openId) {
     throw new Error("User openId is required for upsert");

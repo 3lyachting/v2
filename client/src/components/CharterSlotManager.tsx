@@ -2,8 +2,10 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { apiUrl, handleApiResponse } from "@/lib/apiBase";
 import AdminCalendarView from "@/components/AdminCalendarView";
 import {
+  CHARTER_PRODUCT_DEFAULT_HOURS,
   CHARTER_PRODUCT_LABELS,
   CHARTER_PRODUCTS,
+  charterProductFormule,
   type CharterProductCode,
 } from "@shared/charterProduct";
 import {
@@ -528,7 +530,7 @@ export default function CharterSlotManager({
         heureFin: manualReservation.heureFin,
         disponibiliteId: null,
         destination: CHARTER_PRODUCT_LABELS[selected.product],
-        formule: selected.product === "journee" ? "journee_privee" : "semaine",
+        formule: charterProductFormule(selected.product),
         montantTotal: Math.max(100, Math.round((manualReservation.montantTotalEur || 0) * 100)),
         message: manualReservation.message || "Réservation backoffice",
         bookingOrigin: manualReservation.bookingOrigin,
@@ -1271,12 +1273,20 @@ export default function CharterSlotManager({
                     const slotId = e.target.value;
                     const selected = rows.find((r) => String(r.id) === slotId);
                     if (!selected) return { ...m, slotId };
-                    const isDayTrip = selected.product === "journee" || toIsoDay(selected.debut) === toIsoDay(selected.fin);
+                    const isSunset = selected.product === "soiree";
+                    const isDayTrip =
+                      selected.product === "journee" || toIsoDay(selected.debut) === toIsoDay(selected.fin);
+                    const hours =
+                      isSunset
+                        ? CHARTER_PRODUCT_DEFAULT_HOURS.soiree
+                        : isDayTrip
+                          ? CHARTER_PRODUCT_DEFAULT_HOURS.journee
+                          : { embark: "15:00", disembark: "10:00" };
                     return {
                       ...m,
                       slotId,
-                      heureDebut: isDayTrip ? "10:00" : "15:00",
-                      heureFin: isDayTrip ? "16:00" : "10:00",
+                      heureDebut: hours.embark,
+                      heureFin: hours.disembark,
                     };
                   })
                 }

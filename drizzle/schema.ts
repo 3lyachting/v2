@@ -38,7 +38,7 @@ export const documentCategoryEnum = pgEnum("document_category", ["identity", "re
 export const esignProviderEnum = pgEnum("esign_provider", ["yousign", "docusign", "other"]);
 
 /** Produit proposé sur un créneau (public + backoffice). Même vocabulaire que `season_pricing_v1`. */
-export const charterProductEnum = pgEnum("charter_product", ["med", "caraibes", "journee", "transat"]);
+export const charterProductEnum = pgEnum("charter_product", ["med", "caraibes", "journee", "soiree", "transat"]);
 
 /** Comptes backoffice créés depuis l’admin (email + mot de passe), en complément des comptes .env et OAuth. */
 export const backofficeLocalAccounts = pgTable("backoffice_local_accounts", {

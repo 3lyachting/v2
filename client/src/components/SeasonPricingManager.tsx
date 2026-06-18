@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 
-type SeasonPricingProduct = "med" | "caraibes" | "journee" | "transat";
+type SeasonPricingProduct = "med" | "caraibes" | "journee" | "soiree" | "transat";
 
 type ProductSeasonPricing = {
   highSeasonPerPassenger: number | null;
@@ -15,6 +15,7 @@ const DEFAULT_PRICING: SeasonPricingConfig = {
   med: { highSeasonPerPassenger: null, lowSeasonPerPassenger: null, highSeasonPrivate: null, lowSeasonPrivate: null },
   caraibes: { highSeasonPerPassenger: null, lowSeasonPerPassenger: null, highSeasonPrivate: null, lowSeasonPrivate: null },
   journee: { highSeasonPerPassenger: null, lowSeasonPerPassenger: null, highSeasonPrivate: null, lowSeasonPrivate: null },
+  soiree: { highSeasonPerPassenger: null, lowSeasonPerPassenger: null, highSeasonPrivate: null, lowSeasonPrivate: null },
   transat: { highSeasonPerPassenger: null, lowSeasonPerPassenger: null, highSeasonPrivate: null, lowSeasonPrivate: null },
 };
 
@@ -22,6 +23,7 @@ const PRODUCT_LABELS: Record<SeasonPricingProduct, string> = {
   med: "Croisière Méditerranée",
   caraibes: "Croisière Caraïbes",
   journee: "Journée La Ciotat",
+  soiree: "Soirée coucher de soleil La Ciotat",
   transat: "Transatlantique",
 };
 

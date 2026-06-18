@@ -17,7 +17,7 @@ async function main() {
       DO $$
       BEGIN
         IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'charter_product') THEN
-          CREATE TYPE "public"."charter_product" AS ENUM ('med', 'caraibes', 'journee', 'transat');
+          CREATE TYPE "public"."charter_product" AS ENUM ('med', 'caraibes', 'journee', 'soiree', 'transat');
         END IF;
       END $$;
     `);

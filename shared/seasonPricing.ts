@@ -1,4 +1,4 @@
-export type SeasonPricingProduct = "med" | "caraibes" | "journee" | "transat";
+export type SeasonPricingProduct = "med" | "caraibes" | "journee" | "soiree" | "transat";
 
 export type ProductSeasonPricing = {
   highSeasonPerPassenger: number | null;
@@ -13,6 +13,7 @@ export const DEFAULT_SEASON_PRICING: SeasonPricingConfig = {
   med: { highSeasonPerPassenger: null, lowSeasonPerPassenger: null, highSeasonPrivate: null, lowSeasonPrivate: null },
   caraibes: { highSeasonPerPassenger: null, lowSeasonPerPassenger: null, highSeasonPrivate: null, lowSeasonPrivate: null },
   journee: { highSeasonPerPassenger: null, lowSeasonPerPassenger: null, highSeasonPrivate: null, lowSeasonPrivate: null },
+  soiree: { highSeasonPerPassenger: null, lowSeasonPerPassenger: null, highSeasonPrivate: null, lowSeasonPrivate: null },
   transat: { highSeasonPerPassenger: null, lowSeasonPerPassenger: null, highSeasonPrivate: null, lowSeasonPrivate: null },
 };
 

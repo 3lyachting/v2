@@ -7,11 +7,12 @@ import {
   parseIsoDayUtc,
   toIsoDayUtc,
 } from "@shared/calendarSelection";
+import { charterProductFormule } from "@shared/charterProduct";
 
 type Statut = "disponible" | "reserve" | "option" | "ferme";
-type Produit = "all" | "med" | "transat" | "caraibes" | "journee";
+type Produit = "all" | "med" | "transat" | "caraibes" | "journee" | "soiree";
 type ReservationMode = "priva" | "cabine";
-type SeasonPricingProduct = "med" | "transat" | "caraibes" | "journee";
+type SeasonPricingProduct = "med" | "transat" | "caraibes" | "journee" | "soiree";
 
 type ProductSeasonPricing = {
   highSeasonPerPassenger: number | null;
@@ -45,6 +46,7 @@ const DEFAULT_SEASON_PRICING: SeasonPricingConfig = {
   transat: { highSeasonPerPassenger: null, lowSeasonPerPassenger: null, highSeasonPrivate: null, lowSeasonPrivate: null },
   caraibes: { highSeasonPerPassenger: null, lowSeasonPerPassenger: null, highSeasonPrivate: null, lowSeasonPrivate: null },
   journee: { highSeasonPerPassenger: null, lowSeasonPerPassenger: null, highSeasonPrivate: null, lowSeasonPrivate: null },
+  soiree: { highSeasonPerPassenger: null, lowSeasonPerPassenger: null, highSeasonPrivate: null, lowSeasonPrivate: null },
 };
 const FILTER_ANCHOR_MONTH_BY_PRODUCT: Partial<Record<Produit, number>> = {
   med: 6, // Juillet
@@ -67,6 +69,7 @@ function normalizeProductFilter(value: string): Produit {
   if (["transat", "transatlantique", "traversee", "atlantic"].includes(normalized)) return "transat";
   if (["caraibes", "caribbean", "antilles", "croisiere_caraibes"].includes(normalized)) return "caraibes";
   if (["journee", "daytrip", "day_trip", "journee_privee"].includes(normalized)) return "journee";
+  if (["soiree", "soiree_coucher_soleil", "sunset", "coucher_soleil"].includes(normalized)) return "soiree";
   if (normalized === "all" || normalized === "tous") return "all";
   return "all";
 }
@@ -77,7 +80,7 @@ function getAnchorMonthForFilter(filter: Produit, today: Date) {
   return new Date(Date.UTC(today.getUTCFullYear(), monthIdx, 1));
 }
 
-function getProduct(dispo: Disponibilite): Produit {
+function getProduct(dispo: Disponibilite): Exclude<Produit, "all"> {
   return getProductFromDisponibilite(dispo);
 }
 
@@ -233,6 +236,7 @@ export default function CalendrierDisponibilites({ isEnglish = false }: { isEngl
   for (let d = 1; d <= last.getUTCDate(); d++) days.push(new Date(Date.UTC(year, monthIdx, d)));
 
   const selectedProduct = selected ? getProduct(selected) : "med";
+  const isShortPrivate = selectedProduct === "journee" || selectedProduct === "soiree";
   const isDayTrip = selectedProduct === "journee";
   const isTransatSelected = selectedProduct === "transat";
   const selectedStartIso = selected ? toIsoDayUtc(selected.debut) : null;
@@ -248,7 +252,7 @@ export default function CalendrierDisponibilites({ isEnglish = false }: { isEngl
   const hasCabine = Boolean(selected && directCabinePrice !== null);
   const hasCabineCapacity = totalUnits > 0 && reservedUnits < totalUnits;
   const canBookPrivate = Boolean(selected && !isPastSelection && isBookable(selected) && hasPriva && !isTransatSelected);
-  const canBookCabine = Boolean(selected && !isPastSelection && isBookable(selected) && !isDayTrip && hasCabine && hasCabineCapacity);
+  const canBookCabine = Boolean(selected && !isPastSelection && isBookable(selected) && !isShortPrivate && hasCabine && hasCabineCapacity);
   const seasonPricePerPassenger = useMemo(() => {
     if (!selected) return null;
     const product = toSeasonPricingProduct(selectedProduct);
@@ -286,6 +290,7 @@ export default function CalendrierDisponibilites({ isEnglish = false }: { isEngl
           { id: "transat", label: "Transat" },
           { id: "caraibes", label: isEnglish ? "Caribbean" : "Caraïbes" },
           { id: "journee", label: isEnglish ? "Day trips" : "Journées La Ciotat" },
+          { id: "soiree", label: isEnglish ? "Sunset evenings" : "Soirées coucher de soleil" },
         ].map((item) => (
             <button
               key={item.id}
@@ -382,7 +387,7 @@ export default function CalendrierDisponibilites({ isEnglish = false }: { isEngl
                 {!!selected.notePublique && <p className="rounded-lg bg-slate-50 p-2 text-xs text-slate-600">{selected.notePublique}</p>}
                 {isBookable(selected) && (
                   <>
-                    <div className={`grid gap-2 ${isDayTrip || isTransatSelected ? "grid-cols-1" : "grid-cols-2"}`}>
+                    <div className={`grid gap-2 ${isShortPrivate || isTransatSelected ? "grid-cols-1" : "grid-cols-2"}`}>
                       {!isTransatSelected && (
                         <button
                           onClick={() => setReservationMode("priva")}
@@ -393,7 +398,7 @@ export default function CalendrierDisponibilites({ isEnglish = false }: { isEngl
                           {isEnglish ? "Private" : "Privatif"}
                         </button>
                       )}
-                      {!isDayTrip && (
+                      {!isShortPrivate && (
                         <button
                           onClick={() => setReservationMode("cabine")}
                           disabled={!canBookCabine}
@@ -415,7 +420,7 @@ export default function CalendrierDisponibilites({ isEnglish = false }: { isEngl
                     )}
                     {(canBookPrivate || canBookCabine) && (
                       <a
-                        href={`/reservation?id=${selected.id}&destination=${encodeURIComponent(selected.destination || "")}&formule=${isDayTrip ? "journee" : "semaine"}&typeReservation=${isTransatSelected ? "place" : reservationMode === "priva" ? "bateau_entier" : "cabine"}&montant=${price}&dateDebut=${encodeURIComponent(toIsoDayUtc(selected.debut) || "")}&dateFin=${encodeURIComponent(toIsoDayUtc(selected.fin) || "")}`}
+                        href={`/reservation?id=${selected.id}&destination=${encodeURIComponent(selected.destination || "")}&formule=${isShortPrivate ? charterProductFormule(selectedProduct) : "semaine"}&produit=${selectedProduct}&typeReservation=${isTransatSelected ? "place" : reservationMode === "priva" ? "bateau_entier" : "cabine"}&montant=${price}&dateDebut=${encodeURIComponent(toIsoDayUtc(selected.debut) || "")}&dateFin=${encodeURIComponent(toIsoDayUtc(selected.fin) || "")}`}
                         className="block rounded-xl px-4 py-3 text-center font-bold text-white"
                         style={{ backgroundColor: BRAND_DEEP }}
                       >

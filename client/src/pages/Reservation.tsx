@@ -4,7 +4,7 @@ import { Anchor, ArrowLeft, Calendar, Check, Send, Shield, Users } from "lucide-
 import { inferSlotType, isTransatType } from "@shared/slotRules";
 import { computeReservedUnits } from "@shared/charterCapacity";
 
-type FormuleKey = "croisiere_mediterranee" | "transatlantique" | "croisiere_caraibes" | "journee_privee";
+type FormuleKey = "croisiere_mediterranee" | "transatlantique" | "croisiere_caraibes" | "journee_privee" | "soiree_coucher_soleil";
 type TypeReservation = "bateau_entier" | "cabine" | "place";
 type Statut = "disponible" | "reserve" | "option" | "ferme";
 
@@ -31,7 +31,7 @@ type IcalEvent = {
   destination: string;
 };
 
-type SeasonPricingProduct = "med" | "transat" | "caraibes" | "journee";
+type SeasonPricingProduct = "med" | "transat" | "caraibes" | "journee" | "soiree";
 
 type ProductSeasonPricing = {
   highSeasonPerPassenger: number | null;
@@ -47,12 +47,14 @@ const FORMULES: Record<FormuleKey, { label: string; labelEn: string; maxPers: nu
   transatlantique: { label: "Transatlantique", labelEn: "Transatlantic", maxPers: 8, description: "Traversées océaniques", descriptionEn: "Ocean crossings", defaultDuration: 10 },
   croisiere_caraibes: { label: "Croisières Caraïbes", labelEn: "Caribbean Cruises", maxPers: 8, description: "Grenadines au départ de Fort-de-France", descriptionEn: "Grenadines from Fort-de-France", defaultDuration: 7 },
   journee_privee: { label: "Journée privative", labelEn: "Private Day Trip", maxPers: 12, description: "La Ciotat - Cassis (plage de l'Arène) - retour", descriptionEn: "La Ciotat - Cassis (Arène beach) - return", defaultDuration: 1 },
+  soiree_coucher_soleil: { label: "Soirée coucher de soleil", labelEn: "Sunset Evening", maxPers: 12, description: "Croisière privative au coucher du soleil — La Ciotat", descriptionEn: "Private sunset cruise — La Ciotat", defaultDuration: 1 },
 };
 
 const FORMULE_BY_PRODUCT: Record<string, FormuleKey> = {
   med: "croisiere_mediterranee",
   caraibes: "croisiere_caraibes",
   journee: "journee_privee",
+  soiree: "soiree_coucher_soleil",
   transat: "transatlantique",
 };
 
@@ -61,6 +63,7 @@ const DEFAULT_SEASON_PRICING: SeasonPricingConfig = {
   transat: { highSeasonPerPassenger: null, lowSeasonPerPassenger: null, highSeasonPrivate: null, lowSeasonPrivate: null },
   caraibes: { highSeasonPerPassenger: null, lowSeasonPerPassenger: null, highSeasonPrivate: null, lowSeasonPrivate: null },
   journee: { highSeasonPerPassenger: null, lowSeasonPerPassenger: null, highSeasonPrivate: null, lowSeasonPrivate: null },
+  soiree: { highSeasonPerPassenger: null, lowSeasonPerPassenger: null, highSeasonPrivate: null, lowSeasonPrivate: null },
 };
 
 const toIsoDay = (d: Date) => d.toISOString().split("T")[0];
@@ -94,6 +97,7 @@ function toSeasonPricingProduct(formule: FormuleKey): SeasonPricingProduct {
   if (formule === "croisiere_mediterranee") return "med";
   if (formule === "croisiere_caraibes") return "caraibes";
   if (formule === "journee_privee") return "journee";
+  if (formule === "soiree_coucher_soleil") return "soiree";
   return "transat";
 }
 
@@ -163,6 +167,8 @@ export default function Reservation() {
   const formule = FORMULES[formuleKey];
   const isTransat = formuleKey === "transatlantique";
   const isJournee = formuleKey === "journee_privee";
+  const isSoiree = formuleKey === "soiree_coucher_soleil";
+  const isShortPrivate = isJournee || isSoiree;
   const searchParams = useMemo(() => new URLSearchParams(window.location.search), []);
   const isEnglish = searchParams.get("lang") === "en";
 
@@ -171,11 +177,11 @@ export default function Reservation() {
     if (isTransat) {
       setTypeReservation("place");
       setForm(prev => ({ ...prev, nbCabines: 1, nbPersonnes: 1 }));
-    } else if (isJournee) {
+    } else if (isShortPrivate) {
       setTypeReservation("bateau_entier");
       setForm(prev => ({ ...prev, nbCabines: 4 }));
     }
-  }, [formuleKey, isTransat, isJournee]);
+  }, [formuleKey, isTransat, isShortPrivate]);
 
   useEffect(() => {
     const dateDebut = searchParams.get("dateDebut");
@@ -191,6 +197,8 @@ export default function Reservation() {
       setFormuleKey(formuleFromUrl as FormuleKey);
     } else if (formuleFromUrl === "journee") {
       setFormuleKey("journee_privee");
+    } else if (formuleFromUrl === "soiree" || formuleFromUrl === "soiree_coucher_soleil") {
+      setFormuleKey("soiree_coucher_soleil");
     }
     if (typeFromUrl === "bateau_entier" || typeFromUrl === "cabine" || typeFromUrl === "place") {
       setTypeReservation(typeFromUrl);
@@ -364,14 +372,14 @@ export default function Reservation() {
   const urlMontantTotalEur = Number(searchParams.get("montant") || "");
   const weeklyCabineEur = pricingDispo?.tarifCabine ?? 3900;
   const weeklyPrivaEur = pricingDispo?.tarif ?? 15000;
-  const dayTripPrivaEur = pricingDispo?.tarifJourPriva ?? 1000;
+  const dayTripPrivaEur = pricingDispo?.tarifJourPriva ?? (isSoiree ? 580 : 1000);
   const seasonProduct = toSeasonPricingProduct(formuleKey);
   const seasonPrivateEur = selectedStart
     ? isHighSeasonDate(selectedStart)
       ? seasonPricing[seasonProduct]?.highSeasonPrivate
       : seasonPricing[seasonProduct]?.lowSeasonPrivate
     : null;
-  const effectivePrivatePriceEur = seasonPrivateEur ?? (isJournee ? dayTripPrivaEur : weeklyPrivaEur);
+  const effectivePrivatePriceEur = seasonPrivateEur ?? (isShortPrivate ? dayTripPrivaEur : weeklyPrivaEur);
   const disponibiliteTotalUnits = pricingDispo?.capaciteTotale ?? 4;
   const disponibiliteReservedUnits = pricingDispo?.cabinesReservees ?? 0;
   const disponibiliteFreeUnits = Math.max(0, disponibiliteTotalUnits - disponibiliteReservedUnits);
@@ -392,7 +400,7 @@ export default function Reservation() {
   const selectedWeeklyPrice =
     isTransatSelection
       ? 3000
-      : isJournee
+      : isShortPrivate
         ? seasonPrivateEur ?? dayTripPrivaEur
       : typeReservation === "bateau_entier"
         ? seasonPrivateEur ?? weeklyPrivaEur
@@ -573,7 +581,7 @@ export default function Reservation() {
                   >
                     <p className="font-bold">{isEnglish ? "Private charter" : "Privatif"}</p>
                   </button>
-                  {!isJournee && !isAprilMaySelection && !isTransatSelection && (
+                  {!isShortPrivate && !isAprilMaySelection && !isTransatSelection && (
                     <button
                       onClick={() => setTypeReservation(isTransat ? "place" : "cabine")}
                       className={`text-left rounded-xl border-2 p-4 ${typeReservation !== "bateau_entier" ? "" : "border-slate-200"}`}
@@ -712,7 +720,7 @@ export default function Reservation() {
                   <span>
                     {isEnglish ? "I accept the T&Cs and booking conditions." : "J'accepte les CGV et conditions de réservation."}
                     {" "}
-                    <a href="/docs/contrat-charter-v2.pdf" target="_blank" rel="noopener noreferrer" className="underline" style={{ color: BRAND_DEEP }}>
+                    <a href="/CGV.pdf" target="_blank" rel="noopener noreferrer" className="underline" style={{ color: BRAND_DEEP }}>
                       {isEnglish ? "Read T&Cs" : "Lire les CGV"}
                     </a>
                   </span>
@@ -753,6 +761,8 @@ export default function Reservation() {
                 ? (isEnglish ? `€3,000/person · full crossing · ${safePersons} berth(s)` : `3000€/personne · traversée complète · ${safePersons} place(s)`)
                 : isAprilMaySelection
                 ? (isEnglish ? `€${effectivePrivatePriceEur}/day · private · from La Ciotat` : `${effectivePrivatePriceEur}€/journée · privatif unique · départ La Ciotat`)
+                : isSoiree
+                ? (isEnglish ? `€${effectivePrivatePriceEur}/evening all-inclusive · full boat` : `${effectivePrivatePriceEur}€/soirée tout inclus · bateau entier`)
                 : isJournee
                 ? (isEnglish ? `€${effectivePrivatePriceEur}/day all-inclusive · full boat` : `${effectivePrivatePriceEur}€/journée tout inclus · bateau entier`)
                 : typeReservation === "bateau_entier"

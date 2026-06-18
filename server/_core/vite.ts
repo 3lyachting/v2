@@ -1,4 +1,4 @@
-import express, { type Express } from "express";
+import express, { type Express, type Request, type Response } from "express";
 import fs from "fs";
 import { type Server } from "http";
 import { nanoid } from "nanoid";
@@ -18,6 +18,17 @@ export async function setupVite(app: Express, server: Server) {
     configFile: false,
     server: serverOptions,
     appType: "custom",
+  });
+
+  const publicRoot = path.resolve(import.meta.dirname, "../..", "client", "public");
+  app.get(["/CGV.pdf", "/cgv.pdf"], (_req: Request, res: Response) => {
+    const cgvPath = path.resolve(publicRoot, "CGV.pdf");
+    if (!fs.existsSync(cgvPath)) {
+      res.status(404).type("text/plain").send("CGV.pdf introuvable");
+      return;
+    }
+    res.type("application/pdf");
+    res.sendFile(cgvPath);
   });
 
   app.use(vite.middlewares);
@@ -57,6 +68,17 @@ export function serveStatic(app: Express) {
       `Could not find the build directory: ${distPath}, make sure to build the client first`
     );
   }
+
+  const serveCgvPdf = (_req: Request, res: Response) => {
+    const cgvPath = path.resolve(distPath, "CGV.pdf");
+    if (!fs.existsSync(cgvPath)) {
+      res.status(404).type("text/plain").send("CGV.pdf introuvable");
+      return;
+    }
+    res.type("application/pdf");
+    res.sendFile(cgvPath);
+  };
+  app.get(["/CGV.pdf", "/cgv.pdf"], serveCgvPdf);
 
   app.use(express.static(distPath));
 
