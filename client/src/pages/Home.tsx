@@ -15,7 +15,7 @@ import { withBasePath } from "@/lib/basePath";
 import { apiUrl } from "@/lib/apiBase";
 import {
   Anchor, Wind, Waves, Sun, MapPin, Users, Star,
-  Phone, Mail, Instagram, Facebook, ChevronDown,
+  Phone, Mail, Instagram, Facebook, ChevronDown, ChevronLeft, ChevronRight,
   Ship, Compass, Fish, Sunset, ArrowRight, Menu, X, MessageCircle
 } from "lucide-react";
 const AvisGoogle = lazy(() => import("@/components/AvisGoogle"));
@@ -1292,6 +1292,35 @@ function SectionGalerie({ isEnglish = false }: { isEnglish?: boolean }) {
         { src: "/photos%20site/IMG_4517.jpeg", alt: "Détails de navigation" },
       ];
 
+  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
+  const activePhoto = lightboxIndex !== null ? photos[lightboxIndex] : null;
+
+  const closeLightbox = useCallback(() => setLightboxIndex(null), []);
+  const showPrev = useCallback(() => {
+    setLightboxIndex((current) =>
+      current === null ? null : (current + photos.length - 1) % photos.length
+    );
+  }, [photos.length]);
+  const showNext = useCallback(() => {
+    setLightboxIndex((current) => (current === null ? null : (current + 1) % photos.length));
+  }, [photos.length]);
+
+  useEffect(() => {
+    if (lightboxIndex === null) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") closeLightbox();
+      if (event.key === "ArrowLeft") showPrev();
+      if (event.key === "ArrowRight") showNext();
+    };
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [lightboxIndex, closeLightbox, showNext, showPrev]);
+
   return (
     <section className="py-20 lg:py-28 bg-white">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -1301,25 +1330,97 @@ function SectionGalerie({ isEnglish = false }: { isEnglish?: boolean }) {
             <h2 className="text-4xl lg:text-5xl font-extrabold" style={{ fontFamily: "Cormorant Garamond, Times New Roman, serif", color: BRAND_DEEP }}>
               {isEnglish ? "Life aboard Sabine" : "À bord de Sabine"}
             </h2>
+            <p className="mt-3 text-sm text-[oklch(0.5_0.04_220)]">
+              {isEnglish ? "Click a photo to enlarge and browse the gallery." : "Cliquez sur une photo pour l'agrandir et parcourir la galerie."}
+            </p>
           </div>
         </Reveal>
 
         <div className="grid grid-cols-2 md:grid-cols-3 gap-3 lg:gap-4">
           {photos.map((p, i) => (
-            <Reveal key={p.alt} delay={i * 0.07}>
-              <div className={`relative overflow-hidden rounded-2xl ${i === 0 ? "md:col-span-2 md:row-span-2" : ""}`}>
+            <Reveal key={`${p.src}-${i}`} delay={i * 0.07}>
+              <button
+                type="button"
+                onClick={() => setLightboxIndex(i)}
+                className={`group relative block w-full overflow-hidden rounded-2xl text-left cursor-zoom-in focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#00384A] ${i === 0 ? "md:col-span-2 md:row-span-2" : ""}`}
+                aria-label={isEnglish ? `Open photo: ${p.alt}` : `Ouvrir la photo : ${p.alt}`}
+              >
                 <img
                   src={p.src}
                   alt={p.alt}
-                  className={`w-full object-cover hover:scale-105 transition-transform duration-500 ${i === 0 ? "h-64 md:h-80" : "h-40 md:h-44"}`}
+                  className={`w-full object-cover transition-transform duration-500 group-hover:scale-105 ${i === 0 ? "h-64 md:h-80" : "h-40 md:h-44"}`}
                   loading="lazy"
                   decoding="async"
                 />
-              </div>
+                <span className="pointer-events-none absolute inset-0 bg-black/0 transition-colors duration-300 group-hover:bg-black/15" />
+                <span className="pointer-events-none absolute bottom-2 right-2 rounded-full bg-black/45 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-white opacity-0 transition-opacity group-hover:opacity-100">
+                  {isEnglish ? "Enlarge" : "Agrandir"}
+                </span>
+              </button>
             </Reveal>
           ))}
         </div>
       </div>
+
+      {activePhoto && lightboxIndex !== null && (
+        <div
+          className="fixed inset-0 z-[120] flex items-center justify-center bg-black/92 p-4 sm:p-8"
+          role="dialog"
+          aria-modal="true"
+          aria-label={isEnglish ? "Photo gallery" : "Galerie photos"}
+          onClick={closeLightbox}
+        >
+          <button
+            type="button"
+            onClick={closeLightbox}
+            className="absolute right-4 top-4 z-10 rounded-full border border-white/20 bg-black/40 p-2 text-white transition hover:bg-black/70"
+            aria-label={isEnglish ? "Close" : "Fermer"}
+          >
+            <X className="h-5 w-5" />
+          </button>
+
+          <button
+            type="button"
+            onClick={(event) => {
+              event.stopPropagation();
+              showPrev();
+            }}
+            className="absolute left-3 top-1/2 z-10 -translate-y-1/2 rounded-full border border-white/20 bg-black/40 p-2 text-white transition hover:bg-black/70 sm:left-6 sm:p-3"
+            aria-label={isEnglish ? "Previous photo" : "Photo précédente"}
+          >
+            <ChevronLeft className="h-6 w-6 sm:h-7 sm:w-7" />
+          </button>
+
+          <button
+            type="button"
+            onClick={(event) => {
+              event.stopPropagation();
+              showNext();
+            }}
+            className="absolute right-3 top-1/2 z-10 -translate-y-1/2 rounded-full border border-white/20 bg-black/40 p-2 text-white transition hover:bg-black/70 sm:right-6 sm:p-3"
+            aria-label={isEnglish ? "Next photo" : "Photo suivante"}
+          >
+            <ChevronRight className="h-6 w-6 sm:h-7 sm:w-7" />
+          </button>
+
+          <div
+            className="flex max-h-full w-full max-w-6xl flex-col items-center"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <img
+              src={activePhoto.src}
+              alt={activePhoto.alt}
+              className="max-h-[78vh] w-auto max-w-full rounded-lg object-contain shadow-2xl"
+            />
+            <p className="mt-4 max-w-2xl text-center text-sm font-medium text-white/90 sm:text-base">
+              {activePhoto.alt}
+            </p>
+            <p className="mt-1 text-xs text-white/60">
+              {lightboxIndex + 1} / {photos.length}
+            </p>
+          </div>
+        </div>
+      )}
     </section>
   );
 }
