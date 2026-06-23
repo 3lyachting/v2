@@ -1268,14 +1268,29 @@ function SectionCalendrier({ isEnglish = false }: { isEnglish?: boolean }) {
 
 // ── Section Galerie ───────────────────────────────────────────────────────────
 function SectionGalerie({ isEnglish = false }: { isEnglish?: boolean }) {
-  const photos = [
-    { src: "/photos%20site/dji_fly_20260313_144422_130_1773409482024_photo_optimized.jpg", alt: "Sabine en navigation" },
-    { src: "/photos%20site/dji_fly_20260314_171456_155_1773505004694_photo_optimized.jpg", alt: "Mouillage et navigation" },
-    { src: "/photos%20site/dji_fly_20260313_143914_122_1773409216418_photo_optimized.jpg", alt: "Vie à bord" },
-    { src: "/photos%20site/dji_fly_20260309_114022_78_1773052860296_photo_optimized.jpg", alt: "Pont et extérieur" },
-    { src: "/photos%20site/IMG_4415.jpeg", alt: "Ambiance croisière" },
-    { src: "/photos%20site/IMG_4517.jpeg", alt: "Détails de navigation" },
-  ];
+  const photos = isEnglish
+    ? [
+        { src: "/photos%20site/cabine-coucher.png", alt: "Double cabin with portholes" },
+        { src: "/photos%20site/cabine-salle-de-bain.png", alt: "En-suite bathroom" },
+        { src: "/photos%20site/repas-pont.png", alt: "Gourmet dining on deck" },
+        { src: "/photos%20site/dji_fly_20260313_144422_130_1773409482024_photo_optimized.jpg", alt: "Sabine under sail" },
+        { src: "/photos%20site/dji_fly_20260314_171456_155_1773505004694_photo_optimized.jpg", alt: "At anchor" },
+        { src: "/photos%20site/dji_fly_20260313_143914_122_1773409216418_photo_optimized.jpg", alt: "Life aboard" },
+        { src: "/photos%20site/dji_fly_20260309_114022_78_1773052860296_photo_optimized.jpg", alt: "Deck and exterior" },
+        { src: "/photos%20site/IMG_4415.jpeg", alt: "Cruise atmosphere" },
+        { src: "/photos%20site/IMG_4517.jpeg", alt: "Sailing details" },
+      ]
+    : [
+        { src: "/photos%20site/cabine-coucher.png", alt: "Cabine double avec hublots" },
+        { src: "/photos%20site/cabine-salle-de-bain.png", alt: "Salle de bain attenante" },
+        { src: "/photos%20site/repas-pont.png", alt: "Repas gastronomique sur le pont" },
+        { src: "/photos%20site/dji_fly_20260313_144422_130_1773409482024_photo_optimized.jpg", alt: "Sabine en navigation" },
+        { src: "/photos%20site/dji_fly_20260314_171456_155_1773505004694_photo_optimized.jpg", alt: "Mouillage et navigation" },
+        { src: "/photos%20site/dji_fly_20260313_143914_122_1773409216418_photo_optimized.jpg", alt: "Vie à bord" },
+        { src: "/photos%20site/dji_fly_20260309_114022_78_1773052860296_photo_optimized.jpg", alt: "Pont et extérieur" },
+        { src: "/photos%20site/IMG_4415.jpeg", alt: "Ambiance croisière" },
+        { src: "/photos%20site/IMG_4517.jpeg", alt: "Détails de navigation" },
+      ];
 
   return (
     <section className="py-20 lg:py-28 bg-white">
