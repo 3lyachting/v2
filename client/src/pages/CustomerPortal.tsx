@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Check, LogOut, Mail } from "lucide-react";
 import { withBasePath } from "@/lib/basePath";
+import { customerAcompteRecapLabel, customerReservationRecap, customerSoldeRecapLabel, customerWorkflowStatusLabel } from "@shared/customerPortalRecap";
 
 const BRAND_DEEP = "#00384A";
 const BRAND_SAND = "#D8C19E";
@@ -14,6 +15,8 @@ type Reservation = {
   montantTotal: number;
   nbPersonnes?: number;
   workflowStatut?: string;
+  montantPaye?: number;
+  statutPaiement?: string;
   acompteMontant?: number;
   soldeMontant?: number;
   soldeEcheanceAt?: string | null;
@@ -44,15 +47,6 @@ export default function CustomerPortal() {
   const [docs, setDocs] = useState<CustomerDoc[]>([]);
   const [uploading, setUploading] = useState(false);
   const [passengerForms, setPassengerForms] = useState<Record<number, PassengerForm>>({});
-
-  const workflowRecap = (r: Reservation) => {
-    const ws = r.workflowStatut || "demande";
-    const quoteSigned = ws === "contrat_signe" || ws === "acompte_confirme" || ws === "solde_confirme";
-    const acompteReceived = ws === "acompte_confirme" || ws === "solde_confirme";
-    const reservationValidated = ws === "acompte_confirme" || ws === "solde_confirme";
-    const soldeExpected = ws !== "solde_confirme";
-    return { quoteSigned, acompteReceived, reservationValidated, soldeExpected };
-  };
 
   const urlToken = useMemo(() => new URLSearchParams(window.location.search).get("token") || "", []);
 
@@ -324,7 +318,11 @@ export default function CustomerPortal() {
                     </p>
                     <p className="text-xs text-slate-600">{(r.montantTotal / 100).toLocaleString("fr-FR")} EUR</p>
                     <p className="text-xs text-slate-700">Passagers: {r.nbPersonnes || 0}</p>
-                    {r.workflowStatut && <p className="text-[10px] uppercase mt-1" style={{ color: BRAND_DEEP }}>{r.workflowStatut.replaceAll("_", " ")}</p>}
+                    {r.workflowStatut && (
+                      <p className="text-[11px] mt-1 font-medium" style={{ color: BRAND_DEEP }}>
+                        {customerWorkflowStatusLabel(r)}
+                      </p>
+                    )}
                     {(() => {
                       const passengers = passengersForReservation(r.id);
                       if (!passengers.length) return null;
@@ -341,7 +339,7 @@ export default function CustomerPortal() {
                       );
                     })()}
                     {(() => {
-                      const recap = workflowRecap(r);
+                      const recap = customerReservationRecap(r);
                       return (
                         <div className="mt-2 p-2.5 rounded-lg border text-[11px] space-y-1" style={{ backgroundColor: "#f8f4eb", borderColor: "rgba(0,56,74,0.18)" }}>
                           <p className="font-semibold text-slate-700">Récapitulatif dossier</p>
@@ -349,22 +347,21 @@ export default function CustomerPortal() {
                             {recap.quoteSigned ? "✓" : "•"} Devis / contrat signé
                           </p>
                           <p className={recap.acompteReceived ? "text-emerald-700" : "text-slate-600"}>
-                            {recap.acompteReceived ? "✓" : "•"} Acompte reçu
-                            {typeof r.acompteMontant === "number" && r.acompteMontant > 0
-                              ? ` (${(r.acompteMontant / 100).toLocaleString("fr-FR")} EUR)`
-                              : ""}
+                            {recap.acompteReceived ? "✓" : "•"} {customerAcompteRecapLabel(r)}
                           </p>
                           <p className={recap.reservationValidated ? "text-emerald-700" : "text-slate-600"}>
-                            {recap.reservationValidated ? "✓" : "•"} Réservation validée
+                            {recap.reservationValidated ? "✓" : "•"} Réservation confirmée
                           </p>
-                          <p className={recap.soldeExpected ? "text-amber-700" : "text-emerald-700"}>
-                            {recap.soldeExpected ? "•" : "✓"} Solde {recap.soldeExpected ? "attendu" : "versé"}
-                            {r.soldeEcheanceAt
-                              ? ` (échéance ${new Date(r.soldeEcheanceAt).toLocaleDateString("fr-FR")})`
-                              : " (J-45 avant départ)"}
-                            {typeof r.soldeMontant === "number" && r.soldeMontant > 0
-                              ? ` - ${(r.soldeMontant / 100).toLocaleString("fr-FR")} EUR`
-                              : ""}
+                          <p
+                            className={
+                              recap.soldePaid
+                                ? "text-emerald-700"
+                                : recap.soldePending
+                                  ? "text-amber-700"
+                                  : "text-slate-600"
+                            }
+                          >
+                            {recap.soldePaid ? "✓" : "•"} {customerSoldeRecapLabel(r)}
                           </p>
                         </div>
                       );

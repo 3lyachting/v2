@@ -53,6 +53,8 @@ type ReservationRow = {
   disponibiliteId?: number | null;
   statutPaiement?: string | null;
   workflowStatut?: string | null;
+  montantPaye?: number | null;
+  acompteMontant?: number | null;
   destination?: string | null;
   formule?: string | null;
   message?: string | null;
@@ -77,6 +79,8 @@ type ReservationEditState = {
   requestStatus: string;
   workflowStatut: string;
   statutPaiement: string;
+  montantPaye: number;
+  acompteMontant: number;
   destination: string;
   formule: string;
   message: string;
@@ -224,12 +228,12 @@ function sortReservationsChronologically<T extends Pick<ReservationRow, "dateDeb
   });
 }
 
-function getReservationStatus(r: Pick<ReservationRow, "requestStatus" | "workflowStatut">): ReservationStatus {
+function getReservationStatus(r: Pick<ReservationRow, "requestStatus" | "workflowStatut" | "montantPaye">): ReservationStatus {
   const req = String(r.requestStatus || "");
   const wf = String(r.workflowStatut || "");
   if (wf === "solde_confirme") return "terminee_solde";
-  if (wf === "acompte_confirme") return "validee_acompte";
-  if (["validee_owner", "devis_accepte", "contrat_envoye", "contrat_signe"].includes(wf) || req === "validee") {
+  if (wf === "acompte_confirme" && Number(r.montantPaye || 0) > 0) return "validee_acompte";
+  if (["validee_owner", "devis_accepte", "contrat_envoye", "contrat_signe", "acompte_attente"].includes(wf) || req === "validee") {
     return "devis_envoye";
   }
   return "nouvelle";
@@ -242,7 +246,7 @@ function toReservationStatusLabel(status: ReservationStatus) {
   return "Nouvelle";
 }
 
-function reservationStatusLabelFromRow(r: Pick<ReservationRow, "requestStatus" | "workflowStatut">) {
+function reservationStatusLabelFromRow(r: Pick<ReservationRow, "requestStatus" | "workflowStatut" | "montantPaye">) {
   const status = getReservationStatus(r);
   if (status === "terminee_solde") return "Terminée (solde versé)";
   if (status === "validee_acompte") return "Validée (acompte reçu)";
@@ -250,15 +254,20 @@ function reservationStatusLabelFromRow(r: Pick<ReservationRow, "requestStatus" |
   return "Nouvelle";
 }
 
-function mapReservationStatusToPayload(status: ReservationStatus, currentPaymentStatus: string) {
+function mapReservationStatusToPayload(
+  status: ReservationStatus,
+  currentPaymentStatus: string,
+  montantPaye = 0,
+) {
   if (status === "terminee_solde") {
     return { requestStatus: "validee", workflowStatut: "solde_confirme", statutPaiement: "paye" };
   }
   if (status === "validee_acompte") {
+    const acompteReceived = montantPaye > 0;
     return {
       requestStatus: "validee",
-      workflowStatut: "acompte_confirme",
-      statutPaiement: currentPaymentStatus === "en_attente" ? "paye" : currentPaymentStatus,
+      workflowStatut: acompteReceived ? "acompte_confirme" : "acompte_attente",
+      statutPaiement: acompteReceived ? "paye" : currentPaymentStatus === "paye" && montantPaye <= 0 ? "en_attente" : currentPaymentStatus,
     };
   }
   if (status === "devis_envoye") {
@@ -270,8 +279,11 @@ function mapReservationStatusToPayload(status: ReservationStatus, currentPayment
 function isConfirmedReservationForCalendar(reservation: ReservationRow): boolean {
   const workflow = String(reservation.workflowStatut || "");
   const paymentStatus = String(reservation.statutPaiement || "");
-  if (paymentStatus === "paye") return true;
-  return workflow === "acompte_confirme" || workflow === "solde_confirme" || workflow === "contrat_signe";
+  const montantPaye = Number(reservation.montantPaye || 0);
+  if (paymentStatus === "paye" && montantPaye > 0) return true;
+  if (workflow === "solde_confirme" && montantPaye > 0) return true;
+  if (workflow === "acompte_confirme" && montantPaye > 0) return true;
+  return workflow === "contrat_signe";
 }
 
 function isDayTripReservation(reservation: ReservationRow): boolean {
@@ -715,6 +727,8 @@ export default function CharterSlotManager({
       requestStatus: r.requestStatus || "nouvelle",
       workflowStatut: r.workflowStatut || "demande",
       statutPaiement: r.statutPaiement || "en_attente",
+      montantPaye: Number(r.montantPaye || 0),
+      acompteMontant: Number(r.acompteMontant || 0),
       destination: r.destination || "",
       formule: r.formule || "semaine",
       message: r.message || "",
@@ -738,7 +752,11 @@ export default function CharterSlotManager({
     try {
       setSavingReservationEdit(true);
       setMessage("");
-      const mapped = mapReservationStatusToPayload(editingReservation.reservationStatus, editingReservation.statutPaiement);
+      const mapped = mapReservationStatusToPayload(
+        editingReservation.reservationStatus,
+        editingReservation.statutPaiement,
+        editingReservation.montantPaye,
+      );
       const payload = {
         nomClient: editingReservation.nomClient.trim(),
         prenomClient: editingReservation.prenomClient.trim() || null,
