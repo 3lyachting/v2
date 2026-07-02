@@ -2,6 +2,8 @@ import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 import type { Reservation } from "../../drizzle/schema";
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
+import { getReservationCharterKind } from "../../shared/reservationDisplay";
+import { buildTransatBerthContractPdf } from "./transatBerthContract";
 
 const COMPANY = {
   legalName: "SAS 3L Yachting",
@@ -123,6 +125,10 @@ export function isDayTripReservation(r: Reservation): boolean {
 
 export function isShortCharterReservation(r: Reservation): boolean {
   return isDayTripReservation(r) || isSunsetReservation(r);
+}
+
+export function isTransatReservation(r: Reservation): boolean {
+  return getReservationCharterKind(r) === "transat";
 }
 
 export function getReservationCharterHours(r: Reservation): {
@@ -287,6 +293,7 @@ export async function buildQuotePdf(r: Reservation, quoteNumber: string, optionE
   })();
   const isPrivate = r.typeReservation === "bateau_entier";
   const isShortCharter = isShortCharterReservation(r);
+  const isTransat = isTransatReservation(r);
   const charterHours = getReservationCharterHours(r);
   const paymentSchedule = computeReservationPaymentSchedule(r);
 
@@ -327,11 +334,14 @@ export async function buildQuotePdf(r: Reservation, quoteNumber: string, optionE
   drawLabelValue(696, "Email", r.emailClient);
   drawLabelValue(680, "Telephone", r.telClient || "-");
   drawLabelValue(664, "Destination", r.destination);
+  if (isTransat) {
+    drawLabelValue(648, "Type", `${Math.max(1, Number(r.nbPersonnes || 1))} place(s) transatlantique`);
+  }
 
   // Prestation block
   page.drawRectangle({ x: 40, y: 560, width: 515, height: 70, borderColor: rgb(0.83, 0.85, 0.9), borderWidth: 1 });
   page.drawText("PRESTATION", { x: 44, y: 614, font: bold, size: 11, color: rgb(0.1, 0.2, 0.36) });
-  drawLabelValue(596, "Formule", r.formule);
+  drawLabelValue(596, "Formule", isTransat ? "Traversee Atlantique" : r.formule);
   drawLabelValue(
     580,
     "Periode",
@@ -364,6 +374,21 @@ export async function buildQuotePdf(r: Reservation, quoteNumber: string, optionE
       color: rgb(0.15, 0.15, 0.15),
     });
     page.drawText(`- Solde ${euro(paymentSchedule.soldeMontant)} EUR au plus tard 1 semaine avant embarquement`, {
+      x: 44,
+      y: 362,
+      font,
+      size: 10,
+      color: rgb(0.15, 0.15, 0.15),
+    });
+  } else if (isTransat) {
+    page.drawText("- Acompte 20 % a la reservation", {
+      x: 44,
+      y: 378,
+      font,
+      size: 10,
+      color: rgb(0.15, 0.15, 0.15),
+    });
+    page.drawText("- Solde 45 jours avant depart", {
       x: 44,
       y: 362,
       font,
@@ -408,6 +433,15 @@ export async function buildQuotePdf(r: Reservation, quoteNumber: string, optionE
     page.drawText("Non inclus:", { x: 44, y: 198, font: bold, size: 9.5, color: rgb(0.2, 0.2, 0.2) });
     page.drawText("- Repas / boissons, transferts terrestres, prestations traiteur.", { x: 110, y: 198, font, size: 9.5, color: rgb(0.2, 0.2, 0.2) });
     page.drawText("- Options: 2 scooters sous-marins, moteur electrique paddle, bouee tractee.", { x: 110, y: 184, font, size: 9.5, color: rgb(0.2, 0.2, 0.2) });
+  } else if (isTransat) {
+    page.drawText("Inclus:", { x: 44, y: 244, font: bold, size: 9.5, color: rgb(0.2, 0.2, 0.2) });
+    page.drawText("- Place passager, hebergement, pension complete et equipage professionnel.", { x: 95, y: 244, font, size: 9.5, color: rgb(0.2, 0.2, 0.2) });
+    page.drawText("- Carburant de la traversee, materiel loisirs (snorkeling, paddles, kayak).", { x: 95, y: 230, font, size: 9.5, color: rgb(0.2, 0.2, 0.2) });
+    page.drawText("Participation:", { x: 44, y: 212, font: bold, size: 9.5, color: rgb(0.2, 0.2, 0.2) });
+    page.drawText("- Taches quotidiennes requises (menage commun, cuisine, vaisselle).", { x: 110, y: 212, font, size: 9.5, color: rgb(0.2, 0.2, 0.2) });
+    page.drawText("- Pas de manoeuvres ni quarts de veille (passager).", { x: 110, y: 198, font, size: 9.5, color: rgb(0.2, 0.2, 0.2) });
+    page.drawText("Non inclus:", { x: 44, y: 180, font: bold, size: 9.5, color: rgb(0.2, 0.2, 0.2) });
+    page.drawText("- Transports, assurances personnelles, depenses a terre.", { x: 110, y: 180, font, size: 9.5, color: rgb(0.2, 0.2, 0.2) });
   } else if (isPrivate) {
     page.drawText("Inclus:", { x: 44, y: 244, font: bold, size: 9.5, color: rgb(0.2, 0.2, 0.2) });
     page.drawText("- Mise a disposition exclusive du navire avec equipage professionnel.", { x: 95, y: 244, font, size: 9.5, color: rgb(0.2, 0.2, 0.2) });
@@ -439,6 +473,10 @@ export async function buildQuotePdf(r: Reservation, quoteNumber: string, optionE
 }
 
 export async function buildContractPdf(r: Reservation, contractNumber: string) {
+  if (isTransatReservation(r)) {
+    return await buildTransatBerthContractPdf(r, contractNumber);
+  }
+
   const isShortCharter = isShortCharterReservation(r);
   const charterHours = getReservationCharterHours(r);
   const dayTemplatePath = isShortCharter ? resolveDayContractTemplatePath() : null;

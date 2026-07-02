@@ -27,6 +27,7 @@ import {
   getReservationCharterHours,
   isShortCharterReservation,
   isSunsetReservation,
+  isTransatReservation,
 } from "../_core/commercialDocs";
 import { storageGetSignedUrl } from "../storage";
 import {
@@ -435,6 +436,7 @@ router.post("/reservations/:id/send-proposal-email", requireAdmin, async (req, r
     }
     const isDayTrip = isDayReservation(r);
     const isSunset = isSunsetReservation(r);
+    const isTransat = isTransatReservation(r);
     const charterHours = getReservationCharterHours(r);
     const esignEnabled = String(ENV.eSignProvider || "other").toLowerCase() !== "other";
     if (esignEnabled && !signUrl) {
@@ -475,7 +477,13 @@ router.post("/reservations/:id/send-proposal-email", requireAdmin, async (req, r
       ? `${formatDateForEmail(r.dateDebut)} · ${charterHours.embark.replace(":", "h")} - ${charterHours.disembark.replace(":", "h")}`
       : formatDateForEmail(r.dateDebut);
     const disembarkDate = isDayTrip ? "—" : formatDateForEmail(r.dateFin);
-    const reservationLabel = isSunset ? "Soirée coucher de soleil" : isDayTrip ? "Sortie journée" : "Croisière";
+    const reservationLabel = isSunset
+      ? "Soirée coucher de soleil"
+      : isDayTrip
+        ? "Sortie journée"
+        : isTransat
+          ? "Traversée Atlantique"
+          : "Croisière";
     const destinationLabel = String(r.destination || "La Ciotat");
     const totalTtc = `${(Number(r.montantTotal || 0) / 100).toLocaleString("fr-FR")} € TTC`;
     const logoPathCandidates = [
