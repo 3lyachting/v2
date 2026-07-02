@@ -3,6 +3,7 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 import { CHARTER_PRODUCT_LABELS, charterProductFormule, charterProductLabel, isSingleDayPrivateProduct, type CharterProductCode } from "@shared/charterProduct";
 import { getCharterHighSeasonError } from "@shared/charterWeekPolicy";
 import { getProductFromDisponibilite } from "@shared/calendarSelection";
+import { findCharterPeriodForRange } from "@shared/charterPeriods";
 import {
   DEFAULT_SEASON_PRICING,
   type SeasonPricingConfig,
@@ -337,7 +338,7 @@ export default function AirbnbCalendarMvp({
   const selectedCharterOccupancy = useMemo(() => {
     if (!startDate) return null;
     const end = endDate || startDate;
-    const p = charterPeriods.find((s) => s.startIso === startDate && s.endIso === end);
+    const p = findCharterPeriodForRange(charterPeriods, startDate, end);
     if (!p) return null;
     const raw = slotOccupancy[String(p.id)];
     const occ =
@@ -350,7 +351,7 @@ export default function AirbnbCalendarMvp({
   const selectedPeriodPublicNote = useMemo(() => {
     if (!startDate) return null;
     const end = endDate || startDate;
-    const slot = charterPeriods.find((s) => s.startIso === startDate && s.endIso === end);
+    const slot = findCharterPeriodForRange(charterPeriods, startDate, end);
     const note = String(slot?.publicNote || "").trim();
     return note || null;
   }, [charterPeriods, endDate, startDate]);
@@ -462,7 +463,7 @@ export default function AirbnbCalendarMvp({
     const destination = CHARTER_PRODUCT_LABELS[product];
     const selectedSlot =
       startDate && (endDate || startDate)
-        ? charterPeriods.find((slot) => slot.startIso === startDate && slot.endIso === (endDate || startDate))
+        ? findCharterPeriodForRange(charterPeriods, startDate, endDate || startDate)
         : null;
     const query = new URLSearchParams({
       produit: product,

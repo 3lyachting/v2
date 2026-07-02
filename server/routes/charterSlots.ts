@@ -333,20 +333,25 @@ router.put("/:id", requireAdmin, async (req, res) => {
     const db = await getDb();
     if (!db) return res.status(500).json({ error: "Base de donnees non disponible" });
 
-    await db
+    const updated = await db
       .update(charterSlots)
       .set({
         product,
         debut: d0,
         fin: d1,
         active: typeof active === "boolean" ? active : true,
-        note: typeof note === "string" ? (note.trim() ? note : null) : undefined,
-        publicNote: typeof publicNote === "string" ? (publicNote.trim() ? publicNote : null) : undefined,
+        note: typeof note === "string" ? (note.trim() ? note.trim() : null) : undefined,
+        publicNote: typeof publicNote === "string" ? (publicNote.trim() ? publicNote.trim() : null) : publicNote === null ? null : undefined,
         updatedAt: new Date(),
       })
-      .where(eq(charterSlots.id, id));
+      .where(eq(charterSlots.id, id))
+      .returning();
 
-    return res.json({ success: true });
+    if (!updated.length) {
+      return res.status(404).json({ error: "Periode introuvable" });
+    }
+
+    return res.json({ success: true, row: updated[0] });
   } catch (error: any) {
     return res.status(500).json({ error: mapDbError(error, "Erreur mise a jour periode") });
   }

@@ -397,6 +397,13 @@ export default function CharterSlotManager({
     };
   }, []);
 
+  const focusSlotEditor = () => {
+    setCalendarMode("list");
+    requestAnimationFrame(() => {
+      slotEditorRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  };
+
   const startCreate = () => {
     setEditingId(null);
     setForm({ product: "med", debut: "", fin: "", active: true, note: "", publicNote: "" });
@@ -412,13 +419,7 @@ export default function CharterSlotManager({
       note: r.note || "",
       publicNote: r.publicNote || "",
     });
-  };
-
-  const focusSlotEditor = () => {
-    setCalendarMode("list");
-    requestAnimationFrame(() => {
-      slotEditorRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-    });
+    focusSlotEditor();
   };
 
   const submit = async () => {
@@ -446,11 +447,19 @@ export default function CharterSlotManager({
         body: JSON.stringify(body),
         }
       );
-      await handleApiResponse(res);
-      setMessage("Periode enregistree.");
-      setEditingId(null);
-      setForm((f) => ({ ...f, debut: "", fin: "", note: "", publicNote: "" }));
+      const payload = await handleApiResponse<{ success: boolean; row?: SlotRow }>(res);
+      const savedId = editingId;
       await load();
+      if (savedId && payload.row) {
+        startEdit(payload.row);
+        setMessage("Période mise à jour (texte public enregistré).");
+      } else if (!savedId) {
+        setEditingId(null);
+        setForm({ product: form.product, debut: "", fin: "", active: true, note: "", publicNote: "" });
+        setMessage("Période enregistrée.");
+      } else {
+        setMessage("Période mise à jour.");
+      }
     } catch (e: any) {
       setMessage(e?.message || "Erreur enregistrement.");
     } finally {
@@ -1701,6 +1710,7 @@ export default function CharterSlotManager({
                     <th className="py-2 pr-2">Produit</th>
                     <th className="py-2 pr-2">Dates</th>
                     <th className="py-2 pr-2">Actif</th>
+                    <th className="py-2 pr-2">Texte public</th>
                     <th className="py-2" />
                   </tr>
                 </thead>
@@ -1723,6 +1733,9 @@ export default function CharterSlotManager({
                         >
                           {r.active ? "oui" : "non"}
                         </span>
+                      </td>
+                      <td className="py-2 pr-2 text-slate-600 text-xs max-w-[220px] truncate" title={r.publicNote || ""}>
+                        {r.publicNote || "—"}
                       </td>
                       <td className="py-2 text-right">
                         <button

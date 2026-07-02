@@ -151,8 +151,8 @@ router.put("/:id", requireAdmin, async (req, res) => {
         tarifJourPersonne: tarifJourPersonne ? parseInt(tarifJourPersonne) : undefined,
         tarifJourPriva: tarifJourPriva ? parseInt(tarifJourPriva) : undefined,
         destination: destination || undefined,
-        note: note || undefined,
-        notePublique: notePublique || undefined,
+        note: note !== undefined ? (note || null) : undefined,
+        notePublique: notePublique !== undefined ? (notePublique || null) : undefined,
         updatedAt: new Date(),
       })
       .where(eq(disponibilites.id, parseInt(id)));
