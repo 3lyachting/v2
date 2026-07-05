@@ -452,9 +452,7 @@ router.post("/reservations/:id/send-proposal-email", requireAdmin, async (req, r
     const paymentUrlRaw = String(req.body?.paymentUrl || "").trim();
     const paymentUrlFromBody = /^https?:\/\//i.test(paymentUrlRaw) ? paymentUrlRaw : null;
     const looksLikeSiteResultPage = /\/reservation\/(succes|annule)(\/|$|\?)/i.test(paymentUrlFromBody || "");
-    const paymentUrl = isDayTrip
-      ? null
-      : (!looksLikeSiteResultPage && paymentUrlFromBody) || (await resolveMollieCheckoutUrlFromReservation(r)) || null;
+    const paymentUrl = (!looksLikeSiteResultPage && paymentUrlFromBody) || (await resolveMollieCheckoutUrlFromReservation(r)) || null;
 
     const smtp = getSmtpConfig();
     if (!smtp.host || !smtp.user || !smtp.pass || !smtp.fromEmail) {
@@ -499,9 +497,7 @@ router.post("/reservations/:id/send-proposal-email", requireAdmin, async (req, r
           "",
           "Votre contrat est prêt à être signé.",
           `Lien de signature sécurisé: ${signUrl}`,
-          ...(!isDayTrip
-            ? [paymentUrl ? `Lien de paiement acompte (20%): ${paymentUrl}` : "Lien de paiement: indisponible"]
-            : []),
+          paymentUrl ? `Lien de paiement acompte (20%): ${paymentUrl}` : "Lien de paiement: indisponible",
           "",
           "N'hésitez pas à répondre à cet email si vous avez des questions.",
           "",
@@ -513,11 +509,10 @@ router.post("/reservations/:id/send-proposal-email", requireAdmin, async (req, r
           "",
           "Votre proposition est prête.",
           contractUrl ? `Proposition (devis + contrat PDF): ${contractUrl}` : "Proposition PDF: indisponible",
-          isDayTrip
-            ? "Aucun lien de paiement en ligne n'est envoyé pour les sorties journée. Merci d'utiliser le virement (IBAN sur le devis)."
-            : paymentUrl
-              ? `Lien de paiement acompte (20%): ${paymentUrl}`
-              : "Lien de paiement: indisponible",
+          paymentUrl
+            ? `Lien de paiement acompte (20%): ${paymentUrl}`
+            : "Lien de paiement: indisponible",
+          isDayTrip ? "Solde sortie journée/soirée : au plus tard 1 semaine avant l'embarquement (virement, IBAN sur le devis)." : "",
           "",
           "N'hésitez pas à répondre à cet email si vous avez des questions.",
           "",
@@ -575,16 +570,18 @@ router.post("/reservations/:id/send-proposal-email", requireAdmin, async (req, r
               }
 
               ${
-                !isDayTrip
-                  ? `<p style="margin:0 0 10px;color:#334155;font-size:14px;">Étape 2 : règlement de l’acompte (20%) pour confirmer définitivement votre réservation.</p>
+                paymentUrl
+                  ? `<p style="margin:0 0 10px;color:#334155;font-size:14px;">Étape 2 : règlement de l’acompte (20%) pour confirmer définitivement votre réservation${
+                      isDayTrip ? " (solde par virement au plus tard 1 semaine avant l'embarquement)" : ""
+                    }.</p>
                      <p style="margin:0 0 16px;">
-                       ${
-                         paymentUrl
-                           ? `<a href="${paymentUrl}" style="display:inline-block;background:#16a34a;color:#ffffff;text-decoration:none;padding:11px 16px;border-radius:9px;font-weight:700;">Régler l'acompte (20%)</a>`
-                           : `<span style="color:#64748b;">Lien de paiement indisponible.</span>`
-                       }
+                       <a href="${paymentUrl}" style="display:inline-block;background:#16a34a;color:#ffffff;text-decoration:none;padding:11px 16px;border-radius:9px;font-weight:700;">Régler l'acompte (20%)</a>
                      </p>`
-                  : `<p style="margin:0 0 16px;color:#334155;font-size:14px;">Règlement sortie journée : acompte de 20 % à la réservation, solde au plus tard 1 semaine avant l'embarquement, par virement (IBAN sur le devis).</p>`
+                  : `<p style="margin:0 0 16px;color:#334155;font-size:14px;">${
+                      isDayTrip
+                        ? "Règlement sortie journée : acompte de 20 % à la réservation, solde au plus tard 1 semaine avant l'embarquement, par virement (IBAN sur le devis)."
+                        : `<span style="color:#64748b;">Lien de paiement indisponible.</span>`
+                    }</p>`
               }
 
               <p style="margin:0;color:#334155;font-size:14px;">Si vous avez la moindre question, répondez simplement à ce message.</p>
