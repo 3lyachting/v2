@@ -29,6 +29,7 @@ import {
   isSunsetReservation,
   isTransatReservation,
 } from "../_core/commercialDocs";
+import { parseContractLanguage } from "../../shared/contractLanguage";
 import { storageGetSignedUrl } from "../storage";
 import {
   resolveDisponibiliteIdForReservation,
@@ -161,12 +162,14 @@ router.post("/reservations/:id/owner-validate", requireAdmin, async (req, res) =
 
     const quoteNumber = buildQuoteNumber(reservationId);
     const contractNumber = buildContractNumber(reservationId);
+    const contractLanguage = parseContractLanguage(req.body?.contractLanguage);
     const quotePdf = await buildQuotePdf(r, quoteNumber, optionExpiresAt);
-    const contractPdf = await buildContractPdf(r, contractNumber);
+    const contractPdf = await buildContractPdf(r, contractNumber, { language: contractLanguage });
     console.info("[Workflow][owner-validate] PDF devis + contrat generes", {
       reservationId,
       quoteNumber,
       contractNumber,
+      contractLanguage,
     });
     const quoteFile = await storagePut(
       `commercial/quotes/devis-${reservationId}.pdf`,

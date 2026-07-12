@@ -23,6 +23,7 @@ import {
   reservationScheduleLines,
   RESERVATION_KIND_STYLES,
 } from "@shared/reservationDisplay";
+import { CONTRACT_LANGUAGE_LABELS, type ContractLanguage } from "@shared/contractLanguage";
 
 const BRAND_DEEP = "#00384A";
 const BRAND_SAND = "#D8C19E";
@@ -316,6 +317,7 @@ export default function CharterSlotManager({
   const [reservationSearch, setReservationSearch] = useState("");
   const [paymentFilter, setPaymentFilter] = useState<"all" | "en_attente" | "paye" | "echec" | "rembourse">("all");
   const [workflowFilter, setWorkflowFilter] = useState<"all" | ReservationStatus>("all");
+  const [proposalContractLanguage, setProposalContractLanguage] = useState<ContractLanguage>("fr");
   const [calendarMode, setCalendarMode] = useState<"list" | "calendar">("calendar");
   const [bulkMonth, setBulkMonth] = useState("");
   const [bulkProduct, setBulkProduct] = useState<CharterProductCode>("journee");
@@ -627,7 +629,9 @@ export default function CharterSlotManager({
 
       const ownerValidateRes = await fetch(apiUrl(`/api/workflow/reservations/${reservationId}/owner-validate`), {
         method: "POST",
+        headers: { "Content-Type": "application/json" },
         credentials: "include",
+        body: JSON.stringify({ contractLanguage: proposalContractLanguage }),
       });
       await handleApiResponse(ownerValidateRes);
 
@@ -685,7 +689,9 @@ export default function CharterSlotManager({
 
       const ownerValidateRes = await fetch(apiUrl(`/api/workflow/reservations/${reservationId}/owner-validate`), {
         method: "POST",
+        headers: { "Content-Type": "application/json" },
         credentials: "include",
+        body: JSON.stringify({ contractLanguage: proposalContractLanguage }),
       });
       await handleApiResponse(ownerValidateRes);
 
@@ -1124,7 +1130,7 @@ export default function CharterSlotManager({
               </div>
             </div>
 
-            <div className="mt-3 grid gap-2 sm:grid-cols-3">
+            <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
               <input
                 className="rounded-lg border border-slate-200 px-3 py-2 text-sm"
                 placeholder="Recherche client (nom, email, téléphone)"
@@ -1152,6 +1158,15 @@ export default function CharterSlotManager({
                 <option value="devis_envoye">Statut: devis envoyé</option>
                 <option value="validee_acompte">Statut: validée (acompte reçu)</option>
                 <option value="terminee_solde">Statut: terminée (solde versé)</option>
+              </select>
+              <select
+                className="rounded-lg border border-slate-200 px-3 py-2 text-sm"
+                value={proposalContractLanguage}
+                onChange={(e) => setProposalContractLanguage(e.target.value as ContractLanguage)}
+                title="Langue du contrat généré pour l'aperçu et l'envoi de proposition"
+              >
+                <option value="fr">Contrat: {CONTRACT_LANGUAGE_LABELS.fr}</option>
+                <option value="en">Contrat: {CONTRACT_LANGUAGE_LABELS.en}</option>
               </select>
             </div>
 

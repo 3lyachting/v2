@@ -3,7 +3,10 @@ import type { Reservation } from "../../drizzle/schema";
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { getReservationCharterKind } from "../../shared/reservationDisplay";
+import type { ContractLanguage } from "../../shared/contractLanguage";
 import { buildTransatBerthContractPdf } from "./transatBerthContract";
+import { buildDayCharterContractPdfEn } from "./dayCharterContractEn";
+import { buildWeekCharterContractPdfEn } from "./weekCharterContractEn";
 
 const COMPANY = {
   legalName: "SAS 3L Yachting",
@@ -472,12 +475,25 @@ export async function buildQuotePdf(r: Reservation, quoteNumber: string, optionE
   return await doc.save();
 }
 
-export async function buildContractPdf(r: Reservation, contractNumber: string) {
+export async function buildContractPdf(
+  r: Reservation,
+  contractNumber: string,
+  options?: { language?: ContractLanguage },
+) {
+  const language = options?.language ?? "fr";
+
   if (isTransatReservation(r)) {
     return await buildTransatBerthContractPdf(r, contractNumber);
   }
 
   const isShortCharter = isShortCharterReservation(r);
+
+  if (language === "en") {
+    if (isShortCharter) {
+      return await buildDayCharterContractPdfEn(r, contractNumber);
+    }
+    return await buildWeekCharterContractPdfEn(r, contractNumber);
+  }
   const charterHours = getReservationCharterHours(r);
   const dayTemplatePath = isShortCharter ? resolveDayContractTemplatePath() : null;
   const weekTemplatePath = resolveContractTemplatePath();
