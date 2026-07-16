@@ -37,6 +37,12 @@ const sanitizePdfText = (input: string) =>
     .replace(/\u00a0/g, " ")
     .replace(/[^\x20-\x7EÀ-ÿ]/g, "");
 
+function clientMessageForContract(r: Reservation, maxLen = 100) {
+  const msg = sanitizePdfText(String(r.message || "").trim());
+  if (!msg) return "-";
+  return msg.length > maxLen ? `${msg.slice(0, Math.max(1, maxLen - 1))}...` : msg;
+}
+
 function resolveLogoPath(): string | null {
   const custom = process.env.QUOTE_LOGO_PATH;
   const candidates = [
@@ -598,6 +604,7 @@ export async function buildContractPdf(
     drawRow(`Acompte (${DAY_TRIP_ACOMPTE_PERCENT}%)`, acompteText);
     drawRow("Solde (1 sem. avant embarq.)", soldeText);
     drawRow("Reglement", `Virement - IBAN ${BANK_DETAILS.iban}`);
+    drawRow("Message client", clientMessageForContract(r, 70));
 
     // Page 5 - Signatures
     drawAt(page5, "La Ciotat", 95, 214);
@@ -609,12 +616,12 @@ export async function buildContractPdf(
   }
 
   // Surcouche auto-remplie depuis la reservation.
-  const topY = Math.max(540, firstSize.height - 170);
+  const topY = Math.max(560, firstSize.height - 150);
   firstPage.drawRectangle({
     x: 36,
-    y: topY - 132,
+    y: topY - 160,
     width: Math.min(523, firstSize.width - 72),
-    height: 142,
+    height: 170,
     color: rgb(1, 1, 1),
     opacity: 0.88,
   });
@@ -636,11 +643,12 @@ export async function buildContractPdf(
   const disembarkDefaultHour = charterHours.disembark;
   drawField("Date d'embarquement", formatFrDateTime(r.dateDebut, embarkDefaultHour), topY - 128);
   drawField("Date de debarquement", formatFrDateTime(r.dateFin, disembarkDefaultHour), topY - 142);
+  drawField("Message client", clientMessageForContract(r, 70), topY - 156);
 
   // Type de reservation coche automatiquement.
   firstPage.drawText(`Type: ${isPrivate ? "PRIVATISATION BATEAU ENTIER" : "CROISIERE A LA CABINE"}`, {
     x: 42,
-    y: topY - 156,
+    y: topY - 172,
     font: bold,
     size: 9,
     color: rgb(0.1, 0.1, 0.1),

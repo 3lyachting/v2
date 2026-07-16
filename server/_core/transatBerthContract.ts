@@ -161,6 +161,7 @@ export async function buildTransatBerthContractPdf(r: Reservation, contractNumbe
     drawField(w, "Acompte (20 %)", `${euro(payment.acompteMontant)} EUR`);
     drawField(w, "Solde", `${euro(payment.soldeMontant)} EUR au plus tard le ${dateFr(payment.soldeEcheanceAt)}`);
     drawField(w, "Reglement", `Virement — IBAN ${BANK_DETAILS.iban}`);
+    drawField(w, "Message client", sanitizePdfText(String(r.message || "").trim() || "-"));
     writerGap(w, 10);
     drawSection(w, "PARTIE A — CONDITIONS COMMUNES");
     drawParagraph(

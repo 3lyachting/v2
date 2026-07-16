@@ -55,6 +55,8 @@ export async function buildWeekCharterContractPdfEn(r: Reservation, contractNumb
     drawField(w, "Destination / itinerary", String(r.destination || "-"));
     drawField(w, "Embarkation date", formatEnDateTime(r.dateDebut, charterHours.embark));
     drawField(w, "Disembarkation date", formatEnDateTime(r.dateFin, charterHours.disembark));
+    const clientMsg = sanitizePdfText(String(r.message || "").trim() || "-");
+    drawField(w, "Client message", clientMsg.length > 80 ? `${clientMsg.slice(0, 79)}...` : clientMsg);
     writerGap(w, 4);
     drawSection(w, "TYPE OF SERVICE (tick one)");
     drawParagraph(w, `${isPrivate ? "[ ]" : "[X]"} CABIN CRUISE`);

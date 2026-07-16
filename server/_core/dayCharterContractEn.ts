@@ -74,6 +74,8 @@ export async function buildDayCharterContractPdfEn(r: Reservation, contractNumbe
     drawField(w, `Deposit (${DAY_TRIP_ACOMPTE_PERCENT}%)`, `${euro(acompteMontant)} EUR`);
     drawField(w, "Balance (1 week before embarkation)", `${euro(soldeMontant)} EUR`);
     drawField(w, "Payment", `Bank transfer - IBAN ${CONTRACT_BANK_DETAILS.iban}`);
+    const clientMsg = sanitizePdfText(String(r.message || "").trim() || "-");
+    drawField(w, "Client message", clientMsg.length > 80 ? `${clientMsg.slice(0, 79)}...` : clientMsg);
   }
 
   // Page 2
