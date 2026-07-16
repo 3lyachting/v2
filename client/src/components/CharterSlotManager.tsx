@@ -671,8 +671,8 @@ export default function CharterSlotManager({
 
       setMessage(
         signUrl
-          ? "Email envoyé avec le lien de signature DocuSeal et le lien de paiement acompte."
-          : "Proposition envoyée au client par email (devis + contrat + lien de paiement)."
+          ? `Email envoyé (contrat ${CONTRACT_LANGUAGE_LABELS[proposalContractLanguage].toLowerCase()}) avec lien DocuSeal et paiement acompte.`
+          : `Proposition envoyée (contrat ${CONTRACT_LANGUAGE_LABELS[proposalContractLanguage].toLowerCase()}).`
       );
       await load();
     } catch (e: any) {
@@ -710,7 +710,7 @@ export default function CharterSlotManager({
         contractUrl,
         paymentUrl: null,
       });
-      setMessage("Aperçu prêt. Vérifiez les documents avant l'envoi.");
+      setMessage(`Aperçu prêt (contrat ${CONTRACT_LANGUAGE_LABELS[proposalContractLanguage].toLowerCase()}). Vérifiez les documents avant l'envoi.`);
       await load();
     } catch (e: any) {
       setMessage(e?.message || "Erreur lors de la génération de l'aperçu.");
@@ -1005,7 +1005,19 @@ export default function CharterSlotManager({
           <h2 className="text-xl font-bold" style={{ color: BRAND_DEEP }}>
             Calendrier Backoffice
           </h2>
-          <div className="inline-flex rounded-lg border border-slate-200 bg-slate-50 p-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <label className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs font-semibold text-slate-700">
+              <span className="whitespace-nowrap">Langue contrat</span>
+              <select
+                className="rounded-md border border-slate-200 bg-white px-2 py-1 text-xs font-semibold text-slate-800"
+                value={proposalContractLanguage}
+                onChange={(e) => setProposalContractLanguage(e.target.value as ContractLanguage)}
+              >
+                <option value="fr">{CONTRACT_LANGUAGE_LABELS.fr}</option>
+                <option value="en">{CONTRACT_LANGUAGE_LABELS.en}</option>
+              </select>
+            </label>
+            <div className="inline-flex rounded-lg border border-slate-200 bg-slate-50 p-1">
             <button
               type="button"
               onClick={() => setCalendarMode("calendar")}
@@ -1022,10 +1034,15 @@ export default function CharterSlotManager({
             >
               Vue listes
             </button>
+            </div>
           </div>
         </div>
         <p className="mt-1 text-sm text-slate-600">
           Clique sur une période pour la modifier, supprimer, ou créer une réservation directement.
+        </p>
+        <p className="mt-1 text-xs text-slate-500">
+          Contrat actuel : <span className="font-semibold text-slate-700">{CONTRACT_LANGUAGE_LABELS[proposalContractLanguage]}</span>
+          {" "}— utilisé pour « Aperçu proposition » et « Envoyer la proposition » (vue listes ou fiche réservation).
         </p>
       </div>
 
@@ -1130,7 +1147,7 @@ export default function CharterSlotManager({
               </div>
             </div>
 
-            <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="mt-3 grid gap-2 sm:grid-cols-3">
               <input
                 className="rounded-lg border border-slate-200 px-3 py-2 text-sm"
                 placeholder="Recherche client (nom, email, téléphone)"
@@ -1158,15 +1175,6 @@ export default function CharterSlotManager({
                 <option value="devis_envoye">Statut: devis envoyé</option>
                 <option value="validee_acompte">Statut: validée (acompte reçu)</option>
                 <option value="terminee_solde">Statut: terminée (solde versé)</option>
-              </select>
-              <select
-                className="rounded-lg border border-slate-200 px-3 py-2 text-sm"
-                value={proposalContractLanguage}
-                onChange={(e) => setProposalContractLanguage(e.target.value as ContractLanguage)}
-                title="Langue du contrat généré pour l'aperçu et l'envoi de proposition"
-              >
-                <option value="fr">Contrat: {CONTRACT_LANGUAGE_LABELS.fr}</option>
-                <option value="en">Contrat: {CONTRACT_LANGUAGE_LABELS.en}</option>
               </select>
             </div>
 
@@ -1258,18 +1266,18 @@ export default function CharterSlotManager({
                             onClick={() => previewProposalPack(r.id)}
                             disabled={previewingProposalForId === r.id}
                             className="rounded-md border border-blue-200 bg-blue-50 px-2 py-1 text-xs font-semibold text-blue-700 hover:bg-blue-100 disabled:opacity-50"
-                            title="Génère les documents et ouvre un aperçu sans envoyer d'email"
+                            title={`Génère les documents (contrat ${CONTRACT_LANGUAGE_LABELS[proposalContractLanguage]})`}
                           >
-                            {previewingProposalForId === r.id ? "Préparation..." : "Aperçu proposition"}
+                            {previewingProposalForId === r.id ? "Préparation..." : `Aperçu (${proposalContractLanguage.toUpperCase()})`}
                           </button>
                           <button
                             type="button"
                             onClick={() => sendProposalPack(r.id)}
                             disabled={sendingProposalForId === r.id}
                             className="rounded-md border border-emerald-200 bg-emerald-50 px-2 py-1 text-xs font-semibold text-emerald-700 hover:bg-emerald-100 disabled:opacity-50"
-                            title="Génère/envoie devis + contrat, crée le lien de paiement acompte et envoie l'email"
+                            title={`Génère/envoie devis + contrat ${CONTRACT_LANGUAGE_LABELS[proposalContractLanguage]}`}
                           >
-                            {sendingProposalForId === r.id ? "Envoi..." : "Envoyer la proposition"}
+                            {sendingProposalForId === r.id ? "Envoi..." : `Envoyer (${proposalContractLanguage.toUpperCase()})`}
                           </button>
                           <button
                             type="button"
@@ -1468,6 +1476,9 @@ export default function CharterSlotManager({
               </button>
             </div>
             <div className="space-y-2 text-sm">
+              <p className="rounded-lg border border-amber-100 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+                Pour régénérer le contrat dans une autre langue, choisissez « Langue contrat » en haut puis cliquez « Aperçu proposition ».
+              </p>
               <a
                 className={`block rounded-lg border px-3 py-2 ${linksViewer.quoteUrl ? "border-slate-200 text-slate-800 hover:bg-slate-50" : "border-slate-100 text-slate-400"}`}
                 href={linksViewer.quoteUrl || undefined}
@@ -1580,6 +1591,41 @@ export default function CharterSlotManager({
               <input className="rounded-lg border border-slate-200 px-3 py-2 text-sm" value={editingReservation.formule} onChange={(e) => setEditingReservation((s) => s && ({ ...s, formule: e.target.value }))} placeholder="Formule" />
               <textarea className="rounded-lg border border-slate-200 px-3 py-2 text-sm sm:col-span-2" rows={2} value={editingReservation.message} onChange={(e) => setEditingReservation((s) => s && ({ ...s, message: e.target.value }))} placeholder="Message client" />
               <textarea className="rounded-lg border border-slate-200 px-3 py-2 text-sm sm:col-span-2" rows={2} value={editingReservation.internalComment} onChange={(e) => setEditingReservation((s) => s && ({ ...s, internalComment: e.target.value }))} placeholder="Commentaire interne" />
+            </div>
+            <div className="mt-4 rounded-xl border border-blue-100 bg-blue-50 p-4">
+              <p className="text-xs font-bold uppercase tracking-wide text-blue-900">Proposition commerciale</p>
+              <p className="mt-1 text-xs text-blue-800">
+                Génère le devis + contrat avant envoi. Choisissez la langue du contrat ci-dessous.
+              </p>
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                <label className="flex items-center gap-2 text-xs font-semibold text-blue-900">
+                  Langue contrat
+                  <select
+                    className="rounded-lg border border-blue-200 bg-white px-2 py-1.5 text-sm text-slate-800"
+                    value={proposalContractLanguage}
+                    onChange={(e) => setProposalContractLanguage(e.target.value as ContractLanguage)}
+                  >
+                    <option value="fr">{CONTRACT_LANGUAGE_LABELS.fr}</option>
+                    <option value="en">{CONTRACT_LANGUAGE_LABELS.en}</option>
+                  </select>
+                </label>
+                <button
+                  type="button"
+                  onClick={() => void previewProposalPack(editingReservation.id)}
+                  disabled={previewingProposalForId === editingReservation.id}
+                  className="rounded-lg border border-blue-200 bg-white px-3 py-1.5 text-xs font-semibold text-blue-700 hover:bg-blue-100 disabled:opacity-50"
+                >
+                  {previewingProposalForId === editingReservation.id ? "Préparation..." : "Aperçu proposition"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void sendProposalPack(editingReservation.id)}
+                  disabled={sendingProposalForId === editingReservation.id}
+                  className="rounded-lg border border-emerald-200 bg-white px-3 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-100 disabled:opacity-50"
+                >
+                  {sendingProposalForId === editingReservation.id ? "Envoi..." : "Envoyer la proposition"}
+                </button>
+              </div>
             </div>
             <div className="mt-4 flex justify-end gap-2">
               <button className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700" onClick={() => setEditingReservation(null)}>
