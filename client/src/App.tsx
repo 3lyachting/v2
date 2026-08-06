@@ -10,6 +10,7 @@ import Admin from "./pages/Admin";
 import AdminLogin from "./pages/AdminLogin";
 import CustomerPortal from "./pages/CustomerPortal";
 import Reservation from "./pages/Reservation";
+import { ReservationSucces, ReservationAnnule } from "./pages/ReservationResultat";
 
 function Router() {
   return (
@@ -21,8 +22,8 @@ function Router() {
         <Route path="/admin/login" component={AdminLogin} />
         <Route path="/admin" component={Admin} />
         <Route path="/reservation" component={Reservation} />
-        <Route path="/reservation/succes" component={Home} />
-        <Route path="/reservation/annule" component={Home} />
+        <Route path="/reservation/succes" component={ReservationSucces} />
+        <Route path="/reservation/annule" component={ReservationAnnule} />
         <Route path="/espace-client" component={CustomerPortal} />
         <Route path="/404" component={NotFound} />
         <Route component={NotFound} />

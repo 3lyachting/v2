@@ -102,14 +102,46 @@ type MolliePaymentLookup = {
 
 async function resolveMollieCheckoutUrlFromReservation(reservation: any): Promise<string | null> {
   const paymentRef = String(reservation?.stripeSessionId || "").trim();
-  if (!paymentRef.startsWith("mollie:")) return null;
-  const paymentId = paymentRef.replace(/^mollie:/, "").trim();
-  if (!paymentId) return null;
   const mollieApiKey = String(process.env.MOLLIE_API_KEY || "").trim();
   if (!mollieApiKey) return null;
 
+  let kind: "payment-link" | "payment" | null = null;
+  let id = "";
+  if (paymentRef.startsWith("mollie-pl:")) {
+    kind = "payment-link";
+    id = paymentRef.replace(/^mollie-pl:/, "").trim();
+  } else if (paymentRef.startsWith("mollie:")) {
+    id = paymentRef.replace(/^mollie:/, "").trim();
+    kind = id.startsWith("pl_") ? "payment-link" : "payment";
+  } else if (paymentRef.startsWith("pl_")) {
+    kind = "payment-link";
+    id = paymentRef;
+  } else if (paymentRef.startsWith("tr_")) {
+    kind = "payment";
+    id = paymentRef;
+  }
+  if (!kind || !id) return null;
+
   try {
-    const response = await fetch(`https://api.mollie.com/v2/payments/${encodeURIComponent(paymentId)}`, {
+    if (kind === "payment-link") {
+      const response = await fetch(`https://api.mollie.com/v2/payment-links/${encodeURIComponent(id)}`, {
+        method: "GET",
+        headers: { Authorization: `Bearer ${mollieApiKey}` },
+      });
+      if (!response.ok) return null;
+      const link = (await response.json().catch(() => null)) as {
+        archived?: boolean;
+        paidAt?: string | null;
+        expiresAt?: string | null;
+        _links?: { paymentLink?: { href?: string } };
+      } | null;
+      if (!link || link.archived || link.paidAt) return null;
+      if (link.expiresAt && new Date(link.expiresAt).getTime() <= Date.now()) return null;
+      const href = String(link._links?.paymentLink?.href || "").trim();
+      return /^https?:\/\//i.test(href) ? href : null;
+    }
+
+    const response = await fetch(`https://api.mollie.com/v2/payments/${encodeURIComponent(id)}`, {
       method: "GET",
       headers: { Authorization: `Bearer ${mollieApiKey}` },
     });
@@ -455,7 +487,21 @@ router.post("/reservations/:id/send-proposal-email", requireAdmin, async (req, r
     const paymentUrlRaw = String(req.body?.paymentUrl || "").trim();
     const paymentUrlFromBody = /^https?:\/\//i.test(paymentUrlRaw) ? paymentUrlRaw : null;
     const looksLikeSiteResultPage = /\/reservation\/(succes|annule)(\/|$|\?)/i.test(paymentUrlFromBody || "");
-    const paymentUrl = (!looksLikeSiteResultPage && paymentUrlFromBody) || (await resolveMollieCheckoutUrlFromReservation(r)) || null;
+    // Accepte un checkout Mollie (payment-links ou checkout). Refuse les URLs du site.
+    const isMolliePayUrl =
+      Boolean(paymentUrlFromBody) &&
+      !looksLikeSiteResultPage &&
+      /\.mollie\.com\//i.test(paymentUrlFromBody!);
+    const paymentUrl =
+      (isMolliePayUrl ? paymentUrlFromBody : null) ||
+      (await resolveMollieCheckoutUrlFromReservation(r)) ||
+      null;
+    if (paymentUrlFromBody && !paymentUrl) {
+      console.warn("[Workflow][send-proposal-email] paymentUrl refusee (non Mollie / page site)", {
+        reservationId,
+        paymentUrlFromBody: paymentUrlFromBody.slice(0, 120),
+      });
+    }
 
     const smtp = getSmtpConfig();
     if (!smtp.host || !smtp.user || !smtp.pass || !smtp.fromEmail) {
