@@ -5,6 +5,12 @@ const router = Router();
 const DEFAULT_BUSINESS_QUERY = "Sabine Sailing La Ciotat";
 const DEFAULT_PLACE_URL =
   "https://www.google.com/maps/search/?api=1&query=Sabine+Sailing+La+Ciotat";
+/** Total Google Business réel (l’API Places ne renvoie que ~5 textes d’avis max). */
+const FALLBACK_USER_RATINGS_TOTAL = Math.max(
+  1,
+  Number(process.env.GOOGLE_USER_RATINGS_TOTAL || process.env.GOOGLE_REVIEWS_TOTAL || 27) || 27,
+);
+const FALLBACK_RATING = Number(process.env.GOOGLE_PLACE_RATING || 5) || 5;
 const FALLBACK_REVIEWS = [
   {
     authorName: "Thierry Leydet",
@@ -32,22 +38,27 @@ const FALLBACK_REVIEWS = [
   },
 ];
 
-const hasEnoughFrenchSignals = (text: string) => /[àâäçéèêëîïôöùûüÿœæ]/i.test(text);
+function fallbackPayload(note: string) {
+  const placeId = (process.env.GOOGLE_PLACE_ID || "").trim();
+  return {
+    placeId,
+    name: "Sabine Sailing",
+    rating: FALLBACK_RATING,
+    userRatingsTotal: FALLBACK_USER_RATINGS_TOTAL,
+    url: placeId
+      ? `https://search.google.com/local/reviews?placeid=${encodeURIComponent(placeId)}`
+      : DEFAULT_PLACE_URL,
+    reviews: FALLBACK_REVIEWS,
+    source: "fallback_manual" as const,
+    note,
+  };
+}
 
 router.get("/", async (_req, res) => {
   try {
     const apiKey = (process.env.GOOGLE_MAPS_API_KEY || "").trim();
     if (!apiKey) {
-      return res.json({
-        placeId: process.env.GOOGLE_PLACE_ID || "",
-        name: "Sabine Sailing",
-        rating: 5,
-        userRatingsTotal: FALLBACK_REVIEWS.length,
-        url: DEFAULT_PLACE_URL,
-        reviews: FALLBACK_REVIEWS,
-        source: "fallback_manual",
-        note: "GOOGLE_MAPS_API_KEY manquante",
-      });
+      return res.json(fallbackPayload("GOOGLE_MAPS_API_KEY manquante"));
     }
 
     const headers = {
@@ -151,17 +162,23 @@ router.get("/", async (_req, res) => {
         const reviewsNew = mappedReviewsNew.map(({ languageCode: _languageCode, ...review }) => review);
 
         if ((detailsNew.displayName?.text || "").trim()) {
+          const total =
+            Number(detailsNew.userRatingCount || 0) > 0
+              ? Number(detailsNew.userRatingCount)
+              : FALLBACK_USER_RATINGS_TOTAL;
           return res.json({
             placeId: detailsNew.id || placeId,
             name: detailsNew.displayName?.text || "Sabine Sailing",
-            rating: detailsNew.rating || 0,
-            userRatingsTotal: detailsNew.userRatingCount || 0,
+            rating: detailsNew.rating || FALLBACK_RATING,
+            userRatingsTotal: total,
             url:
               detailsNew.googleMapsUri ||
-              `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
-                detailsNew.displayName?.text || DEFAULT_BUSINESS_QUERY
-              )}`,
-            reviews: reviewsNew,
+              (placeId
+                ? `https://search.google.com/local/reviews?placeid=${encodeURIComponent(placeId)}`
+                : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+                    detailsNew.displayName?.text || DEFAULT_BUSINESS_QUERY
+                  )}`),
+            reviews: reviewsNew.length ? reviewsNew : FALLBACK_REVIEWS,
             source: "google_places_new",
           });
         }
@@ -241,41 +258,28 @@ router.get("/", async (_req, res) => {
         return res.json({
           placeId: place.place_id || placeId,
           name: place.name || "Sabine Sailing",
-          rating: place.rating || 0,
-          userRatingsTotal: place.user_ratings_total || 0,
+          rating: place.rating || FALLBACK_RATING,
+          userRatingsTotal:
+            Number(place.user_ratings_total || 0) > 0
+              ? Number(place.user_ratings_total)
+              : FALLBACK_USER_RATINGS_TOTAL,
           url:
             place.url ||
-            `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
-              place.name || DEFAULT_BUSINESS_QUERY
-            )}`,
-          reviews,
+            (placeId
+              ? `https://search.google.com/local/reviews?placeid=${encodeURIComponent(placeId)}`
+              : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+                  place.name || DEFAULT_BUSINESS_QUERY
+                )}`),
+          reviews: reviews.length ? reviews : FALLBACK_REVIEWS,
           source: "google_places_legacy",
         });
       }
     }
 
-    return res.json({
-      placeId: process.env.GOOGLE_PLACE_ID || "",
-      name: "Sabine Sailing",
-      rating: 5,
-      userRatingsTotal: FALLBACK_REVIEWS.length,
-      url: DEFAULT_PLACE_URL,
-      reviews: FALLBACK_REVIEWS,
-      source: "fallback_manual",
-      note: "Google Place Details indisponible",
-    });
+    return res.json(fallbackPayload("Google Place Details indisponible"));
   } catch (error: any) {
     const message = error?.message || "Failed to fetch Google reviews";
-    return res.json({
-      placeId: process.env.GOOGLE_PLACE_ID || "",
-      name: "Sabine Sailing",
-      rating: 5,
-      userRatingsTotal: FALLBACK_REVIEWS.length,
-      url: DEFAULT_PLACE_URL,
-      reviews: FALLBACK_REVIEWS,
-      source: "fallback_manual",
-      note: message,
-    });
+    return res.json(fallbackPayload(message));
   }
 });
 

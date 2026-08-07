@@ -55,16 +55,31 @@ export default function AvisGoogle({ isEnglish = false }: { isEnglish?: boolean 
   }, []);
 
   const stats = useMemo(() => {
+    const totalReviews = Math.max(1, Number(data?.userRatingsTotal || 0) || (data?.reviews || []).length || 1);
+    const sample = data?.reviews || [];
+    const sampleComplete = sample.length > 0 && sample.length >= totalReviews;
+
+    // Google ne renvoie qu'un extrait d'avis : on n'invente pas une répartition
+    // à partir de 4 textes. Si la note globale est 5.0, on attribue le total aux 5★.
+    if (!sampleComplete) {
+      const rating = Number(data?.rating || 0);
+      const fiveStarCount = rating >= 4.95 ? totalReviews : 0;
+      return [5, 4, 3, 2, 1].map((stars) => ({
+        stars,
+        count: stars === 5 ? fiveStarCount : 0,
+        percent: stars === 5 && fiveStarCount ? 100 : 0,
+      }));
+    }
+
     const counts = { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 };
-    for (const review of data?.reviews || []) {
+    for (const review of sample) {
       const key = Math.min(5, Math.max(1, Math.round(review.rating))) as 1 | 2 | 3 | 4 | 5;
       counts[key] += 1;
     }
-    const total = (data?.reviews || []).length || 1;
-    return [5, 4, 3, 2, 1].map(stars => ({
+    return [5, 4, 3, 2, 1].map((stars) => ({
       stars,
       count: counts[stars as 1 | 2 | 3 | 4 | 5],
-      percent: (counts[stars as 1 | 2 | 3 | 4 | 5] / total) * 100,
+      percent: (counts[stars as 1 | 2 | 3 | 4 | 5] / totalReviews) * 100,
     }));
   }, [data]);
 
@@ -288,8 +303,8 @@ export default function AvisGoogle({ isEnglish = false }: { isEnglish?: boolean 
                 <div className="mt-8 pt-6 border-t border-[oklch(0.92_0.015_220)] flex flex-wrap items-center justify-between gap-4">
                   <p className="text-xs text-[oklch(0.48_0.03_240)] max-w-sm">
                     {isEnglish
-                      ? "Ratings and wording come from Google; we show a selection here."
-                      : "Les notes et textes proviennent de Google ; nous en affichons un extrait ici."}
+                      ? `Ratings and wording come from Google; we show a selection from ${data?.userRatingsTotal || "all"} reviews.`
+                      : `Les notes et textes proviennent de Google ; nous affichons un extrait parmi ${data?.userRatingsTotal || "tous les"} avis.`}
                   </p>
                   <a
                     href={placeUrl}
