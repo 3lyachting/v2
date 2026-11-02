@@ -11,6 +11,7 @@ import {
   estimateMvpIndicativeTotalEur,
   getSeasonPrivatePriceForDate,
   getSeasonPriceForDate,
+  normalizeSeasonPricing,
   TRANSAT_PER_PERSON_EUR,
 } from "@shared/seasonPricing";
 import { CHARTER_CRUISE_CABIN_UNITS, isCruiseMultiUnitProduct } from "@shared/charterCapacity";
@@ -153,10 +154,10 @@ export default function AirbnbCalendarMvp({
     void (async () => {
       try {
         const res = await fetch(apiUrl("/api/backoffice-ops/season-pricing"), { cache: "no-store" });
-        if (!res.ok) throw new Error("pricing");
-        const data = (await res.json()) as SeasonPricingConfig;
+        if (!res.ok) throw new Error(`pricing HTTP ${res.status}`);
+        const data = await res.json();
         if (!cancelled) {
-          setSeasonPricing({ ...DEFAULT_SEASON_PRICING, ...data });
+          setSeasonPricing(normalizeSeasonPricing(data));
         }
       } catch {
         if (!cancelled) setSeasonPricing(DEFAULT_SEASON_PRICING);

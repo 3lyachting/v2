@@ -1195,6 +1195,7 @@ export default function CharterSlotManager({
                 <table className="w-full min-w-[960px] text-left text-sm">
                   <thead>
                     <tr className="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-500">
+                      <th className="py-2 pr-2">N°</th>
                       <th className="py-2 pr-2">Client</th>
                       <th className="py-2 pr-2">Période</th>
                       <th className="py-2 pr-2">Type</th>
@@ -1211,6 +1212,11 @@ export default function CharterSlotManager({
                       const kindStyle = RESERVATION_KIND_STYLES[schedule.kind];
                       return (
                       <tr key={r.id} className={`border-b border-slate-100 ${reservationRowClass(r)}`}>
+                        <td className="py-2 pr-2 align-top">
+                          <span className="inline-block rounded-md bg-slate-100 px-2 py-0.5 font-mono text-xs font-bold text-slate-700">
+                            #{r.id}
+                          </span>
+                        </td>
                         <td className="py-2 pr-2">
                           <div className="font-medium text-slate-800">
                             👤 {r.prenomClient ? `${r.prenomClient} ${r.nomClient}` : r.nomClient}

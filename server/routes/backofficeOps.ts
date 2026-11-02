@@ -6,7 +6,6 @@ import { requireAdmin } from "../_core/authz";
 import { DEFAULT_SEASON_PRICING, normalizeSeasonPricing } from "../_core/seasonPricing";
 
 const router = Router();
-router.use(requireAdmin);
 const INVENTORY_KEY = "boat_inventory_v1";
 const SEASON_PRICING_KEY = "season_pricing_v1";
 
@@ -17,6 +16,25 @@ function mapDbError(error: any, fallback: string) {
   }
   return error?.message || fallback;
 }
+
+/**
+ * Lecture publique des tarifs saisonniers.
+ * Utilisée par le calendrier de réservation (mobile / desktop) hors session admin.
+ * Doit rester AVANT requireAdmin.
+ */
+router.get("/season-pricing", async (_req, res) => {
+  try {
+    const db = await getDb();
+    if (!db) return res.status(500).json({ error: "Base de données non disponible" });
+    const [row] = await db.select().from(config).where(eq(config.cle, SEASON_PRICING_KEY)).limit(1);
+    const parsed = row?.valeur ? normalizeSeasonPricing(JSON.parse(row.valeur)) : DEFAULT_SEASON_PRICING;
+    return res.json(parsed);
+  } catch (error: any) {
+    return res.status(500).json({ error: mapDbError(error, "Erreur lecture tarifs saisonniers") });
+  }
+});
+
+router.use(requireAdmin);
 
 router.get("/crew", async (_req, res) => {
   try {
@@ -294,18 +312,6 @@ router.put("/inventory", async (req, res) => {
     return res.json({ success: true, ...normalized });
   } catch (error: any) {
     return res.status(500).json({ error: mapDbError(error, "Erreur sauvegarde inventaire") });
-  }
-});
-
-router.get("/season-pricing", async (_req, res) => {
-  try {
-    const db = await getDb();
-    if (!db) return res.status(500).json({ error: "Base de données non disponible" });
-    const [row] = await db.select().from(config).where(eq(config.cle, SEASON_PRICING_KEY)).limit(1);
-    const parsed = row?.valeur ? normalizeSeasonPricing(JSON.parse(row.valeur)) : DEFAULT_SEASON_PRICING;
-    return res.json(parsed);
-  } catch (error: any) {
-    return res.status(500).json({ error: mapDbError(error, "Erreur lecture tarifs saisonniers") });
   }
 });
 
