@@ -4,6 +4,7 @@ import { SignJWT } from "jose";
 import { getDb } from "../db";
 import { charterSlots, customers, disponibilites, reservations } from "../../drizzle/schema";
 import { notifyOwner } from "../_core/notification";
+import { sendNewReservationRequestEmail } from "../_core/reservationRequestEmail";
 import { requireAdmin } from "../_core/authz";
 import { generateCustomerPassword, hashCustomerPassword, sendCustomerPasswordEmail } from "../_core/customerPassword";
 import { ENV } from "../_core/env";
@@ -567,22 +568,48 @@ router.post("/request", async (req, res) => {
       traversee: "Traversée Atlantique",
     };
 
+    const storedDateDebut = isSimpleRequest ? new Date(parsedDateDebut) : normalizedSchedule.startDate;
+    const storedDateFin = isSimpleRequest ? new Date(parsedDateFin) : normalizedSchedule.endDate;
+    const clientLabel = [prenomClient, nomClient].filter(Boolean).join(" ").trim() || nomClient;
+
+    if (!isAdminRequester) {
+      try {
+        await sendNewReservationRequestEmail({
+          reservationId,
+          nomClient,
+          prenomClient,
+          emailClient,
+          telClient,
+          nbPersonnes: parsedNbPersonnes,
+          destination: finalDestination,
+          formuleLabel: formuleLabels[finalFormule] || finalFormule,
+          typeLabel: typeResLabel,
+          dateDebut: storedDateDebut,
+          dateFin: storedDateFin,
+          montantEuros: (finalMontantTotal / 100).toLocaleString("fr-FR"),
+          message,
+        });
+      } catch (mailError: any) {
+        console.error("[Reservations] Mail nouvelle demande non envoyé:", mailError?.message || mailError);
+      }
+    }
+
     try {
       await notifyOwner({
-        title: `Nouvelle demande de réservation — ${nomClient}`,
+        title: `Nouvelle demande de réservation — ${clientLabel}`,
         content: `
 Nouvelle demande reçue :
 
-**Client:** ${nomClient}
+**Client:** ${clientLabel}
 **Email:** ${emailClient}
 **Téléphone:** ${telClient || "Non fourni"}
-**Nombre de personnes:** ${nbPersonnes}
+**Nombre de personnes:** ${parsedNbPersonnes}
 
 **Croisière:**
 - Destination: ${finalDestination}
 - Formule: ${formuleLabels[finalFormule] || finalFormule}
 - Type: ${typeResLabel}
-- Dates: ${new Date(dateDebut).toLocaleDateString("fr-FR")} → ${new Date(dateFin).toLocaleDateString("fr-FR")}
+- Dates: ${storedDateDebut.toLocaleDateString("fr-FR")} → ${storedDateFin.toLocaleDateString("fr-FR")}
 - Montant estimé: ${(finalMontantTotal / 100).toLocaleString("fr-FR")} €
 
 **Message:** ${message || "Aucun message"}
