@@ -78,6 +78,13 @@
       "when": 1778091000000,
       "tag": "0010_soiree_charter_product",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1778092000000,
+      "tag": "0011_journee_guadeloupe_and_agencies",
+      "breakpoints": true
     }
   ]
 }

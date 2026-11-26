@@ -17,7 +17,7 @@ async function main() {
       DO $$
       BEGIN
         IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'charter_product') THEN
-          CREATE TYPE "public"."charter_product" AS ENUM ('med', 'caraibes', 'journee', 'soiree', 'transat');
+          CREATE TYPE "public"."charter_product" AS ENUM ('med', 'caraibes', 'journee', 'journee_guadeloupe', 'soiree', 'transat');
         END IF;
       END $$;
     `);
@@ -31,6 +31,7 @@ async function main() {
         "active" boolean DEFAULT true NOT NULL,
         "note" text,
         "publicNote" text,
+        "departurePort" varchar(80),
         "createdAt" timestamp DEFAULT now() NOT NULL,
         "updatedAt" timestamp DEFAULT now() NOT NULL
       );

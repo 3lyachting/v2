@@ -11,7 +11,13 @@ import {
   isReservationBlockingForCharterCalendar,
   rangesOverlapForStay,
 } from "@shared/charterCapacity";
-import { CHARTER_PRODUCTS, isCharterProductCode, type CharterProductCode } from "@shared/charterProduct";
+import {
+  CHARTER_PRODUCTS,
+  isCharterProductCode,
+  isGuadeloupeDeparturePort,
+  isSingleDayPrivateProduct,
+  type CharterProductCode,
+} from "@shared/charterProduct";
 
 const router = Router();
 
@@ -240,9 +246,10 @@ router.get("/blocked-days", async (req, res) => {
           }
         }
       } else {
+        const dayTripWindow = isSingleDayPrivateProduct(productFilter) && slotStartIso !== slotEndIso;
         slotOccupancy[String(slot.id)] = {
-          hasPrivate: overlapping.length > 0,
-          reservedUnits: overlapping.length > 0 ? 1 : 0,
+          hasPrivate: !dayTripWindow && overlapping.length > 0,
+          reservedUnits: !dayTripWindow && overlapping.length > 0 ? 1 : 0,
         };
         if (overlapping.length > 0) {
           for (const r of overlapping) {
@@ -267,6 +274,12 @@ router.get("/blocked-days", async (req, res) => {
 function parseProduct(body: any): CharterProductCode | null {
   const p = body?.product;
   return isCharterProductCode(p) ? p : null;
+}
+
+function parseDeparturePort(product: CharterProductCode, body: any): string | null {
+  if (product !== "journee_guadeloupe") return null;
+  const value = typeof body?.departurePort === "string" ? body.departurePort.trim() : "";
+  return isGuadeloupeDeparturePort(value) ? value : null;
 }
 
 router.post("/", requireAdmin, async (req, res) => {
@@ -300,6 +313,7 @@ router.post("/", requireAdmin, async (req, res) => {
         active: typeof active === "boolean" ? active : true,
         note: typeof note === "string" && note.trim() ? note.trim() : null,
         publicNote: typeof publicNote === "string" && publicNote.trim() ? publicNote.trim() : null,
+        departurePort: parseDeparturePort(product, req.body),
       })
       .returning();
 
@@ -342,6 +356,7 @@ router.put("/:id", requireAdmin, async (req, res) => {
         active: typeof active === "boolean" ? active : true,
         note: typeof note === "string" ? (note.trim() ? note.trim() : null) : undefined,
         publicNote: typeof publicNote === "string" ? (publicNote.trim() ? publicNote.trim() : null) : publicNote === null ? null : undefined,
+        departurePort: parseDeparturePort(product, req.body),
         updatedAt: new Date(),
       })
       .where(eq(charterSlots.id, id))

@@ -69,6 +69,27 @@ export async function ensureBoataroundBookingOrigin(): Promise<void> {
   }
 }
 
+/** Produit journée Guadeloupe, agences commerciales, port de départ. */
+export async function ensureGuadeloupeDayAndAgencies(): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  const statements = [
+    sql`ALTER TYPE "public"."charter_product" ADD VALUE IF NOT EXISTS 'journee_guadeloupe'`,
+    sql`ALTER TYPE "public"."booking_origin" ADD VALUE IF NOT EXISTS 'baptiste'`,
+    sql`ALTER TYPE "public"."booking_origin" ADD VALUE IF NOT EXISTS 'intersail'`,
+    sql`ALTER TYPE "public"."booking_origin" ADD VALUE IF NOT EXISTS 'globesailor'`,
+    sql`ALTER TABLE IF EXISTS "charterSlots" ADD COLUMN IF NOT EXISTS "departurePort" varchar(80)`,
+  ];
+  for (const statement of statements) {
+    try {
+      await db.execute(statement);
+    } catch (e) {
+      console.warn("[Database] ensureGuadeloupeDayAndAgencies:", (e as Error)?.message || e);
+    }
+  }
+  console.log("[Database] journée Guadeloupe et agences commerciales vérifiées.");
+}
+
 export async function ensureSoireeCharterProduct(): Promise<void> {
   const db = await getDb();
   if (!db) return;

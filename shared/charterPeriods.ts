@@ -3,6 +3,7 @@ export type CharterPeriodLike = {
   startIso: string;
   endIso: string;
   publicNote?: string | null;
+  departurePort?: string | null;
 };
 
 /** Retrouve la période charter couvrant une sélection (exacte ou incluse, ex. transat). */

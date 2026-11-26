@@ -112,6 +112,29 @@ describe("reservation policy", () => {
     expect(julyTransat.ok).toBe(false);
   });
 
+  it("allows a Guadeloupe day trip outside the Saturday-week rule", () => {
+    const accepted = validateReservationPolicy({
+      dateDebut: "2026-12-15T00:00:00.000Z",
+      dateFin: "2026-12-15T00:00:00.000Z",
+      destination: "Journée Guadeloupe — Le Gosier",
+      formule: "journee_guadeloupe",
+      charterProduct: "journee_guadeloupe",
+      typeReservation: "bateau_entier",
+      now: new Date("2026-11-01T00:00:00.000Z"),
+    });
+    expect(accepted).toEqual({ ok: true, policy: "guadeloupe_private_daytrip" });
+
+    const rejected = validateReservationPolicy({
+      dateDebut: "2026-12-15T00:00:00.000Z",
+      dateFin: "2026-12-22T00:00:00.000Z",
+      formule: "journee_guadeloupe",
+      charterProduct: "journee_guadeloupe",
+      typeReservation: "bateau_entier",
+      now: new Date("2026-11-01T00:00:00.000Z"),
+    });
+    expect(rejected.ok).toBe(false);
+  });
+
   it("allows transat formula even without transat in destination label", () => {
     const transatByFormule = validateReservationPolicy({
       dateDebut: "2026-11-10T00:00:00.000Z",

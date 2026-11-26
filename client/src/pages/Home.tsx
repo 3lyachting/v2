@@ -802,7 +802,7 @@ function SectionProgramme({ isEnglish = false }: { isEnglish?: boolean }) {
     void loadSeasonPricing();
   }, []);
 
-  const getStartingPrivatePrice = (product: "med" | "caraibes" | "journee" | "soiree", fallback: number) => {
+  const getStartingPrivatePrice = (product: "med" | "caraibes" | "journee" | "journee_guadeloupe" | "soiree", fallback: number) => {
     const row = seasonPricing?.[product];
     const candidates = [row?.highSeasonPrivate, row?.lowSeasonPrivate].filter(
       (value): value is number => typeof value === "number" && Number.isFinite(value) && value > 0
@@ -813,6 +813,7 @@ function SectionProgramme({ isEnglish = false }: { isEnglish?: boolean }) {
   const medFromPrice = getStartingPrivatePrice("med", 14000);
   const caraibesFromPrice = getStartingPrivatePrice("caraibes", 14000);
   const journeeFromPrice = getStartingPrivatePrice("journee", 1000);
+  const guadeloupeFromPrice = getStartingPrivatePrice("journee_guadeloupe", 1000);
   const soireeFromPrice = getStartingPrivatePrice("soiree", 580);
   const formatPrice = (value: number) => value.toLocaleString("fr-FR");
 
@@ -924,6 +925,13 @@ function SectionProgramme({ isEnglish = false }: { isEnglish?: boolean }) {
                     items: ["Periods: April, May and September", "Paddle, Kayak, Snorkeling", "2 underwater scooters (optional)", "1 electric paddle motor (optional)"],
                   },
                   {
+                    titre: "Guadeloupe Day Trip",
+                    prix: `From €${formatPrice(guadeloupeFromPrice)} all-inclusive · full boat`,
+                    desc: "Private day from Le Gosier, Sainte-Anne or Deshaies: sailing, swimming, Marie-Galante, Les Saintes, hen parties and evenings.",
+                    color: "#0f6e62",
+                    items: ["Departure: Le Gosier, Sainte-Anne or Deshaies", "Sailing and swimming", "Marie-Galante & Les Saintes", "Hen parties and evenings"],
+                  },
+                  {
                     titre: "Sunset Evening La Ciotat",
                     prix: `From €${formatPrice(soireeFromPrice)} all-inclusive · full boat`,
                     desc: "Private sunset cruise along the Calanques and La Ciotat bay.",
@@ -960,6 +968,13 @@ function SectionProgramme({ isEnglish = false }: { isEnglish?: boolean }) {
                     desc: "Programme: La Ciotat → Cassis (plage de l'Arène) → retour",
                     color: "#1f5f70",
                     items: ["Périodes: avril, mai et septembre", "Paddle, Kayak, Snorkeling", "2 scooters sous-marins (en option)", "1 moteur électrique paddle (en option)"],
+                  },
+                  {
+                    titre: "Journée Guadeloupe",
+                    prix: `À partir de ${formatPrice(guadeloupeFromPrice)}€ tout inclus · bateau entier`,
+                    desc: "Journée privative au départ du Gosier, de Sainte-Anne ou de Deshaies : voile, baignade, Marie-Galante, Les Saintes, EVJF et soirées.",
+                    color: "#0f6e62",
+                    items: ["Départ : Le Gosier, Sainte-Anne ou Deshaies", "Voile et baignade", "Marie-Galante et Les Saintes", "EVJF et soirées"],
                   },
                   {
                     titre: "Soirée coucher de soleil La Ciotat",
@@ -1132,7 +1147,7 @@ function SectionCalendrier({ isEnglish = false }: { isEnglish?: boolean }) {
   const [product, setProduct] = useState<CharterProductCode>("med");
   const [dayAvailability, setDayAvailability] = useState<Set<string> | null>(null);
   const [blockedDays, setBlockedDays] = useState<Set<string>>(new Set());
-  const [charterPeriods, setCharterPeriods] = useState<Array<{ id: number; startIso: string; endIso: string; publicNote?: string | null }>>([]);
+  const [charterPeriods, setCharterPeriods] = useState<Array<{ id: number; startIso: string; endIso: string; publicNote?: string | null; departurePort?: string | null }>>([]);
   const [slotOccupancy, setSlotOccupancy] = useState<Record<string, { reservedUnits: number; hasPrivate: boolean }>>({});
 
   const loadSlots = useCallback(async () => {
@@ -1156,7 +1171,7 @@ function SectionCalendrier({ isEnglish = false }: { isEnglish?: boolean }) {
       if (!slotsRes.ok) {
         return;
       }
-      const rows = (await slotsRes.json()) as { id: number; debut: string; fin: string; active: boolean; publicNote?: string | null }[];
+      const rows = (await slotsRes.json()) as { id: number; debut: string; fin: string; active: boolean; publicNote?: string | null; departurePort?: string | null }[];
       const blockedPayload = blockedDaysRes.ok
         ? ((await blockedDaysRes.json()) as {
             days?: string[];
@@ -1166,14 +1181,14 @@ function SectionCalendrier({ isEnglish = false }: { isEnglish?: boolean }) {
       const blockedDays = blockedPayload?.days || [];
       setBlockedDays(new Set(blockedDays.map((d) => String(d || "").slice(0, 10))));
       setSlotOccupancy(blockedPayload?.slotOccupancy && typeof blockedPayload.slotOccupancy === "object" ? blockedPayload.slotOccupancy : {});
-      const periods: Array<{ id: number; startIso: string; endIso: string; publicNote?: string | null }> = [];
+      const periods: Array<{ id: number; startIso: string; endIso: string; publicNote?: string | null; departurePort?: string | null }> = [];
       const s = new Set<string>();
       for (const r of rows) {
         if (r.active === false) continue;
         const startIso = String(r.debut ?? "").slice(0, 10);
         const endIso = String(r.fin ?? "").slice(0, 10);
         if (/^\d{4}-\d{2}-\d{2}$/.test(startIso) && /^\d{4}-\d{2}-\d{2}$/.test(endIso) && startIso <= endIso) {
-          periods.push({ id: r.id, startIso, endIso, publicNote: r.publicNote || null });
+          periods.push({ id: r.id, startIso, endIso, publicNote: r.publicNote || null, departurePort: r.departurePort || null });
         }
         for (const d of expandCharterSlotDays(r.debut, r.fin)) s.add(d);
       }
@@ -1226,7 +1241,7 @@ function SectionCalendrier({ isEnglish = false }: { isEnglish?: boolean }) {
         <Reveal delay={0.05}>
           <div className="mx-auto mb-6 max-w-6xl">
             <div className="mb-5 flex flex-wrap justify-center gap-3">
-              {(["journee", "soiree", "med", "transat", "caraibes"] as CharterProductCode[]).map((p) => {
+              {(["journee", "journee_guadeloupe", "soiree", "med", "transat", "caraibes"] as CharterProductCode[]).map((p) => {
                 const active = p === product;
                 return (
                   <button
@@ -1601,6 +1616,7 @@ function SectionContact({ isEnglish = false }: { isEnglish?: boolean }) {
                       <option value="transatlantique">{isEnglish ? "Transatlantic" : "Transatlantique"}</option>
                       <option value="croisiere_caraibes">{isEnglish ? "Caribbean Week" : "Semaine Caraïbes"}</option>
                       <option value="journee_privee">{isEnglish ? "Day Trip La Ciotat - Cassis" : "Journée privative La Ciotat - Cassis"}</option>
+                      <option value="journee_guadeloupe">{isEnglish ? "Guadeloupe Day Trip" : "Journée Guadeloupe"}</option>
                       <option value="soiree_coucher_soleil">{isEnglish ? "Sunset Evening La Ciotat" : "Soirée coucher de soleil La Ciotat"}</option>
                     </select>
                   </div>

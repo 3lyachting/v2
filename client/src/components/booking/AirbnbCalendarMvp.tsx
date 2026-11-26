@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
-import { CHARTER_PRODUCT_LABELS, charterProductFormule, charterProductLabel, isSingleDayPrivateProduct, type CharterProductCode } from "@shared/charterProduct";
+import { charterProductDestination, charterProductFormule, charterProductLabel, isSingleDayPrivateProduct, type CharterProductCode } from "@shared/charterProduct";
 import { getCharterHighSeasonError } from "@shared/charterWeekPolicy";
 import { getProductFromDisponibilite } from "@shared/calendarSelection";
 import { findCharterPeriodForRange } from "@shared/charterPeriods";
@@ -35,6 +35,7 @@ const DEFAULT_PRIVATE_WEEKLY_PRICE: Record<Exclude<CharterProductCode, "transat"
   med: 14000,
   caraibes: 14000,
   journee: 1000,
+  journee_guadeloupe: 1000,
   soiree: 580,
 };
 
@@ -135,7 +136,7 @@ export default function AirbnbCalendarMvp({
   /** Jours explicitement bloqués par des réservations (coloration visuelle prioritaire). */
   blockedDays?: Set<string>;
   /** Périodes publiées (charterSlots) : une réservation = une seule période entière. */
-  charterPeriods?: Array<{ id: number; startIso: string; endIso: string; publicNote?: string | null }>;
+  charterPeriods?: Array<{ id: number; startIso: string; endIso: string; publicNote?: string | null; departurePort?: string | null }>;
   /** Occupation cabines / privatif par id de période (API blocked-days). */
   slotOccupancy?: Record<string, { reservedUnits: number; hasPrivate: boolean }>;
 }) {
@@ -241,6 +242,15 @@ export default function AirbnbCalendarMvp({
     if (dayAvailability === null || !dayAvailability.has(iso)) {
       return;
     }
+    if (isSingleDayPrivateProduct(product)) {
+      if (charterPeriods.length > 0) {
+        const matched = charterPeriods.find((slot) => iso >= slot.startIso && iso <= slot.endIso);
+        if (!matched) return;
+      }
+      setStartDate(iso);
+      setEndDate(iso);
+      return;
+    }
     if (charterPeriods.length > 0) {
       const matched = charterPeriods.find((slot) => iso >= slot.startIso && iso <= slot.endIso);
       if (matched) {
@@ -331,8 +341,9 @@ export default function AirbnbCalendarMvp({
             ? ""
             : "";
 
-  const highSeasonError = getCharterHighSeasonError(startDate, endDate, selectionMode, { isEnglish });
   const isDayTrip = isSingleDayPrivateProduct(product);
+  const highSeasonError =
+    product === "journee_guadeloupe" ? null : getCharterHighSeasonError(startDate, endDate, selectionMode, { isEnglish });
   const isTransat = product === "transat";
   const canChooseCabine = !isDayTrip;
 
@@ -460,12 +471,12 @@ export default function AirbnbCalendarMvp({
 
     const reservationType =
       reservationMode === "priva" ? "bateau_entier" : isTransat ? "place" : "cabine";
-    const formule = charterProductFormule(product);
-    const destination = CHARTER_PRODUCT_LABELS[product];
     const selectedSlot =
       startDate && (endDate || startDate)
         ? findCharterPeriodForRange(charterPeriods, startDate, endDate || startDate)
         : null;
+    const formule = charterProductFormule(product);
+    const destination = charterProductDestination(product, selectedSlot?.departurePort);
     const query = new URLSearchParams({
       produit: product,
       destination,
@@ -842,9 +853,13 @@ export default function AirbnbCalendarMvp({
           )}
           {charterPeriods.length === 0 && (
             <p className="pt-2 text-xs text-slate-600">
-              {isEnglish
-                ? "Step 1: click an available date. The full availability slot is selected automatically (no partial range)."
-                : "Étape 1 : cliquez sur un jour disponible. La période complète de la disponibilité est sélectionnée automatiquement (pas de sous-plage)."}
+              {isDayTrip
+                ? isEnglish
+                  ? "Day trips: once a period is published, click one day inside it."
+                  : "Journée : dès qu'une période est publiée, cliquez un jour à l'intérieur."
+                : isEnglish
+                  ? "Step 1: click an available date. The full availability slot is selected automatically (no partial range)."
+                  : "Étape 1 : cliquez sur un jour disponible. La période complète de la disponibilité est sélectionnée automatiquement (pas de sous-plage)."}
             </p>
           )}
         </div>

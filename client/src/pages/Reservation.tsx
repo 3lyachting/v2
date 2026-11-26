@@ -4,7 +4,7 @@ import { Anchor, ArrowLeft, Calendar, Check, Send, Shield, Users } from "lucide-
 import { inferSlotType, isTransatType } from "@shared/slotRules";
 import { computeReservedUnits } from "@shared/charterCapacity";
 
-type FormuleKey = "croisiere_mediterranee" | "transatlantique" | "croisiere_caraibes" | "journee_privee" | "soiree_coucher_soleil";
+type FormuleKey = "croisiere_mediterranee" | "transatlantique" | "croisiere_caraibes" | "journee_privee" | "journee_guadeloupe" | "soiree_coucher_soleil";
 type TypeReservation = "bateau_entier" | "cabine" | "place";
 type Statut = "disponible" | "reserve" | "option" | "ferme";
 
@@ -31,7 +31,7 @@ type IcalEvent = {
   destination: string;
 };
 
-type SeasonPricingProduct = "med" | "transat" | "caraibes" | "journee" | "soiree";
+type SeasonPricingProduct = "med" | "transat" | "caraibes" | "journee" | "journee_guadeloupe" | "soiree";
 
 type ProductSeasonPricing = {
   highSeasonPerPassenger: number | null;
@@ -47,6 +47,7 @@ const FORMULES: Record<FormuleKey, { label: string; labelEn: string; maxPers: nu
   transatlantique: { label: "Transatlantique", labelEn: "Transatlantic", maxPers: 8, description: "Traversées océaniques", descriptionEn: "Ocean crossings", defaultDuration: 10 },
   croisiere_caraibes: { label: "Croisières Caraïbes", labelEn: "Caribbean Cruises", maxPers: 8, description: "Grenadines au départ de Fort-de-France", descriptionEn: "Grenadines from Fort-de-France", defaultDuration: 7 },
   journee_privee: { label: "Journée privative", labelEn: "Private Day Trip", maxPers: 12, description: "La Ciotat - Cassis (plage de l'Arène) - retour", descriptionEn: "La Ciotat - Cassis (Arène beach) - return", defaultDuration: 1 },
+  journee_guadeloupe: { label: "Journée Guadeloupe", labelEn: "Guadeloupe Day Trip", maxPers: 12, description: "Le Gosier, Sainte-Anne ou Deshaies — voile, baignade, Marie-Galante, Les Saintes, EVJF, soirées", descriptionEn: "Le Gosier, Sainte-Anne or Deshaies — sailing, swimming, Marie-Galante, Les Saintes, hen parties, evenings", defaultDuration: 1 },
   soiree_coucher_soleil: { label: "Soirée coucher de soleil", labelEn: "Sunset Evening", maxPers: 12, description: "Croisière privative au coucher du soleil — La Ciotat", descriptionEn: "Private sunset cruise — La Ciotat", defaultDuration: 1 },
 };
 
@@ -54,6 +55,7 @@ const FORMULE_BY_PRODUCT: Record<string, FormuleKey> = {
   med: "croisiere_mediterranee",
   caraibes: "croisiere_caraibes",
   journee: "journee_privee",
+  journee_guadeloupe: "journee_guadeloupe",
   soiree: "soiree_coucher_soleil",
   transat: "transatlantique",
 };
@@ -63,6 +65,7 @@ const DEFAULT_SEASON_PRICING: SeasonPricingConfig = {
   transat: { highSeasonPerPassenger: null, lowSeasonPerPassenger: null, highSeasonPrivate: null, lowSeasonPrivate: null },
   caraibes: { highSeasonPerPassenger: null, lowSeasonPerPassenger: null, highSeasonPrivate: null, lowSeasonPrivate: null },
   journee: { highSeasonPerPassenger: null, lowSeasonPerPassenger: null, highSeasonPrivate: null, lowSeasonPrivate: null },
+  journee_guadeloupe: { highSeasonPerPassenger: null, lowSeasonPerPassenger: null, highSeasonPrivate: null, lowSeasonPrivate: null },
   soiree: { highSeasonPerPassenger: null, lowSeasonPerPassenger: null, highSeasonPrivate: null, lowSeasonPrivate: null },
 };
 
@@ -97,6 +100,7 @@ function toSeasonPricingProduct(formule: FormuleKey): SeasonPricingProduct {
   if (formule === "croisiere_mediterranee") return "med";
   if (formule === "croisiere_caraibes") return "caraibes";
   if (formule === "journee_privee") return "journee";
+  if (formule === "journee_guadeloupe") return "journee_guadeloupe";
   if (formule === "soiree_coucher_soleil") return "soiree";
   return "transat";
 }
@@ -166,7 +170,7 @@ export default function Reservation() {
 
   const formule = FORMULES[formuleKey];
   const isTransat = formuleKey === "transatlantique";
-  const isJournee = formuleKey === "journee_privee";
+  const isJournee = formuleKey === "journee_privee" || formuleKey === "journee_guadeloupe";
   const isSoiree = formuleKey === "soiree_coucher_soleil";
   const isShortPrivate = isJournee || isSoiree;
   const searchParams = useMemo(() => new URLSearchParams(window.location.search), []);
@@ -366,7 +370,7 @@ export default function Reservation() {
     [disponibilites, selectedStart]
   );
 
-  const destination = pricingDispo?.destination || "Méditerranée";
+  const destination = searchParams.get("destination") || pricingDispo?.destination || "Méditerranée";
   const pricingSlotType = pricingDispo ? inferSlotType(pricingDispo as any) : "other";
   const isTransatSelection = isTransatType(pricingSlotType);
   const urlMontantTotalEur = Number(searchParams.get("montant") || "");

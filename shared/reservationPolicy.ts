@@ -1,7 +1,15 @@
 import { inferSlotType, isTransatType } from "./slotRules";
 
 export type ReservationPolicyResult =
-  | { ok: true; policy: "weekly_saturday" | "april_may_private_daytrip" | "summer_weekly_private_or_cabine" | "transat_window" }
+  | {
+      ok: true;
+      policy:
+        | "weekly_saturday"
+        | "april_may_private_daytrip"
+        | "summer_weekly_private_or_cabine"
+        | "transat_window"
+        | "guadeloupe_private_daytrip";
+    }
   | { ok: false; reason: string };
 
 function toIsoDay(value: string | Date) {
@@ -113,6 +121,26 @@ export function validateReservationPolicy(input: {
   }
   if (isTransatBooking && insideTransatWindow) {
     return { ok: true, policy: "transat_window" };
+  }
+
+  const formule = String(input.formule || "").toLowerCase();
+  const charterProduct = String(input.charterProduct || "").toLowerCase();
+  const destinationFold = String(input.destination || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+  const isGuadeloupeDayTrip =
+    charterProduct === "journee_guadeloupe" ||
+    formule === "journee_guadeloupe" ||
+    destinationFold.includes("journee guadeloupe");
+  if (isGuadeloupeDayTrip) {
+    if (startIso !== endIso) {
+      return { ok: false, reason: "La journée Guadeloupe se réserve sur une seule journée." };
+    }
+    if (input.typeReservation && input.typeReservation !== "bateau_entier") {
+      return { ok: false, reason: "La journée Guadeloupe est uniquement en privatisation." };
+    }
+    return { ok: true, policy: "guadeloupe_private_daytrip" };
   }
 
   const isCaribbeanBooking =

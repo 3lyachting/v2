@@ -4,6 +4,7 @@ import { Calendar, ChevronLeft, ChevronRight, Plus, Edit2, Trash2, AlertCircle, 
 import { toast } from "sonner";
 import { inferSlotType } from "@shared/slotRules";
 import { reservationScheduleLines, RESERVATION_KIND_STYLES } from "@shared/reservationDisplay";
+import { bookingOriginLabel, type BookingOrigin } from "@shared/bookingOrigin";
 
 interface Disponibilite {
   id: number;
@@ -39,7 +40,7 @@ interface Reservation {
   montantPaye?: number;
   statutPaiement?: "en_attente" | "paye" | "echec" | "rembourse";
   typePaiement?: "acompte" | "complet";
-  bookingOrigin?: "direct" | "clicknboat" | "skippair" | "samboat" | "boataround";
+  bookingOrigin?: BookingOrigin;
   message?: string | null;
   workflowStatut?: string;
   typeReservation?: string;
@@ -325,13 +326,7 @@ export default function AdminCalendarView({
     return reservationsByDate.get(selectedDayKey) || [];
   }, [reservationsByDate, selectedDayKey]);
 
-  const getOriginLabel = (origin?: Reservation["bookingOrigin"]) => {
-    if (origin === "clicknboat") return "ClicknBoat";
-    if (origin === "skippair") return "Skippair";
-    if (origin === "samboat") return "Samboat";
-    if (origin === "boataround") return "BoatAround";
-    return "Direct";
-  };
+  const getOriginLabel = (origin?: Reservation["bookingOrigin"]) => bookingOriginLabel(origin);
 
   const getRequestStatusLabel = (status?: Reservation["requestStatus"]) => {
     if (status === "en_cours") return "En cours";

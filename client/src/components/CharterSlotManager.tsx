@@ -5,9 +5,15 @@ import {
   CHARTER_PRODUCT_DEFAULT_HOURS,
   CHARTER_PRODUCT_LABELS,
   CHARTER_PRODUCTS,
+  GUADELOUPE_DAY_PUBLIC_NOTE,
+  GUADELOUPE_DEPARTURE_PORTS,
+  charterProductDestination,
   charterProductFormule,
+  isSingleDayPrivateProduct,
   type CharterProductCode,
+  type GuadeloupeDeparturePort,
 } from "@shared/charterProduct";
+import { BOOKING_ORIGIN_OPTIONS, type BookingOrigin } from "@shared/bookingOrigin";
 import {
   aggregateCruiseCabineOccupancy,
   CHARTER_CRUISE_CABIN_UNITS,
@@ -36,6 +42,7 @@ type SlotRow = {
   active: boolean;
   note: string | null;
   publicNote: string | null;
+  departurePort?: string | null;
 };
 
 type ReservationRow = {
@@ -62,7 +69,6 @@ type ReservationRow = {
   internalComment?: string | null;
 };
 
-type BookingOrigin = "direct" | "clicknboat" | "skippair" | "samboat" | "boataround";
 
 type ReservationEditState = {
   id: number;
@@ -120,13 +126,6 @@ type CalendarDispo = {
   cabinesReservees?: number;
 };
 
-const BOOKING_ORIGIN_OPTIONS: Array<{ value: BookingOrigin; label: string }> = [
-  { value: "direct", label: "Direct" },
-  { value: "clicknboat", label: "ClicknBoat" },
-  { value: "skippair", label: "Skippair" },
-  { value: "samboat", label: "Samboat" },
-  { value: "boataround", label: "BoatAround" },
-];
 
 function toInputDateFromApi(iso: string) {
   return iso.slice(0, 10);
@@ -321,6 +320,7 @@ export default function CharterSlotManager({
   const [calendarMode, setCalendarMode] = useState<"list" | "calendar">("calendar");
   const [bulkMonth, setBulkMonth] = useState("");
   const [bulkProduct, setBulkProduct] = useState<CharterProductCode>("journee");
+  const [bulkDeparture, setBulkDeparture] = useState<GuadeloupeDeparturePort | "">("");
   const [generatingMonth, setGeneratingMonth] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const slotEditorRef = useRef<HTMLDivElement | null>(null);
@@ -336,8 +336,10 @@ export default function CharterSlotManager({
     montantTotalEur: number;
     message: string;
     bookingOrigin: BookingOrigin;
+    jour: string;
   }>({
     slotId: "",
+    jour: "",
     heureDebut: "10:00",
     heureFin: "16:00",
     nomClient: "",
@@ -356,6 +358,7 @@ export default function CharterSlotManager({
     active: boolean;
     note: string;
     publicNote: string;
+    departurePort: GuadeloupeDeparturePort | "";
   }>({
     product: "med",
     debut: "",
@@ -363,6 +366,7 @@ export default function CharterSlotManager({
     active: true,
     note: "",
     publicNote: "",
+    departurePort: "",
   });
   const load = async () => {
     try {
@@ -408,7 +412,7 @@ export default function CharterSlotManager({
 
   const startCreate = () => {
     setEditingId(null);
-    setForm({ product: "med", debut: "", fin: "", active: true, note: "", publicNote: "" });
+    setForm({ product: "med", debut: "", fin: "", active: true, note: "", publicNote: "", departurePort: "" });
   };
 
   const startEdit = (r: SlotRow) => {
@@ -420,6 +424,9 @@ export default function CharterSlotManager({
       active: r.active,
       note: r.note || "",
       publicNote: r.publicNote || "",
+      departurePort: (GUADELOUPE_DEPARTURE_PORTS.some((port) => port.value === r.departurePort)
+        ? r.departurePort
+        : "") as GuadeloupeDeparturePort | "",
     });
     focusSlotEditor();
   };
@@ -439,6 +446,7 @@ export default function CharterSlotManager({
         active: form.active,
         note: form.note.trim() || null,
         publicNote: form.publicNote.trim() || null,
+        departurePort: form.product === "journee_guadeloupe" ? form.departurePort || null : null,
       };
       const res = await fetch(
         editingId ? apiUrl(`/api/charter-slots/${editingId}`) : apiUrl("/api/charter-slots"),
@@ -457,7 +465,7 @@ export default function CharterSlotManager({
         setMessage("Période mise à jour (texte public enregistré).");
       } else if (!savedId) {
         setEditingId(null);
-        setForm({ product: form.product, debut: "", fin: "", active: true, note: "", publicNote: "" });
+        setForm({ product: form.product, debut: "", fin: "", active: true, note: "", publicNote: "", departurePort: form.departurePort });
         setMessage("Période enregistrée.");
       } else {
         setMessage("Période mise à jour.");
@@ -505,7 +513,8 @@ export default function CharterSlotManager({
             fin: iso,
             active: true,
             note: `Génération mensuelle ${bulkMonth}`,
-            publicNote: null,
+            publicNote: bulkProduct === "journee_guadeloupe" ? GUADELOUPE_DAY_PUBLIC_NOTE : null,
+            departurePort: bulkProduct === "journee_guadeloupe" ? bulkDeparture || null : null,
           }),
         });
         if (res.ok) {
@@ -547,23 +556,32 @@ export default function CharterSlotManager({
         setMessage("Période introuvable.");
         return;
       }
+      const slotStart = selected.debut.slice(0, 10);
+      const slotEnd = selected.fin.slice(0, 10);
+      const singleDay = isSingleDayPrivateProduct(selected.product);
+      const bookedDay = singleDay ? manualReservation.jour || slotStart : slotStart;
+      if (singleDay && (bookedDay < slotStart || bookedDay > slotEnd)) {
+        setMessage("Le jour choisi est hors de la période.");
+        setSavingReservation(false);
+        return;
+      }
       const payload = {
         nomClient: manualReservation.nomClient.trim(),
         emailClient: manualReservation.emailClient.trim(),
         telClient: manualReservation.telClient.trim() || null,
         nbPersonnes: Math.max(1, manualReservation.nbPersonnes || 1),
-        typeReservation: manualReservation.typeReservation,
+        typeReservation: singleDay ? "bateau_entier" : manualReservation.typeReservation,
         nbCabines: computeReservedUnits({
-          typeReservation: manualReservation.typeReservation,
+          typeReservation: singleDay ? "bateau_entier" : manualReservation.typeReservation,
           nbPersonnes: manualReservation.nbPersonnes,
-          nbCabines: manualReservation.typeReservation === "bateau_entier" ? 4 : 1,
+          nbCabines: manualReservation.typeReservation === "bateau_entier" || singleDay ? 4 : 1,
         }),
-        dateDebut: combineDateAndTimeToIso(selected.debut.slice(0, 10), manualReservation.heureDebut),
-        dateFin: combineDateAndTimeToIso(selected.fin.slice(0, 10), manualReservation.heureFin),
+        dateDebut: combineDateAndTimeToIso(bookedDay, manualReservation.heureDebut),
+        dateFin: combineDateAndTimeToIso(singleDay ? bookedDay : slotEnd, manualReservation.heureFin),
         heureDebut: manualReservation.heureDebut,
         heureFin: manualReservation.heureFin,
         disponibiliteId: null,
-        destination: CHARTER_PRODUCT_LABELS[selected.product],
+        destination: charterProductDestination(selected.product, selected.departurePort),
         formule: charterProductFormule(selected.product),
         montantTotal: Math.max(100, Math.round((manualReservation.montantTotalEur || 0) * 100)),
         message: manualReservation.message || "Réservation backoffice",
@@ -969,7 +987,7 @@ export default function CharterSlotManager({
           fin: slot.fin,
           statut: computedStatut,
           tarif: null,
-          destination: CHARTER_PRODUCT_LABELS[slot.product],
+          destination: charterProductDestination(slot.product, slot.departurePort),
           note: slot.note,
           notePublique: slot.publicNote,
           createdAt: new Date().toISOString(),
@@ -985,7 +1003,7 @@ export default function CharterSlotManager({
     () =>
       reservations.map((r) => ({
         ...r,
-        bookingOrigin: (r.bookingOrigin as "direct" | "clicknboat" | "skippair" | "samboat" | "boataround" | undefined) || "direct",
+        bookingOrigin: (r.bookingOrigin as BookingOrigin | undefined) || "direct",
         requestStatus: (r.requestStatus as "nouvelle" | "en_cours" | "validee" | "refusee" | "archivee" | undefined) || "nouvelle",
         statutPaiement: (r.statutPaiement as "en_attente" | "paye" | "echec" | "rembourse" | undefined) || "en_attente",
       })),
@@ -1098,6 +1116,20 @@ export default function CharterSlotManager({
                 </option>
               ))}
             </select>
+            {bulkProduct === "journee_guadeloupe" && (
+              <select
+                className="rounded-lg border border-slate-200 px-3 py-2 text-sm"
+                value={bulkDeparture}
+                onChange={(e) => setBulkDeparture(e.target.value as GuadeloupeDeparturePort | "")}
+              >
+                <option value="">Départ au choix</option>
+                {GUADELOUPE_DEPARTURE_PORTS.map((port) => (
+                  <option key={port.value} value={port.value}>
+                    {port.label}
+                  </option>
+                ))}
+              </select>
+            )}
             <button
               type="button"
               onClick={generateMonthDailySlots}
@@ -1342,19 +1374,21 @@ export default function CharterSlotManager({
                     const selected = rows.find((r) => String(r.id) === slotId);
                     if (!selected) return { ...m, slotId };
                     const isSunset = selected.product === "soiree";
-                    const isDayTrip =
-                      selected.product === "journee" || toIsoDay(selected.debut) === toIsoDay(selected.fin);
-                    const hours =
-                      isSunset
-                        ? CHARTER_PRODUCT_DEFAULT_HOURS.soiree
+                    const isDayTrip = isSingleDayPrivateProduct(selected.product);
+                    const hours = isSunset
+                      ? CHARTER_PRODUCT_DEFAULT_HOURS.soiree
+                      : selected.product === "journee_guadeloupe"
+                        ? CHARTER_PRODUCT_DEFAULT_HOURS.journee_guadeloupe
                         : isDayTrip
                           ? CHARTER_PRODUCT_DEFAULT_HOURS.journee
                           : { embark: "15:00", disembark: "10:00" };
                     return {
                       ...m,
                       slotId,
+                      jour: toIsoDay(selected.debut) || "",
                       heureDebut: hours.embark,
                       heureFin: hours.disembark,
+                      typeReservation: isDayTrip ? "bateau_entier" : m.typeReservation,
                     };
                   })
                 }
@@ -1364,10 +1398,23 @@ export default function CharterSlotManager({
                   .filter((r) => r.active)
                   .map((r) => (
                     <option key={r.id} value={r.id}>
-                      {CHARTER_PRODUCT_LABELS[r.product]} · {toFrDate(r.debut)} → {toFrDate(r.fin)}
+                      {charterProductDestination(r.product, r.departurePort)} · {toFrDate(r.debut)} → {toFrDate(r.fin)}
                     </option>
                   ))}
               </select>
+              {isSingleDayPrivateProduct(rows.find((r) => String(r.id) === manualReservation.slotId)?.product) && (
+                <label className="block text-xs font-semibold text-slate-500">
+                  Jour
+                  <input
+                    type="date"
+                    className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm font-normal"
+                    value={manualReservation.jour}
+                    min={rows.find((r) => String(r.id) === manualReservation.slotId)?.debut.slice(0, 10)}
+                    max={rows.find((r) => String(r.id) === manualReservation.slotId)?.fin.slice(0, 10)}
+                    onChange={(e) => setManualReservation((m) => ({ ...m, jour: e.target.value }))}
+                  />
+                </label>
+              )}
               <div className="grid grid-cols-2 gap-2">
                 <input
                   className="rounded-lg border border-slate-200 px-3 py-2"
@@ -1655,7 +1702,8 @@ export default function CharterSlotManager({
           Périodes & produits
         </h2>
         <p className="mt-1 text-slate-600">
-          Une periode = plage de dates (debut a fin) pour l&apos;un des quatre produits. Le site n&apos;affiche que les periodes
+          Une periode = plage de dates (debut a fin) pour un produit. Pour la journée Guadeloupe, le client choisit un jour
+          dans la plage. Le site n&apos;affiche que les periodes
           <span className="font-semibold"> actifs</span>.
         </p>
       </div>
@@ -1682,7 +1730,16 @@ export default function CharterSlotManager({
               <select
                 className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2"
                 value={form.product}
-                onChange={(e) => setForm((f) => ({ ...f, product: e.target.value as CharterProductCode }))}
+                onChange={(e) => {
+                  const product = e.target.value as CharterProductCode;
+                  setForm((f) => ({
+                    ...f,
+                    product,
+                    publicNote:
+                      product === "journee_guadeloupe" && !f.publicNote.trim() ? GUADELOUPE_DAY_PUBLIC_NOTE : f.publicNote,
+                    departurePort: product === "journee_guadeloupe" ? f.departurePort : "",
+                  }));
+                }}
               >
                 {CHARTER_PRODUCTS.map((p) => (
                   <option key={p} value={p}>
@@ -1691,6 +1748,25 @@ export default function CharterSlotManager({
                 ))}
               </select>
             </label>
+            {form.product === "journee_guadeloupe" && (
+              <label className="block">
+                <span className="text-xs font-semibold text-slate-500">Port de départ</span>
+                <select
+                  className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2"
+                  value={form.departurePort}
+                  onChange={(e) =>
+                    setForm((f) => ({ ...f, departurePort: e.target.value as GuadeloupeDeparturePort | "" }))
+                  }
+                >
+                  <option value="">Au choix (Gosier, Sainte-Anne ou Deshaies)</option>
+                  {GUADELOUPE_DEPARTURE_PORTS.map((port) => (
+                    <option key={port.value} value={port.value}>
+                      {port.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
             <div className="grid grid-cols-2 gap-2">
               <label className="block">
                 <span className="text-xs font-semibold text-slate-500">Debut</span>
@@ -1774,7 +1850,7 @@ export default function CharterSlotManager({
                   {rows.map((r) => (
                     <tr key={r.id} className="border-b border-slate-100">
                       <td className="py-2 pr-2 font-medium" style={{ color: BRAND_DEEP }}>
-                        {CHARTER_PRODUCT_LABELS[r.product]}
+                        {charterProductDestination(r.product, r.departurePort)}
                       </td>
                       <td className="py-2 pr-2 text-slate-700">
                         {toFrDate(r.debut)} <span className="text-slate-400">→</span> {toFrDate(r.fin)}

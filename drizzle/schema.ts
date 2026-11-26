@@ -33,12 +33,28 @@ export const reservationRequestStatusEnum = pgEnum("reservation_request_status",
   "refusee",
   "archivee",
 ]);
-export const bookingOriginEnum = pgEnum("booking_origin", ["direct", "clicknboat", "skippair", "samboat", "boataround"]);
+export const bookingOriginEnum = pgEnum("booking_origin", [
+  "direct",
+  "clicknboat",
+  "skippair",
+  "samboat",
+  "boataround",
+  "baptiste",
+  "intersail",
+  "globesailor",
+]);
 export const documentCategoryEnum = pgEnum("document_category", ["identity", "reservation", "boat", "crew", "passenger"]);
 export const esignProviderEnum = pgEnum("esign_provider", ["yousign", "docusign", "other"]);
 
 /** Produit proposé sur un créneau (public + backoffice). Même vocabulaire que `season_pricing_v1`. */
-export const charterProductEnum = pgEnum("charter_product", ["med", "caraibes", "journee", "soiree", "transat"]);
+export const charterProductEnum = pgEnum("charter_product", [
+  "med",
+  "caraibes",
+  "journee",
+  "journee_guadeloupe",
+  "soiree",
+  "transat",
+]);
 
 /** Comptes backoffice créés depuis l’admin (email + mot de passe), en complément des comptes .env et OAuth. */
 export const backofficeLocalAccounts = pgTable("backoffice_local_accounts", {
@@ -336,6 +352,8 @@ export const charterSlots = pgTable(
     active: boolean("active").default(true).notNull(),
     note: text("note"),
     publicNote: text("publicNote"),
+    /** Port de départ pour la journée Guadeloupe : gosier, sainte_anne, deshaies. */
+    departurePort: varchar("departurePort", { length: 80 }),
     createdAt: timestamp("createdAt").defaultNow().notNull(),
     updatedAt: timestamp("updatedAt").defaultNow().notNull(),
   },
