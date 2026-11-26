@@ -2,285 +2,135 @@ import { Router } from "express";
 
 const router = Router();
 
-const DEFAULT_BUSINESS_QUERY = "Sabine Sailing La Ciotat";
 const DEFAULT_PLACE_URL =
   "https://www.google.com/maps/search/?api=1&query=Sabine+Sailing+La+Ciotat";
-/** Total Google Business réel (l’API Places ne renvoie que ~5 textes d’avis max). */
-const FALLBACK_USER_RATINGS_TOTAL = Math.max(
-  1,
-  Number(process.env.GOOGLE_USER_RATINGS_TOTAL || process.env.GOOGLE_REVIEWS_TOTAL || 27) || 27,
-);
-const FALLBACK_RATING = Number(process.env.GOOGLE_PLACE_RATING || 5) || 5;
-const FALLBACK_REVIEWS = [
+
+/** Fiche Google Sabine Sailing, relevée le 26 novembre 2026. Pas d’appel API. */
+const USER_RATINGS_TOTAL = 48;
+const RATING = 5;
+
+const day = (year: number, month: number, date: number) =>
+  Math.floor(Date.UTC(year, month - 1, date) / 1000);
+
+const REVIEWS = [
+  {
+    authorName: "D S",
+    rating: 5,
+    text: "Traversée de la Ciotat à Gibraltar, semaine incroyable à bord de Sabine, avec un capitaine hyper sympa et professionnel, bateau hyper confort, on a très bien mangé, franchement rien à dire, on part avec plein de souvenirs et on a hâte de revenir ! Merci Victor :)",
+    time: day(2026, 10, 23),
+  },
+  {
+    authorName: "Theo De simeis",
+    rating: 5,
+    text: "Excellente expérience de privatisation du bateau à la journée avec Victor. Il connaît les coins sympas autour de Marseille, et fait en sorte que l’expérience corresponde à nos attentes. Prix corrects, et kiff garanti. Je recommande",
+    time: day(2026, 8, 24),
+  },
+  {
+    authorName: "remi benhamou",
+    rating: 5,
+    text: "Nous avons passé une super semaine avec Victor à la découverte de la Corse du Sud ! Le catamaran est très confortable et spacieux. Nous avons particulièrement adoré nous réveiller chaque matin dans un magnifique mouillage différent, avec des paysages incroyables et des eaux turquoise. Victor nous a fait découvrir de superbes endroits tout au long de la semaine. Une expérience dépaysante, conviviale et inoubliable que nous recommandons sans hésiter ! Merci Victor pour cette belle semaine en Corse.",
+    time: day(2026, 8, 18),
+  },
+  {
+    authorName: "benoit poupon",
+    rating: 5,
+    text: "Nous avons passé une semaine formidable de Bastia à Ajaccio en passant par Capraïa, à bord de Sabine, skippé par Victor. C’était top. Sur 7 nuits : 5 au mouillage forain, une sur bouée à Girolata. Je connais bien la Corse, mais vue de la mer c’est autre chose, surtout avec le grand professionnalisme de Victor, son humour et sa bonne humeur. L’ambiance avec les autres hôtes a été fantastique. Dommage que l’on ne puisse pas mettre plus de 5 !",
+    time: day(2026, 8, 2),
+  },
+  {
+    authorName: "Marjorie BONACHERA",
+    rating: 5,
+    text: "Merci à Victor et Romane de nous avoir permis de passer une excellente semaine entre amis en Corse au départ de la Ciotat à bord du merveilleux Sabine. Criques incroyables, rencontre des raies, dauphins et globicéphales, paysages fantastiques et surtout beaucoup de professionnalisme et de bonne humeur. Je recommande sans hésitation.",
+    time: day(2026, 6, 22),
+  },
+  {
+    authorName: "Noëlla D'ANTONI",
+    rating: 5,
+    text: "Une journée absolument exceptionnelle avec Victor ! Nous avons passé un moment inoubliable en catamaran, aussi bien les adultes que les enfants. Tout était parfaitement organisé et l’ambiance était à la fois détendue, conviviale et très sécurisante. Victor est extrêmement agréable, bienveillant et passionné, et la sécurité est sa priorité. Je recommande cette expérience les yeux fermés.",
+    time: day(2026, 6, 18),
+  },
+  {
+    authorName: "jeanfrancois LAMARCHI",
+    rating: 5,
+    text: "Une semaine exceptionnelle en Corse en juin 2026, au départ de La Ciotat, avec un groupe d’amis. Le bateau est très confortable et l’équipage est aux petits soins. Un grand merci à Victor pour son professionnalisme, et à Romane pour sa cuisine. Mouillages idylliques, dauphins et raies. À refaire sans hésiter.",
+    time: day(2026, 6, 14),
+  },
+  {
+    authorName: "Victoria Bataller",
+    rating: 5,
+    text: "Magnifique catamaran. Avec une équipe au top ! Je recommande vivement.",
+    time: day(2026, 5, 28),
+  },
+  {
+    authorName: "Morgane niel",
+    rating: 5,
+    text: "Magnifique journée ! Merci à Victor pour sa gentillesse. Nous sommes venus pour un EVJF et c’était un 10/10. Je vous le recommande les yeux fermés et je ferai appel à lui si nous sommes de retour à Marseille.",
+    time: day(2026, 5, 27),
+  },
+  {
+    authorName: "Florent RIZZATO",
+    rating: 5,
+    text: "Un super moment sur ce magnifique catamaran rénové récemment par Victor et Léa.",
+    time: day(2026, 5, 4),
+  },
+  {
+    authorName: "blondine wocs",
+    rating: 5,
+    text: "C’était vraiment exceptionnel, très accueillant, chaleureux, discret et sympa. Je recommande vivement.",
+    time: day(2026, 5, 2),
+  },
+  {
+    authorName: "caroline osta",
+    rating: 5,
+    text: "Nous avons passé un moment magique sur le catamaran de Victor et Léa. Ils ont été adorables, professionnels, à l’écoute et patients. Vous avez rendu l’anniversaire de mon compagnon inoubliable. Merci à vous !",
+    time: day(2026, 5, 2),
+  },
+  {
+    authorName: "nina",
+    rating: 5,
+    text: "Une belle balade en mer, le skipper est au top. Une journée au petit oignon.",
+    time: day(2026, 4, 23),
+  },
   {
     authorName: "Thierry Leydet",
     rating: 5,
-    text: "Un capitaine a la hauteur, un hote attentif, un confort a bord comme a la maison. Des balades a la voile magiques.",
-    time: 0,
+    text: "Un capitaine à la hauteur, un hôte attentif, un confort à bord comme à la maison ! Des balades à la voile magiques. Merci Victor !!",
+    time: day(2026, 3, 31),
   },
   {
-    authorName: "Florence Ile le",
+    authorName: "Florence Île le",
     rating: 5,
-    text: "Une semaine de reve sur le Sabine en Corse et Sardaigne. Victor est un vrai pro experimente et tres sympa.",
-    time: 0,
+    text: "Une semaine de rêve sur le Sabine en Corse et Sardaigne ! Victor est un vrai pro expérimenté et très sympa en plus. Le catamaran est spacieux et très bien équipé. Les cabines sont plus que confortables. Je recommande !",
+    time: day(2026, 3, 31),
   },
   {
-    authorName: "Benjamin Aburbe",
+    authorName: "benjamin aburbe",
     rating: 5,
-    text: "Superbe visite de criques magnifiques en Corse avec Sabine Sailing. Une tres belle ambiance et des souvenirs incroyables.",
-    time: 0,
+    text: "Merci à Victor pour cette superbe visite de criques magnifiques en Corse avec Sabine Sailing. Un moment magique, une très belle ambiance et des souvenirs incroyables. Je recommande vivement !",
+    time: day(2026, 3, 27),
   },
   {
-    authorName: "Corentin Marteau",
+    authorName: "Bernard Blanc",
     rating: 5,
-    text: "Deux semaines incroyables entre Girolata et La Maddalena. Une experience inoubliable, je recommande a 100%.",
-    time: 0,
+    text: "Une quinzaine de rêve sur Sabine Sailing ! Victor nous a fait découvrir des baies de rêve en Corse et Sardaigne. Victor est un skipper très compétent et rassurant, attentif au bien-être de tous. Le bateau est confortable et très bien équipé. Je recommande sans restriction.",
+    time: day(2026, 3, 27),
   },
 ];
 
-function fallbackPayload(note: string) {
+router.get("/", (_req, res) => {
   const placeId = (process.env.GOOGLE_PLACE_ID || "").trim();
-  return {
+  res.setHeader("Cache-Control", "public, max-age=3600");
+  res.json({
     placeId,
     name: "Sabine Sailing",
-    rating: FALLBACK_RATING,
-    userRatingsTotal: FALLBACK_USER_RATINGS_TOTAL,
+    rating: RATING,
+    userRatingsTotal: USER_RATINGS_TOTAL,
     url: placeId
       ? `https://search.google.com/local/reviews?placeid=${encodeURIComponent(placeId)}`
       : DEFAULT_PLACE_URL,
-    reviews: FALLBACK_REVIEWS,
-    source: "fallback_manual" as const,
-    note,
-  };
-}
-
-router.get("/", async (_req, res) => {
-  try {
-    const apiKey = (process.env.GOOGLE_MAPS_API_KEY || "").trim();
-    if (!apiKey) {
-      return res.json(fallbackPayload("GOOGLE_MAPS_API_KEY manquante"));
-    }
-
-    const headers = {
-      "Content-Type": "application/json",
-      "X-Goog-Api-Key": apiKey,
-    };
-
-    type PlaceNewDetailsResponse = {
-      id?: string;
-      displayName?: { text?: string };
-      rating?: number;
-      userRatingCount?: number;
-      googleMapsUri?: string;
-      reviews?: Array<{
-        authorAttribution?: { displayName?: string };
-        rating?: number;
-        text?: { text?: string; languageCode?: string };
-        publishTime?: string;
-      }>;
-    };
-
-    type PlaceNewSearchResponse = {
-      places?: Array<{
-        id?: string;
-      }>;
-    };
-
-    const fetchJson = async <T>(url: string, init?: RequestInit): Promise<T> => {
-      const response = await fetch(url, init);
-      const body = await response.text();
-      if (!response.ok) {
-        throw new Error(`Google Places request failed (${response.status}): ${body.slice(0, 220)}`);
-      }
-      return JSON.parse(body) as T;
-    };
-
-    const searchPlaceIdNew = async (): Promise<string> => {
-      const payload = await fetchJson<PlaceNewSearchResponse>(
-        "https://places.googleapis.com/v1/places:searchText",
-        {
-          method: "POST",
-          headers: {
-            ...headers,
-            "X-Goog-FieldMask": "places.id",
-          },
-          body: JSON.stringify({
-            textQuery: DEFAULT_BUSINESS_QUERY,
-            languageCode: "fr",
-            maxResultCount: 1,
-          }),
-        }
-      );
-      return payload.places?.[0]?.id || "";
-    };
-
-    const getPlaceDetailsNew = async (placeId: string): Promise<PlaceNewDetailsResponse> => {
-      return fetchJson<PlaceNewDetailsResponse>(`https://places.googleapis.com/v1/places/${placeId}`, {
-        method: "GET",
-        headers: {
-          ...headers,
-          "X-Goog-FieldMask":
-            "id,displayName,rating,userRatingCount,googleMapsUri,reviews.authorAttribution,reviews.rating,reviews.text,reviews.publishTime",
-        },
-      });
-    };
-
-    const callGooglePlacesLegacy = async <T>(
-      endpoint: "textsearch" | "details",
-      params: Record<string, string>
-    ): Promise<T> => {
-      const url = new URL(`https://maps.googleapis.com/maps/api/place/${endpoint}/json`);
-      url.searchParams.set("key", apiKey);
-      for (const [key, value] of Object.entries(params)) {
-        if (value) url.searchParams.set(key, value);
-      }
-      const response = await fetch(url.toString());
-      if (!response.ok) {
-        throw new Error(`Google Places legacy request failed (${response.status})`);
-      }
-      return (await response.json()) as T;
-    };
-
-    let placeId = (process.env.GOOGLE_PLACE_ID || "").trim();
-    try {
-      if (!placeId) {
-        placeId = await searchPlaceIdNew();
-      }
-
-      if (placeId) {
-        const detailsNew = await getPlaceDetailsNew(placeId);
-        const mappedReviewsNew = (detailsNew.reviews || []).map(review => {
-          const publishEpoch = review.publishTime ? Math.floor(new Date(review.publishTime).getTime() / 1000) : 0;
-          return {
-            authorName: review.authorAttribution?.displayName || "Client Google",
-            rating: review.rating || 0,
-            text: review.text?.text || "",
-            languageCode: String(review.text?.languageCode || "").toLowerCase(),
-            time: Number.isFinite(publishEpoch) ? publishEpoch : 0,
-          };
-        });
-        const reviewsNew = mappedReviewsNew.map(({ languageCode: _languageCode, ...review }) => review);
-
-        if ((detailsNew.displayName?.text || "").trim()) {
-          const total =
-            Number(detailsNew.userRatingCount || 0) > 0
-              ? Number(detailsNew.userRatingCount)
-              : FALLBACK_USER_RATINGS_TOTAL;
-          return res.json({
-            placeId: detailsNew.id || placeId,
-            name: detailsNew.displayName?.text || "Sabine Sailing",
-            rating: detailsNew.rating || FALLBACK_RATING,
-            userRatingsTotal: total,
-            url:
-              detailsNew.googleMapsUri ||
-              (placeId
-                ? `https://search.google.com/local/reviews?placeid=${encodeURIComponent(placeId)}`
-                : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
-                    detailsNew.displayName?.text || DEFAULT_BUSINESS_QUERY
-                  )}`),
-            reviews: reviewsNew.length ? reviewsNew : FALLBACK_REVIEWS,
-            source: "google_places_new",
-          });
-        }
-      }
-    } catch {
-      // If Places API (New) is not enabled yet, continue with legacy API.
-    }
-
-    // Legacy fallback for projects not yet migrated in Google Cloud.
-    type LegacyTextSearchResponse = {
-      status?: string;
-      results?: Array<{ place_id?: string }>;
-    };
-    type LegacyDetailsResponse = {
-      status?: string;
-      result?: {
-        place_id?: string;
-        name?: string;
-        rating?: number;
-        user_ratings_total?: number;
-        url?: string;
-        reviews?: Array<{
-          author_name?: string;
-          rating?: number;
-          text?: string;
-          language?: string;
-          time?: number;
-        }>;
-      };
-    };
-
-    const resolvePlaceIdFromSearchLegacy = async (): Promise<string> => {
-      const search = await callGooglePlacesLegacy<LegacyTextSearchResponse>("textsearch", {
-        query: DEFAULT_BUSINESS_QUERY,
-        language: "fr",
-      });
-      if (search.status !== "OK" || !search.results?.length) {
-        return "";
-      }
-      return search.results?.[0]?.place_id || "";
-    };
-
-    if (!placeId) {
-      placeId = await resolvePlaceIdFromSearchLegacy();
-    }
-
-    if (placeId) {
-      let details = await callGooglePlacesLegacy<LegacyDetailsResponse>("details", {
-        place_id: placeId,
-        fields: "place_id,name,rating,user_ratings_total,reviews,url",
-        language: "fr",
-      });
-
-      if (details.status !== "OK" || !details.result) {
-        const searchedPlaceId = await resolvePlaceIdFromSearchLegacy();
-        if (searchedPlaceId && searchedPlaceId !== placeId) {
-          placeId = searchedPlaceId;
-          details = await callGooglePlacesLegacy<LegacyDetailsResponse>("details", {
-            place_id: placeId,
-            fields: "place_id,name,rating,user_ratings_total,reviews,url",
-            language: "fr",
-          });
-        }
-      }
-
-      if (details.status === "OK" && details.result) {
-        const place = details.result;
-        const mappedReviews = (place.reviews || []).map(review => ({
-          authorName: review.author_name || "Client Google",
-          rating: review.rating || 0,
-          text: review.text || "",
-          languageCode: String(review.language || "").toLowerCase(),
-          time: review.time || 0,
-        }));
-        const reviews = mappedReviews.map(({ languageCode: _languageCode, ...review }) => review);
-
-        return res.json({
-          placeId: place.place_id || placeId,
-          name: place.name || "Sabine Sailing",
-          rating: place.rating || FALLBACK_RATING,
-          userRatingsTotal:
-            Number(place.user_ratings_total || 0) > 0
-              ? Number(place.user_ratings_total)
-              : FALLBACK_USER_RATINGS_TOTAL,
-          url:
-            place.url ||
-            (placeId
-              ? `https://search.google.com/local/reviews?placeid=${encodeURIComponent(placeId)}`
-              : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
-                  place.name || DEFAULT_BUSINESS_QUERY
-                )}`),
-          reviews: reviews.length ? reviews : FALLBACK_REVIEWS,
-          source: "google_places_legacy",
-        });
-      }
-    }
-
-    return res.json(fallbackPayload("Google Place Details indisponible"));
-  } catch (error: any) {
-    const message = error?.message || "Failed to fetch Google reviews";
-    return res.json(fallbackPayload(message));
-  }
+    reviews: REVIEWS,
+    source: "google_static",
+  });
 });
 
 export default router;

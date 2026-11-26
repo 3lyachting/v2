@@ -22,6 +22,7 @@ type GoogleReviewsResponse = {
   userRatingsTotal: number;
   url: string;
   reviews: GoogleReview[];
+  source?: string;
 };
 
 export default function AvisGoogle({ isEnglish = false }: { isEnglish?: boolean }) {
@@ -32,7 +33,7 @@ export default function AvisGoogle({ isEnglish = false }: { isEnglish?: boolean 
   useEffect(() => {
     let mounted = true;
 
-    fetch("/api/google-reviews")
+    fetch("/api/google-reviews", { cache: "no-store" })
       .then(async response => {
         const body = (await response.json()) as GoogleReviewsResponse | { error: string };
         if (!response.ok) {
@@ -86,7 +87,7 @@ export default function AvisGoogle({ isEnglish = false }: { isEnglish?: boolean 
   const placeUrl =
     data?.url || "https://www.google.com/maps/search/?api=1&query=Sabine+Sailing+La+Ciotat";
 
-  const displayedReviews = (data?.reviews || []).slice(0, 4);
+  const displayedReviews = data?.reviews || [];
 
   return (
     <section id="avis-google" className="editorial-section relative scroll-mt-24 overflow-hidden bg-[oklch(0.985_0.012_95)]">
@@ -216,7 +217,7 @@ export default function AvisGoogle({ isEnglish = false }: { isEnglish?: boolean 
                     </div>
                   </div>
                   <span className="shrink-0 inline-flex items-center rounded-full bg-[oklch(0.96_0.02_220)] px-3 py-1 text-[11px] font-semibold uppercase tracking-wider text-[oklch(0.42_0.03_240)] ring-1 ring-black/[0.05]">
-                    {isEnglish ? "Live" : "En direct"}
+                    Google
                   </span>
                 </div>
 
@@ -289,6 +290,16 @@ export default function AvisGoogle({ isEnglish = false }: { isEnglish?: boolean 
                               {[...Array(Math.round(review.rating))].map((_, j) => (
                                 <Star key={j} className="w-3.5 h-3.5" style={{ fill: "#B58E6E", color: "#B58E6E" }} />
                               ))}
+                              {review.time > 0 && (
+                                <span className="ml-1 text-[11px] text-[oklch(0.52_0.02_240)]">
+                                  {new Date(review.time * 1000).toLocaleDateString(isEnglish ? "en-GB" : "fr-FR", {
+                                    day: "numeric",
+                                    month: "short",
+                                    year: "numeric",
+                                    timeZone: "Europe/Paris",
+                                  })}
+                                </span>
+                              )}
                             </div>
                           </div>
                         </div>
@@ -303,8 +314,8 @@ export default function AvisGoogle({ isEnglish = false }: { isEnglish?: boolean 
                 <div className="mt-8 pt-6 border-t border-[oklch(0.92_0.015_220)] flex flex-wrap items-center justify-between gap-4">
                   <p className="text-xs text-[oklch(0.48_0.03_240)] max-w-sm">
                     {isEnglish
-                      ? `Ratings and wording come from Google; we show a selection from ${data?.userRatingsTotal || "all"} reviews.`
-                      : `Les notes et textes proviennent de Google ; nous affichons un extrait parmi ${data?.userRatingsTotal || "tous les"} avis.`}
+                      ? `Google rating ${data?.rating?.toFixed(1) || "5.0"} from ${data?.userRatingsTotal || ""} reviews. Latest guest comments below.`
+                      : `Note Google ${(data?.rating?.toFixed(1) || "5.0").replace(".", ",")} sur ${data?.userRatingsTotal || ""} avis. Derniers commentaires ci-dessus.`}
                   </p>
                   <a
                     href={placeUrl}
